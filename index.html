@@ -316,9 +316,9 @@
       <a href="#who">Who We Help</a>
       <a href="#why">Why Us</a>
       <a href="#about">About</a>
-      <a href="#contact">Contact</a>
+      <a href="#" onclick="openModal();return false;">Contact</a>
     </nav>
-    <a href="#contact" class="btn-red">Request Estimate</a>
+    <a href="#" onclick="openModal();return false;" class="btn-red">Request Estimate</a>
     <button class="hdr-toggle" onclick="document.getElementById('mn').classList.toggle('open')" aria-label="Menu">
       <span></span><span></span><span></span>
     </button>
@@ -328,8 +328,8 @@
     <a href="#who" onclick="document.getElementById('mn').classList.remove('open')">Who We Help</a>
     <a href="#why" onclick="document.getElementById('mn').classList.remove('open')">Why Us</a>
     <a href="#about" onclick="document.getElementById('mn').classList.remove('open')">About</a>
-    <a href="#contact" onclick="document.getElementById('mn').classList.remove('open')">Contact</a>
-    <a href="#contact" class="btn-red" onclick="document.getElementById('mn').classList.remove('open')">Request Estimate</a>
+    <a href="#" onclick="document.getElementById('mn').classList.remove('open');openModal();return false;">Contact</a>
+    <a href="#" class="btn-red" onclick="document.getElementById('mn').classList.remove('open');openModal();return false;">Request Estimate</a>
   </nav>
 </header>
 
