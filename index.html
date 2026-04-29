@@ -243,6 +243,34 @@
       font-size: 12px; color: rgba(255,255,255,.3);
     }
 
+    /* ── REVIEWS ── */
+    .reviews {
+      background: #F4F7FA;
+      padding: 72px 0 80px;
+      border-top: 1px solid #dce3ea;
+      border-bottom: 1px solid #dce3ea;
+    }
+    .reviews-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 32px;
+    }
+    .reviews-header {
+      text-align: center;
+      margin-bottom: 44px;
+    }
+    .reviews-sub {
+      font-size: 15px;
+      line-height: 1.7;
+      color: #5a6a7a;
+      margin: 10px auto 0;
+      max-width: 480px;
+    }
+    .reviews-widget {
+      min-height: 200px;
+      width: 100%;
+    }
+
     /* ── RESPONSIVE ── */
     @media (max-width: 960px) {
       .hdr-nav, .hdr .btn-red { display: none; }
@@ -315,7 +343,7 @@
     <div class="hero-rule"></div>
     <p class="hero-tagline">Repairs. Renovations. Results.</p>
     <p class="hero-copy">From small repairs to full-scale projects,<br>we handle the details so you don&rsquo;t have to.<br>One team. Start to finish.</p>
-    <button onclick="openModal()" class="btn-red hero-cta" type="submit">Request Estimate</button>
+    <button onclick="openModal()" class="btn-red hero-cta" type="button">Request Estimate</button>
   </div>
 </section>
 
@@ -512,6 +540,23 @@
   </div>
 </section>
 
+<!-- GOOGLE REVIEWS -->
+<section class="reviews" id="reviews">
+  <div class="reviews-inner">
+    <div class="reviews-header">
+      <div style="display:flex;justify-content:center;">
+        <div class="eyebrow">Google Reviews</div>
+      </div>
+      <h2 class="sec-h2">What Our Clients Say</h2>
+      <p class="reviews-sub">Real feedback from the people we&rsquo;ve worked with across Idaho.</p>
+    </div>
+    <div class="reviews-widget">
+      <script src="https://elfsightcdn.com/platform.js" async></script>
+      <div class="elfsight-app-ae5b39aa-6f1d-4fbd-a655-c8592def0650"></div>
+    </div>
+  </div>
+</section>
+
 <!-- FOOTER / CONTACT -->
 <footer class="ftr" id="contact">
   <div class="ftr-main">
@@ -569,7 +614,7 @@
     </div>
 
     <!-- Form -->
-    <form action="https://formspree.io/f/xrervbqk" method="POST">
+    <form class="modal-form" id="contactForm" novalidate onsubmit="handleSubmit(event)">
 
       <div class="form-row">
         <div class="form-group">
