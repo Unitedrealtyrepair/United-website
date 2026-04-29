@@ -614,7 +614,7 @@
     </div>
 
     <!-- Form -->
-    <form id="contactForm" action="https://formspree.io/f/xrervbqk" method="POST" onsubmit="handleSubmit(event)">
+    <form id="contactForm" action="https://formspree.io/f/xrervbqk" method="POST">
 
       <div class="form-row">
         <div class="form-group">
@@ -926,22 +926,7 @@ function validateForm() {
   return valid;
 }
 
-function handleSubmit(e) {
-  e.preventDefault();
-  if (!validateForm()) return;
 
-  const btn = document.querySelector('.btn-submit');
-  btn.classList.add('loading');
-  btn.disabled = true;
-
-  // Simulate sending (replace with real fetch/API call in production)
-  setTimeout(() => {
-    btn.classList.remove('loading');
-    btn.disabled = false;
-    document.getElementById('contactForm').hidden = true;
-    document.getElementById('modalSuccess').hidden = false;
-  }, 1600);
-}
 </script>
 
 </body>
