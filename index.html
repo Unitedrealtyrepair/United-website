@@ -343,7 +343,7 @@
     <div class="hero-rule"></div>
     <p class="hero-tagline">Repairs. Renovations. Results.</p>
     <p class="hero-copy">From small repairs to full-scale projects,<br>we handle the details so you don&rsquo;t have to.<br>One team. Start to finish.</p>
-    <button onclick="openModal()" class="btn-red hero-cta" type="submit">Request Estimate</button>
+    <button onclick="openModal()" class="btn-red hero-cta" type="button">Request Estimate</button>
   </div>
 </section>
 
@@ -614,7 +614,9 @@
     </div>
 
     <!-- Form -->
-    <form id="contactForm" action="https://formspree.io/f/xrervbqk" method="POST">
+    <form id="contactForm" class="modal-form" action="https://formspree.io/f/xrervbqk" method="POST">
+      <input type="hidden" name="_subject" value="New Estimate Request - United Realty Repair" />
+      <input type="text" name="_gotcha" style="display:none" tabindex="-1" autocomplete="off" />
 
       <div class="form-row">
         <div class="form-group">
@@ -635,7 +637,13 @@
       </div>
 
       <div class="form-group">
-        <label for="cf-type">Project Type</label>
+        <label for="cf-address">Property Address</label>
+        <input type="text" id="cf-address" name="property_address" placeholder="Street address, city" autocomplete="street-address" />
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="cf-type">Project Type</label>
         <div class="select-wrap">
           <select id="cf-type" name="project_type">
             <option value="" disabled selected>Select a category…</option>
@@ -647,6 +655,21 @@
             <option>Other</option>
           </select>
           <svg class="select-caret" viewBox="0 0 12 8" fill="none"><path d="M1 1l5 5 5-5" stroke="#0A2A4A" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </div>
+        </div>
+        <div class="form-group">
+          <label for="cf-timeline">Timeline</label>
+          <div class="select-wrap">
+            <select id="cf-timeline" name="timeline">
+              <option value="" disabled selected>Select timeline…</option>
+              <option>ASAP</option>
+              <option>This week</option>
+              <option>Within 2 weeks</option>
+              <option>This month</option>
+              <option>Flexible</option>
+            </select>
+            <svg class="select-caret" viewBox="0 0 12 8" fill="none"><path d="M1 1l5 5 5-5" stroke="#0A2A4A" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </div>
         </div>
       </div>
 
@@ -862,34 +885,34 @@ body.modal-open { overflow: hidden; }
 </style>
 
 <script>
+const contactModal = document.getElementById('contactModal');
+const contactForm = document.getElementById('contactForm');
+const modalSuccess = document.getElementById('modalSuccess');
+
 function openModal() {
-  document.getElementById('contactModal').classList.add('open');
+  contactModal.classList.add('open');
   document.body.classList.add('modal-open');
   setTimeout(() => document.getElementById('cf-name').focus(), 300);
 }
 
 function closeModal() {
-  const overlay = document.getElementById('contactModal');
-  overlay.classList.remove('open');
+  contactModal.classList.remove('open');
   document.body.classList.remove('modal-open');
-  // Reset after transition
   setTimeout(() => {
-    document.getElementById('contactForm').reset();
-    document.getElementById('contactForm').hidden = false;
-    document.getElementById('modalSuccess').hidden = true;
+    contactForm.reset();
+    contactForm.hidden = false;
+    modalSuccess.hidden = true;
     clearErrors();
+    setSubmitLoading(false);
   }, 280);
 }
 
 function handleOverlayClick(e) {
-  if (e.target === document.getElementById('contactModal')) closeModal();
+  if (e.target === contactModal) closeModal();
 }
 
-// Close on Escape key
 document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape' && document.getElementById('contactModal').classList.contains('open')) {
-    closeModal();
-  }
+  if (e.key === 'Escape' && contactModal.classList.contains('open')) closeModal();
 });
 
 function clearErrors() {
@@ -926,7 +949,39 @@ function validateForm() {
   return valid;
 }
 
+function setSubmitLoading(isLoading) {
+  const btn = contactForm.querySelector('.btn-submit');
+  btn.disabled = isLoading;
+  btn.classList.toggle('loading', isLoading);
+}
 
+contactForm.addEventListener('submit', async function(e) {
+  e.preventDefault();
+
+  if (!validateForm()) return;
+
+  setSubmitLoading(true);
+
+  try {
+    const response = await fetch(contactForm.action, {
+      method: 'POST',
+      body: new FormData(contactForm),
+      headers: { 'Accept': 'application/json' }
+    });
+
+    if (response.ok) {
+      contactForm.hidden = true;
+      modalSuccess.hidden = false;
+      contactForm.reset();
+    } else {
+      alert('Something went wrong sending the form. Please call or text 208-803-1372, or email info@unitedrealtyrepair.com.');
+    }
+  } catch (error) {
+    alert('Something went wrong sending the form. Please call or text 208-803-1372, or email info@unitedrealtyrepair.com.');
+  } finally {
+    setSubmitLoading(false);
+  }
+});
 </script>
 
 </body>
