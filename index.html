@@ -124,11 +124,11 @@
     /* Icon circle: light gray filled, ~90px */
     .svc-ico {
       width: 90px; height: 90px; border-radius: 50%;
-      background: #F4F7FA;
+      background: #D6E4F0;
       display: flex; align-items: center; justify-content: center;
       margin: 0 auto 22px;
     }
-    .svc-ico svg { width: 46px; height: 46px; }
+    .svc-ico span { font-size: 38px; line-height: 1; }
     .svc-card h3 {
       font-family: "Barlow Condensed", sans-serif;
       font-size: 14px; font-weight: 700; letter-spacing: .09em;
@@ -154,11 +154,11 @@
     /* Icon: outline circle only, no fill */
     .who-ico {
       width: 72px; height: 72px; border-radius: 50%;
-      border: 2px solid #dce3ea; background: #fff;
+      border: 2px solid #b8cfe0; background: #D6E4F0;
       display: flex; align-items: center; justify-content: center;
       margin: 0 auto 20px;
     }
-    .who-ico svg { width: 32px; height: 32px; }
+    .who-ico span { font-size: 28px; line-height: 1; }
     .who-card h3 {
       font-family: "Barlow Condensed", sans-serif;
       font-size: 14px; font-weight: 700; letter-spacing: .09em;
@@ -316,9 +316,9 @@
       <a href="#who">Who We Help</a>
       <a href="#why">Why Us</a>
       <a href="#about">About</a>
-      <a href="#" onclick="openModal();return false;">Contact</a>
+      <a href="javascript:void(0)" onclick="openModal()">Contact</a>
     </nav>
-    <a href="#" onclick="openModal();return false;" class="btn-red">Request Estimate</a>
+    <a href="javascript:void(0)" onclick="openModal()" class="btn-red">Request Estimate</a>
     <button class="hdr-toggle" onclick="document.getElementById('mn').classList.toggle('open')" aria-label="Menu">
       <span></span><span></span><span></span>
     </button>
@@ -328,8 +328,8 @@
     <a href="#who" onclick="document.getElementById('mn').classList.remove('open')">Who We Help</a>
     <a href="#why" onclick="document.getElementById('mn').classList.remove('open')">Why Us</a>
     <a href="#about" onclick="document.getElementById('mn').classList.remove('open')">About</a>
-    <a href="#" onclick="document.getElementById('mn').classList.remove('open');openModal();return false;">Contact</a>
-    <a href="#" class="btn-red" onclick="document.getElementById('mn').classList.remove('open');openModal();return false;">Request Estimate</a>
+    <a href="javascript:void(0)" onclick="document.getElementById('mn').classList.remove('open');openModal()">Contact</a>
+    <a href="javascript:void(0)" class="btn-red" onclick="document.getElementById('mn').classList.remove('open');openModal()">Request Estimate</a>
   </nav>
 </header>
 
@@ -357,17 +357,7 @@
 
     <div class="svc-card">
       <div class="svc-ico">
-        <svg viewBox="0 0 46 46" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <!-- house outline -->
-          <path d="M6 20L23 7l17 13" stroke="#0A2A4A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M10 17.5v16H20V26h6v7.5h10v-16" stroke="#0A2A4A" stroke-width="2" stroke-linejoin="round"/>
-          <!-- wrench red -->
-          <circle cx="31" cy="22" r="4.5" stroke="#D71920" stroke-width="1.8"/>
-          <path d="M34.2 25.2l3 3" stroke="#D71920" stroke-width="2.2" stroke-linecap="round"/>
-          <!-- screwdriver navy -->
-          <path d="M16 20v5" stroke="#0A2A4A" stroke-width="2" stroke-linecap="round"/>
-          <path d="M14 20h4" stroke="#D71920" stroke-width="2" stroke-linecap="round"/>
-        </svg>
+        <span>🔧</span>
       </div>
       <h3>Repairs &amp; Maintenance</h3>
       <p>From minor fixes to major repairs, we keep properties in top shape.</p>
@@ -375,19 +365,7 @@
 
     <div class="svc-card">
       <div class="svc-ico">
-        <svg viewBox="0 0 46 46" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <!-- paint roller frame -->
-          <rect x="9" y="8" width="24" height="13" rx="2" stroke="#0A2A4A" stroke-width="2"/>
-          <!-- roller sleeve -->
-          <rect x="12" y="11" width="18" height="7" rx="1" fill="#dce3ea" stroke="#0A2A4A" stroke-width="1.4"/>
-          <!-- handle arm -->
-          <path d="M33 14.5h5v8" stroke="#0A2A4A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M38 22.5v10" stroke="#0A2A4A" stroke-width="2" stroke-linecap="round"/>
-          <!-- paint drip can -->
-          <rect x="32" y="32" width="10" height="8" rx="2" stroke="#D71920" stroke-width="2"/>
-          <path d="M37 32v-2" stroke="#D71920" stroke-width="2" stroke-linecap="round"/>
-          <path d="M37 36v2" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
+        <span>🔨</span>
       </div>
       <h3>Renovations</h3>
       <p>Kitchens, bathrooms, flooring, painting and more. We bring spaces to life.</p>
@@ -395,17 +373,7 @@
 
     <div class="svc-card">
       <div class="svc-ico">
-        <svg viewBox="0 0 46 46" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <!-- clipboard -->
-          <rect x="10" y="9" width="26" height="30" rx="2" stroke="#0A2A4A" stroke-width="2"/>
-          <path d="M19 9V7h8v2" stroke="#0A2A4A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <!-- checklist rows -->
-          <path d="M16 19l2.5 2.5L23 17" stroke="#D71920" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M26 20h5" stroke="#0A2A4A" stroke-width="1.7" stroke-linecap="round"/>
-          <path d="M16 26l2.5 2.5L23 24" stroke="#D71920" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M26 27h5" stroke="#0A2A4A" stroke-width="1.7" stroke-linecap="round"/>
-          <path d="M16 33h15" stroke="#0A2A4A" stroke-width="1.7" stroke-linecap="round"/>
-        </svg>
+        <span>📋</span>
       </div>
       <h3>Project Management</h3>
       <p>We coordinate every detail, keep timelines on track and deliver quality results.</p>
@@ -413,16 +381,7 @@
 
     <div class="svc-card">
       <div class="svc-ico">
-        <svg viewBox="0 0 46 46" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <!-- rooftop -->
-          <path d="M6 20L23 7l17 13" stroke="#0A2A4A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <rect x="9" y="20" width="28" height="19" rx="1" stroke="#0A2A4A" stroke-width="2"/>
-          <!-- two windows -->
-          <rect x="13" y="24" width="7" height="7" rx="1" stroke="#0A2A4A" stroke-width="1.7"/>
-          <rect x="26" y="24" width="7" height="7" rx="1" stroke="#0A2A4A" stroke-width="1.7"/>
-          <!-- red door -->
-          <rect x="19" y="30" width="8" height="9" rx="1" stroke="#D71920" stroke-width="1.7"/>
-        </svg>
+        <span>🏠</span>
       </div>
       <h3>Property Solutions</h3>
       <p>Interior, exterior, and everything in between. No job too small, no project too big.</p>
@@ -441,12 +400,7 @@
 
     <div class="who-card">
       <div class="who-ico">
-        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="10" cy="10" r="4" stroke="#0A2A4A" stroke-width="1.7"/>
-          <path d="M2 26c0-4.418 3.134-8 8-8" stroke="#0A2A4A" stroke-width="1.7" stroke-linecap="round"/>
-          <circle cx="22" cy="11" r="3.5" stroke="#D71920" stroke-width="1.7"/>
-          <path d="M15 26c0-3.866 3.134-7 7-7s7 3.134 7 7" stroke="#D71920" stroke-width="1.7" stroke-linecap="round"/>
-        </svg>
+        <span>🤝</span>
       </div>
       <h3>Real Estate<br>Professionals</h3>
       <p>Inspection requests, repairs and more.</p>
@@ -454,10 +408,7 @@
 
     <div class="who-card">
       <div class="who-ico">
-        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M16 3L4 8.5v8c0 6.9 5.1 13.3 12 15.5C22.9 29.8 28 23.4 28 16.5v-8L16 3z" stroke="#0A2A4A" stroke-width="1.7" stroke-linejoin="round"/>
-          <path d="M11 16l3.5 3.5 6.5-7" stroke="#D71920" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
+        <span>🔑</span>
       </div>
       <h3>Property<br>Managers</h3>
       <p>Reliable support to keep properties moving.</p>
@@ -465,12 +416,7 @@
 
     <div class="who-card">
       <div class="who-ico">
-        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="16" cy="9" r="5" stroke="#0A2A4A" stroke-width="1.7"/>
-          <path d="M8 28c0-4.418 3.582-8 8-8s8 3.582 8 8" stroke="#0A2A4A" stroke-width="1.7" stroke-linecap="round"/>
-          <path d="M14 20l2 3 2-3" stroke="#D71920" stroke-width="1.5" stroke-linejoin="round"/>
-          <path d="M16 23v3" stroke="#D71920" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
+        <span>☂️</span>
       </div>
       <h3>Insurance<br>Professionals</h3>
       <p>Fast turnaround and clear communication.</p>
@@ -478,13 +424,7 @@
 
     <div class="who-card">
       <div class="who-ico">
-        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="12" cy="13" r="6.5" stroke="#0A2A4A" stroke-width="1.7"/>
-          <circle cx="12" cy="13" r="2.5" fill="#D71920"/>
-          <path d="M17 18.5l10 10" stroke="#0A2A4A" stroke-width="1.9" stroke-linecap="round"/>
-          <path d="M23 24.5l2 2" stroke="#D71920" stroke-width="1.9" stroke-linecap="round"/>
-          <path d="M26 21.5l2 2" stroke="#D71920" stroke-width="1.9" stroke-linecap="round"/>
-        </svg>
+        <span>💰</span>
       </div>
       <h3>Investors &amp;<br>Homeowners</h3>
       <p>Quality work you can count on.</p>
