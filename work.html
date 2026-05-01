@@ -393,8 +393,8 @@
     <a href="index.html#why" onclick="document.getElementById('mn').classList.remove('open')">Why Us</a>
     <a href="index.html#about" onclick="document.getElementById('mn').classList.remove('open')">About</a>
     <a href="work.html" onclick="document.getElementById('mn').classList.remove('open')">Our Work</a>
-    <a href="javascript:void(0)" onclick="document.getElementById('mn').classList.remove('open');openModal()" onclick="openModal()">Contact</a>
-    <a href="javascript:void(0)" class="btn-red" onclick="document.getElementById('mn').classList.remove('open');openModal()" onclick="openModal()">Request Estimate</a>
+    <a href="javascript:void(0)" onclick="document.getElementById('mn').classList.remove('open');openModal()">Contact</a>
+    <a href="javascript:void(0)" class="btn-red" onclick="document.getElementById('mn').classList.remove('open');openModal()">Request Estimate</a>
   </nav>
 </header>
 
@@ -501,7 +501,7 @@
 <div class="verified-copy"><h2>Verified Work You Can Trust</h2><p>View additional project history, licensing information, and third-party contractor profile details through our BuildZoom profile.</p></div>
     <div class="verified-action"><a href="https://www.buildzoom.com/contractor/united-realty-repair?ad_location=co_website" target="_blank" rel="noopener noreferrer" class="btn-red">View Verified Project History</a></div>
   </div></section>
-  <section class="work-cta-wrap"><div class="work-cta"><div><h2>Ready to get your project moving?</h2><p>Send the details and we’ll help get the next step lined up.</p></div><a href="javascript:void(0)" class="btn-red" onclick="openModal()" onclick="openModal()">Request Estimate</a></div></section>
+  <section class="work-cta-wrap"><div class="work-cta"><div><h2>Ready to get your project moving?</h2><p>Send the details and we’ll help get the next step lined up.</p></div><a href="javascript:void(0)" class="btn-red" onclick="openModal()">Request Estimate</a></div></section>
 </main>
 
 <!-- FOOTER / CONTACT -->
@@ -930,43 +930,5 @@ contactForm.addEventListener('submit', async function(e) {
   }
 });
 </script>
-
-
-<script>
-(function () {
-  window.openModal = function () {
-    var modal = document.getElementById('estimateModal') || document.querySelector('.modal');
-    if (modal) {
-      modal.classList.add('open');
-      modal.style.display = 'flex';
-      modal.setAttribute('aria-hidden', 'false');
-      document.body.style.overflow = 'hidden';
-    }
-  };
-
-  window.closeModal = function () {
-    var modal = document.getElementById('estimateModal') || document.querySelector('.modal');
-    if (modal) {
-      modal.classList.remove('open');
-      modal.style.display = 'none';
-      modal.setAttribute('aria-hidden', 'true');
-      document.body.style.overflow = '';
-    }
-  };
-
-  window.toggleMenu = function () {
-    var menu = document.getElementById('mn');
-    if (menu) menu.classList.toggle('open');
-  };
-
-  document.addEventListener('click', function (event) {
-    var target = event.target;
-    if (target && target.matches('[data-close-modal]')) {
-      window.closeModal();
-    }
-  });
-})();
-</script>
-
 </body>
 </html>
