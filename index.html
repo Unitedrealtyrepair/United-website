@@ -301,7 +301,7 @@
       .who-card { border-right: none !important; border-top: 1px solid #dce3ea; }
       .who-card:first-child { border-top: none; }
     }
-  </style>
+</style>
 </head>
 <body>
 
@@ -316,9 +316,10 @@
       <a href="#who">Who We Help</a>
       <a href="#why">Why Us</a>
       <a href="#about">About</a>
+      <a href="work.html">Our Work</a>
       <a href="javascript:void(0)" onclick="openModal()">Contact</a>
     </nav>
-    <a href="javascript:void(0)" onclick="openModal()" class="btn-red">Request Estimate</a>
+    <a href="javascript:void(0)" onclick="openModal()" class="btn-red" onclick="openModal()">Request Estimate</a>
     <button class="hdr-toggle" onclick="document.getElementById('mn').classList.toggle('open')" aria-label="Menu">
       <span></span><span></span><span></span>
     </button>
@@ -328,8 +329,9 @@
     <a href="#who" onclick="document.getElementById('mn').classList.remove('open')">Who We Help</a>
     <a href="#why" onclick="document.getElementById('mn').classList.remove('open')">Why Us</a>
     <a href="#about" onclick="document.getElementById('mn').classList.remove('open')">About</a>
-    <a href="javascript:void(0)" onclick="document.getElementById('mn').classList.remove('open');openModal()">Contact</a>
-    <a href="javascript:void(0)" class="btn-red" onclick="document.getElementById('mn').classList.remove('open');openModal()">Request Estimate</a>
+        <a href="work.html" onclick="document.getElementById('mn').classList.remove('open')">Our Work</a>
+<a href="javascript:void(0)" onclick="document.getElementById('mn').classList.remove('open');openModal()" onclick="openModal()">Contact</a>
+    <a href="javascript:void(0)" class="btn-red" onclick="document.getElementById('mn').classList.remove('open');openModal()" onclick="openModal()">Request Estimate</a>
   </nav>
 </header>
 
@@ -343,7 +345,7 @@
     <div class="hero-rule"></div>
     <p class="hero-tagline">Repairs. Renovations. Results.</p>
     <p class="hero-copy">From small repairs to full-scale projects,<br>we handle the details so you don&rsquo;t have to.<br>One team. Start to finish.</p>
-    <button onclick="openModal()" class="btn-red hero-cta" type="button">Request Estimate</button>
+    <button class="btn-red hero-cta" type="button" onclick="openModal()" type="button">Request Estimate</button>
   </div>
 </section>
 
@@ -504,11 +506,11 @@
       <div class="ftr-redline"></div>
       <h2>Have a Project?<br>Let&rsquo;s Get It Done.</h2>
       <p>Whether it&rsquo;s a quick repair or a full project, we&rsquo;re ready to help. Send it over and we&rsquo;ll take a look.</p>
-      <button class="btn-ftr" onclick="openModal()" type="button">
+      <button class="btn-ftr" type="button" onclick="openModal()" type="button">
         Request Estimate
         <svg viewBox="0 0 16 16" fill="none"><path d="M2 8h12M9 3.5l5 4.5-5 4.5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-    </div>
+</div>
     <div class="ftr-divider"></div>
     <div class="ftr-right">
       <div class="ftr-row">
@@ -922,6 +924,43 @@ contactForm.addEventListener('submit', async function(e) {
     setSubmitLoading(false);
   }
 });
+</script>
+
+
+<script>
+(function () {
+  window.openModal = function () {
+    var modal = document.getElementById('estimateModal') || document.querySelector('.modal');
+    if (modal) {
+      modal.classList.add('open');
+      modal.style.display = 'flex';
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    }
+  };
+
+  window.closeModal = function () {
+    var modal = document.getElementById('estimateModal') || document.querySelector('.modal');
+    if (modal) {
+      modal.classList.remove('open');
+      modal.style.display = 'none';
+      modal.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+    }
+  };
+
+  window.toggleMenu = function () {
+    var menu = document.getElementById('mn');
+    if (menu) menu.classList.toggle('open');
+  };
+
+  document.addEventListener('click', function (event) {
+    var target = event.target;
+    if (target && target.matches('[data-close-modal]')) {
+      window.closeModal();
+    }
+  });
+})();
 </script>
 
 </body>
