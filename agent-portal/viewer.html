@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>URR Submission Viewer</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --navy: #1B2D4F; --navy-light: #243a65; --navy-dark: #162342;
+    --red: #C8102E; --red-dark: #a50d25;
+    --green-bg: #EAF3DE; --green-text: #3B6D11; --green-border: #C0DD97;
+    --red-bg: #FCEBEB; --red-text: #A32D2D; --red-border: #F7C1C1;
+    --gray-bg: #f5f5f5; --gray-border: #ddd; --gray-text: #666;
+    --text: #1a1a1a; --text-muted: #666; --border: #e0e0e0;
+    --surface: #fff; --surface-2: #f8f8f8;
+    --radius: 8px; --radius-lg: 12px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  body { font-family: var(--font); background: #eef0f4; min-height: 100vh; padding: 24px 16px; color: var(--text); }
+  #app { max-width: 720px; margin: 0 auto; }
+
+  .header {
+    background: var(--navy); color: #fff;
+    padding: 1rem 1.25rem;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+  }
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .logo-mark { background: var(--red); color: #fff; font-size: 12px; font-weight: 600; padding: 4px 8px; border-radius: 4px; letter-spacing: 0.05em; }
+  .header h1 { font-size: 15px; font-weight: 500; }
+  .header p { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 2px; }
+
+  .lookup-bar {
+    background: var(--navy-light); padding: 10px 1.25rem;
+    display: flex; gap: 8px; align-items: center;
+  }
+  .lookup-bar input {
+    flex: 1; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25);
+    color: #fff; border-radius: var(--radius); padding: 7px 10px;
+    font-size: 13px; font-family: var(--font);
+  }
+  .lookup-bar input::placeholder { color: rgba(255,255,255,0.5); }
+  .lookup-bar input:focus { outline: none; border-color: rgba(255,255,255,0.6); }
+  .btn-lookup {
+    font-size: 13px; padding: 7px 14px; background: var(--red);
+    color: #fff; border: none; border-radius: var(--radius);
+    cursor: pointer; font-family: var(--font); white-space: nowrap;
+  }
+  .btn-lookup:hover { background: var(--red-dark); }
+
+  .body {
+    background: var(--surface); border: 1px solid var(--border); border-top: none;
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    min-height: 200px;
+  }
+
+  /* States */
+  .state { padding: 3rem; text-align: center; color: var(--text-muted); font-size: 13px; }
+  .state .icon { font-size: 32px; margin-bottom: 10px; }
+  .state h3 { font-size: 15px; font-weight: 500; color: var(--text); margin-bottom: 6px; }
+  .state p { line-height: 1.6; }
+  .error-state .icon { color: var(--red); }
+
+  /* Report */
+  .report { padding: 0; }
+
+  .report-hero {
+    background: var(--surface-2); border-bottom: 1px solid var(--border);
+    padding: 1.25rem 1.5rem;
+    display: grid; grid-template-columns: 1fr auto; gap: 1rem; align-items: start;
+  }
+  .report-address { font-size: 18px; font-weight: 500; margin-bottom: 4px; }
+  .report-agent { font-size: 13px; color: var(--text-muted); line-height: 1.7; }
+  .report-agent a { color: var(--navy); text-decoration: none; }
+  .report-agent a:hover { text-decoration: underline; }
+  .report-meta { text-align: right; font-size: 12px; color: var(--text-muted); line-height: 1.7; }
+
+  .summary-bar {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    border-bottom: 1px solid var(--border);
+  }
+  .stat { background: var(--surface-2); padding: 10px 14px; text-align: center; border-right: 1px solid var(--border); }
+  .stat:last-child { border-right: none; }
+  .stat .num { font-size: 20px; font-weight: 500; }
+  .stat .lbl { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+  .stat.red .num { color: var(--red); }
+  .stat.green .num { color: var(--green-text); }
+
+  .section-block { border-bottom: 1px solid var(--border); }
+  .section-block:last-child { border-bottom: none; }
+  .section-title {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 1.25rem; font-size: 13px; font-weight: 500;
+    background: var(--surface-2); border-bottom: 1px solid var(--border);
+  }
+  .section-icon { font-size: 15px; }
+  .section-badge { font-size: 11px; padding: 2px 7px; border-radius: 10px; margin-left: auto; }
+  .badge-ok { background: var(--green-bg); color: var(--green-text); }
+  .badge-issues { background: var(--red-bg); color: var(--red-text); }
+  .badge-mixed { background: #FFF8E1; color: #412402; }
+  .badge-na { background: var(--gray-bg); color: var(--gray-text); }
+
+  .item-list { padding: 4px 0; }
+  .item-entry {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 7px 1.25rem; font-size: 13px;
+    border-bottom: 1px solid var(--border);
+  }
+  .item-entry:last-child { border-bottom: none; }
+  .item-status {
+    font-size: 11px; padding: 2px 8px; border-radius: 4px;
+    white-space: nowrap; flex-shrink: 0; margin-top: 1px; font-weight: 500;
+  }
+  .status-needs { background: var(--red-bg); color: var(--red-text); border: 1px solid var(--red-border); }
+  .status-ok { background: var(--green-bg); color: var(--green-text); border: 1px solid var(--green-border); }
+  .status-na { background: var(--gray-bg); color: var(--gray-text); border: 1px solid var(--gray-border); }
+  .item-text { flex: 1; line-height: 1.5; color: var(--text); }
+  .item-note { font-size: 12px; color: var(--text-muted); margin-top: 3px; font-style: italic; }
+
+  .extra-notes-block {
+    margin: 0; padding: 1rem 1.25rem;
+    background: #FFFBF0; border-top: 1px solid #FFE082;
+  }
+  .extra-notes-block h4 { font-size: 12px; font-weight: 500; color: #412402; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .extra-notes-block p { font-size: 13px; color: var(--text); line-height: 1.6; }
+
+  .print-bar {
+    background: var(--surface-2); border-top: 1px solid var(--border);
+    padding: 10px 1.25rem; display: flex; gap: 8px; justify-content: flex-end;
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  }
+  .btn-print {
+    font-size: 13px; padding: 7px 14px; background: var(--navy);
+    color: #fff; border: none; border-radius: var(--radius);
+    cursor: pointer; font-family: var(--font);
+  }
+  .btn-print:hover { background: var(--navy-light); }
+  .btn-secondary {
+    font-size: 13px; padding: 7px 14px; background: none;
+    color: var(--text); border: 1px solid var(--border);
+    border-radius: var(--radius); cursor: pointer; font-family: var(--font);
+  }
+  .btn-secondary:hover { background: var(--surface); }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { animation: spin 0.8s linear infinite; display: inline-block; font-size: 20px; color: var(--navy); }
+
+  @media print {
+    body { background: #fff; padding: 0; }
+    .lookup-bar, .print-bar { display: none; }
+    .header { border-radius: 0; }
+    .body { border: none; border-radius: 0; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="header">
+    <div class="header-left">
+      <span class="logo-mark">URR</span>
+      <div>
+        <h1>Submission viewer</h1>
+        <p>United Realty Repair &nbsp;·&nbsp; 208-803-1372 &nbsp;·&nbsp; UnitedRealtyRepair.com</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="lookup-bar">
+    <input type="text" id="record-input" placeholder="Paste Airtable record URL or record ID (recXXXXXXXXXXXXXX)…" onkeydown="if(event.key==='Enter')loadRecord()" />
+    <button class="btn-lookup" onclick="loadRecord()">Load submission</button>
+  </div>
+
+  <div class="body" id="body">
+    <div class="state">
+      <div class="icon">📋</div>
+      <h3>Load a submission</h3>
+      <p>Paste an Airtable record URL or record ID above and click "Load submission" to view the full formatted report.</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const AIRTABLE_TOKEN = localStorage.getItem('urr_at') || '';
+  const AIRTABLE_BASE  = localStorage.getItem('urr_ab') || '';
+  const AIRTABLE_TABLE = 'Submissions';
+
+  const SECTIONS = [
+    { id: 'exterior', label: 'Exterior & roof', icon: '🏠' },
+    { id: 'hvac',     label: 'HVAC & mechanical', icon: '🌡' },
+    { id: 'plumbing', label: 'Plumbing', icon: '💧' },
+    { id: 'electrical', label: 'Electrical', icon: '⚡' },
+    { id: 'interior', label: 'Interior & structure', icon: '🏗' },
+    { id: 'kitchen',  label: 'Kitchen & appliances', icon: '🍳' },
+    { id: 'safety',   label: 'Safety & compliance', icon: '🛡' },
+  ];
+
+  function extractRecordId(input) {
+    input = input.trim();
+    // If it's a full URL, extract the rec... part
+    const match = input.match(/rec[A-Za-z0-9]{14,}/);
+    return match ? match[0] : null;
+  }
+
+  async function loadRecord() {
+    const raw = document.getElementById('record-input').value;
+    const recId = extractRecordId(raw);
+    if (!recId) {
+      showError('Could not find a record ID. Paste the full Airtable URL or just the record ID (starts with "rec").');
+      return;
+    }
+    showLoading();
+    try {
+      const res = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${encodeURIComponent(AIRTABLE_TABLE)}/${recId}`, {
+        headers: { 'Authorization': `Bearer ${AIRTABLE_TOKEN}` }
+      });
+      if (!res.ok) throw new Error('Record not found');
+      const data = await res.json();
+      renderReport(data.fields, recId);
+    } catch(e) {
+      showError('Could not load that record. Make sure the URL is correct and try again.');
+    }
+  }
+
+  function showLoading() {
+    document.getElementById('body').innerHTML = `<div class="state"><div class="spin">⟳</div><p style="margin-top:12px">Loading submission…</p></div>`;
+  }
+
+  function showError(msg) {
+    document.getElementById('body').innerHTML = `<div class="state error-state"><div class="icon">⚠</div><h3>Something went wrong</h3><p>${msg}</p></div>`;
+  }
+
+  function renderReport(f, recId) {
+    // Parse items
+    const repairLines = (f['Items Needing Repair'] || '').split('\n').filter(Boolean);
+    const okLines     = (f['OK Items'] || '').split('\n').filter(Boolean);
+
+    // Group by section
+    const sectionData = {};
+    SECTIONS.forEach(s => { sectionData[s.label] = { needs: [], ok: [] }; });
+
+    repairLines.forEach(line => {
+      const m = line.match(/^\[(.+?)\]\s*(.+?)(?:\s*—\s*(.+))?$/);
+      if (m) {
+        const sec = m[1], item = m[2], note = m[3] || '';
+        if (sectionData[sec]) sectionData[sec].needs.push({ item, note });
+        else {
+          // custom section
+          if (!sectionData['Other']) sectionData['Other'] = { needs: [], ok: [] };
+          sectionData['Other'].needs.push({ item, note });
+        }
+      }
+    });
+
+    okLines.forEach(line => {
+      const m = line.match(/^\[(.+?)\]\s*(.+?)(?:\s*—\s*(.+))?$/);
+      if (m) {
+        const sec = m[1], item = m[2], note = m[3] || '';
+        if (sectionData[sec]) sectionData[sec].ok.push({ item, note });
+        else {
+          if (!sectionData['Other']) sectionData['Other'] = { needs: [], ok: [] };
+          sectionData['Other'].ok.push({ item, note });
+        }
+      }
+    });
+
+    const totalReviewed = parseInt(f['Total Reviewed'] || 0);
+    const needsCount    = parseInt(f['Items Needing Repair Count'] || 0);
+    const okCount       = totalReviewed - needsCount;
+    const pct           = totalReviewed > 0 ? Math.round(totalReviewed / 57 * 100) : 0;
+
+    // Build section HTML
+    let sectionsHtml = '';
+    const allSections = [...SECTIONS, ...(sectionData['Other'] ? [{ label: 'Other', icon: '📌' }] : [])];
+
+    allSections.forEach(sec => {
+      const data = sectionData[sec.label];
+      if (!data) return;
+      const total = data.needs.length + data.ok.length;
+      if (total === 0) return;
+
+      let badgeClass = 'badge-na', badgeText = total + ' reviewed';
+      if (data.needs.length > 0 && data.ok.length > 0) { badgeClass = 'badge-mixed'; badgeText = data.needs.length + ' need attention'; }
+      else if (data.needs.length > 0) { badgeClass = 'badge-issues'; badgeText = data.needs.length + ' need attention'; }
+      else if (data.ok.length > 0) { badgeClass = 'badge-ok'; badgeText = data.ok.length + ' ok'; }
+
+      const itemsHtml = [
+        ...data.needs.map(i => `
+          <div class="item-entry">
+            <span class="item-status status-needs">Needs repair</span>
+            <div class="item-text">
+              ${i.item}
+              ${i.note ? `<div class="item-note">Note: ${i.note}</div>` : ''}
+            </div>
+          </div>`),
+        ...data.ok.map(i => `
+          <div class="item-entry">
+            <span class="item-status status-ok">OK</span>
+            <div class="item-text">${i.item}</div>
+          </div>`),
+      ].join('');
+
+      sectionsHtml += `
+        <div class="section-block">
+          <div class="section-title">
+            <span class="section-icon">${sec.icon}</span>
+            ${sec.label}
+            <span class="section-badge ${badgeClass}">${badgeText}</span>
+          </div>
+          <div class="item-list">${itemsHtml}</div>
+        </div>`;
+    });
+
+    const extraNotes = f['Extra Notes'] ? `
+      <div class="extra-notes-block">
+        <h4>Additional notes from agent</h4>
+        <p>${f['Extra Notes']}</p>
+      </div>` : '';
+
+    const submittedAt = f['Submitted At'] || '—';
+
+    document.getElementById('body').innerHTML = `
+      <div class="report">
+        <div class="report-hero">
+          <div>
+            <div class="report-address">${f['Property Address'] || '—'}</div>
+            <div class="report-agent">
+              <strong>${f['Agent Name'] || '—'}</strong><br>
+              <a href="mailto:${f['Agent Email']}">${f['Agent Email'] || '—'}</a><br>
+              ${f['Agent Phone'] || ''}
+            </div>
+          </div>
+          <div class="report-meta">
+            Submitted<br><strong>${submittedAt}</strong><br><br>
+            Record<br><span style="font-family:monospace;font-size:11px">${recId}</span>
+          </div>
+        </div>
+
+        <div class="summary-bar">
+          <div class="stat"><div class="num">${totalReviewed}</div><div class="lbl">Items reviewed</div></div>
+          <div class="stat green"><div class="num">${okCount}</div><div class="lbl">Good condition</div></div>
+          <div class="stat red"><div class="num">${needsCount}</div><div class="lbl">Need attention</div></div>
+          <div class="stat"><div class="num">${pct}%</div><div class="lbl">Complete</div></div>
+        </div>
+
+        ${sectionsHtml}
+        ${extraNotes}
+
+        <div class="print-bar">
+          <button class="btn-secondary" onclick="document.getElementById('record-input').value=''; document.getElementById('body').innerHTML='<div class=\\'state\\'><div class=\\'icon\\'>📋</div><h3>Load a submission</h3><p>Paste an Airtable record URL or record ID above and click Load submission to view the full formatted report.</p></div>'">← Load another</button>
+          <button class="btn-print" onclick="window.print()">🖨 Print / Save PDF</button>
+        </div>
+      </div>
+    `;
+  }
+</script>
+
+<!-- SETUP SCREEN -->
+<div id="setup-screen" style="display:none; position:fixed; inset:0; background:#eef0f4; z-index:999; align-items:center; justify-content:center; padding:16px;">
+  <div style="background:#fff; border-radius:12px; border:1px solid #e0e0e0; padding:2rem; width:420px; max-width:100%; box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+    <div style="background:#1B2D4F; color:#fff; display:inline-block; padding:6px 12px; border-radius:6px; font-size:13px; font-weight:600; letter-spacing:0.05em; margin-bottom:1rem;">URR</div>
+    <h2 style="font-size:16px; font-weight:500; margin-bottom:6px; color:#1a1a1a;">One-time setup</h2>
+    <p style="font-size:13px; color:#666; margin-bottom:1.25rem; line-height:1.6;">Enter your Airtable credentials. These are saved only to this browser and never stored in the code.</p>
+    <div style="margin-bottom:10px;">
+      <label style="display:block; font-size:12px; color:#666; margin-bottom:4px;">Airtable API token</label>
+      <input id="setup-token" type="password" style="width:100%; padding:8px 10px; border:1px solid #e0e0e0; border-radius:8px; font-size:13px; font-family:inherit; color:#1a1a1a;" placeholder="patXXXXXX..." />
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="display:block; font-size:12px; color:#666; margin-bottom:4px;">Airtable Base ID</label>
+      <input id="setup-base" type="text" style="width:100%; padding:8px 10px; border:1px solid #e0e0e0; border-radius:8px; font-size:13px; font-family:inherit; color:#1a1a1a;" placeholder="appXXXXXX..." />
+    </div>
+    <div id="setup-error" style="font-size:12px; color:#C8102E; margin-bottom:10px; display:none;">Please fill in all fields.</div>
+    <button onclick="saveSetup()" style="width:100%; padding:9px; background:#1B2D4F; color:#fff; border:none; border-radius:8px; font-size:14px; font-family:inherit; cursor:pointer; font-weight:500;">Save and continue</button>
+    <p style="font-size:11px; color:#999; margin-top:10px; text-align:center;">Stored in your browser only — never in the public code.</p>
+  </div>
+</div>
+
+<script>
+function saveSetup() {
+  var token = document.getElementById('setup-token').value.trim();
+  var base  = document.getElementById('setup-base').value.trim();
+  if (!token || !base) { document.getElementById('setup-error').style.display='block'; return; }
+  localStorage.setItem('urr_at', token);
+  localStorage.setItem('urr_ab', base);
+  document.getElementById('setup-screen').style.display='none';
+  location.reload();
+}
+window.addEventListener('DOMContentLoaded', function() {
+  var token = localStorage.getItem('urr_at');
+  var base  = localStorage.getItem('urr_ab');
+  if (!token || !base) {
+    document.getElementById('setup-screen').style.display='flex';
+  }
+});
+</script>
+</body>
+</html>
