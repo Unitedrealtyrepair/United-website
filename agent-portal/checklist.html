@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>URR Agent Property Checklist</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --navy: #1B2D4F;
+    --navy-light: #243a65;
+    --navy-dark: #162342;
+    --red: #C8102E;
+    --red-dark: #a50d25;
+    --green-bg: #EAF3DE; --green-text: #3B6D11; --green-border: #C0DD97;
+    --red-bg: #FCEBEB; --red-text: #A32D2D; --red-border: #F7C1C1;
+    --gray-bg: #f5f5f5; --gray-border: #ddd; --gray-text: #666;
+    --text: #1a1a1a; --text-muted: #666; --border: #e0e0e0;
+    --surface: #fff; --surface-2: #f8f8f8;
+    --radius: 8px; --radius-lg: 12px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  body { font-family: var(--font); background: #eef0f4; min-height: 100vh; padding: 24px 16px; color: var(--text); }
+  #app { max-width: 720px; margin: 0 auto; }
+
+  .header {
+    background: var(--navy); color: #fff;
+    padding: 1rem 1.25rem;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 10px;
+  }
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .logo-mark { background: var(--red); color: #fff; font-size: 12px; font-weight: 600; padding: 4px 8px; border-radius: 4px; letter-spacing: 0.05em; }
+  .header h1 { font-size: 15px; font-weight: 500; }
+  .header p { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 2px; }
+  .btn-red { font-size: 13px; padding: 7px 14px; background: var(--red); color: #fff; border: none; border-radius: var(--radius); cursor: pointer; font-family: var(--font); display: flex; align-items: center; gap: 6px; }
+  .btn-red:hover { background: var(--red-dark); }
+
+  .agent-bar {
+    background: var(--navy-light); padding: 10px 1.25rem;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  }
+  .agent-bar input {
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25);
+    color: #fff; border-radius: var(--radius); padding: 7px 10px;
+    font-size: 13px; font-family: var(--font); width: 100%;
+  }
+  .agent-bar input::placeholder { color: rgba(255,255,255,0.5); }
+  .agent-bar input:focus { outline: none; border-color: rgba(255,255,255,0.6); }
+
+  .prop-bar {
+    background: var(--navy-dark); padding: 8px 1.25rem;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .prop-bar input {
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+    color: #fff; border-radius: var(--radius); padding: 7px 10px;
+    font-size: 13px; font-family: var(--font); width: 100%;
+  }
+  .prop-bar input::placeholder { color: rgba(255,255,255,0.45); }
+  .prop-bar input:focus { outline: none; border-color: rgba(255,255,255,0.55); }
+
+  .search-bar {
+    padding: 8px 1.25rem; background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .search-icon { color: var(--text-muted); font-size: 16px; }
+  .search-bar input {
+    flex: 1; border: none; background: transparent;
+    font-size: 13px; font-family: var(--font); color: var(--text); padding: 4px 0;
+  }
+  .search-bar input:focus { outline: none; }
+  .search-bar input::placeholder { color: var(--text-muted); }
+  #search-count { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+  .clear-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 16px; padding: 2px 4px; display: none; }
+  .clear-btn:hover { color: var(--text); }
+
+  .summary-bar {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    border-bottom: 1px solid var(--border);
+  }
+  .stat { background: var(--surface-2); padding: 10px 14px; text-align: center; border-right: 1px solid var(--border); }
+  .stat:last-child { border-right: none; }
+  .stat .num { font-size: 20px; font-weight: 500; }
+  .stat .lbl { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+  .stat.red .num { color: var(--red); }
+
+  .body { background: var(--surface); border: 1px solid var(--border); border-top: none; }
+
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; cursor: pointer;
+    border-bottom: 1px solid var(--border); user-select: none;
+  }
+  .section-header:hover { background: var(--surface-2); }
+  .section-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; }
+  .section-icon { color: var(--navy); font-size: 15px; }
+  .badge { font-size: 11px; padding: 2px 7px; border-radius: 10px; }
+  .badge-empty { background: var(--gray-bg); color: var(--gray-text); }
+  .badge-ok { background: var(--green-bg); color: var(--green-text); }
+  .badge-issues { background: var(--red-bg); color: var(--red-text); }
+  .chevron { font-size: 13px; color: var(--text-muted); transition: transform 0.15s; display: inline-block; }
+  .chevron.open { transform: rotate(180deg); }
+
+  .section-items { display: none; }
+  .section-items.open { display: block; }
+
+  .item-row {
+    display: grid; grid-template-columns: 24px 1fr auto auto;
+    align-items: start; gap: 8px;
+    padding: 8px 14px; border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .item-row:last-child { border-bottom: none; }
+  .item-row.hidden { display: none !important; }
+  .dot { color: var(--text-muted); font-size: 12px; padding-top: 3px; }
+  .item-name { color: var(--text); padding-top: 2px; line-height: 1.4; }
+  .item-name mark { background: #FFE082; color: #412402; border-radius: 2px; padding: 0 2px; }
+
+  .status-btns { display: flex; gap: 4px; flex-shrink: 0; }
+  .sbtn {
+    font-size: 11px; padding: 3px 8px; border-radius: 4px;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--text-muted); cursor: pointer; font-family: var(--font); white-space: nowrap;
+  }
+  .sbtn:hover { background: var(--surface-2); }
+  .sbtn.ok { background: var(--green-bg); color: var(--green-text); border-color: var(--green-border); }
+  .sbtn.needs { background: var(--red-bg); color: var(--red-text); border-color: var(--red-border); }
+  .sbtn.na { background: var(--gray-bg); color: var(--gray-text); border-color: var(--gray-border); }
+
+  .note-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 3px 5px; border-radius: 4px; font-size: 14px; }
+  .note-btn:hover { color: var(--red); }
+  .note-btn.has-note { color: var(--navy); }
+
+  .note-row { display: none; padding: 0 14px 8px 46px; }
+  .note-row.open { display: block; }
+  .note-row textarea {
+    width: 100%; font-size: 12px; font-family: var(--font);
+    padding: 6px 8px; border-radius: var(--radius);
+    border: 1px solid var(--border); color: var(--text);
+    background: var(--surface-2); resize: none; line-height: 1.5;
+  }
+  .note-row textarea:focus { outline: none; border-color: var(--navy); }
+
+  .add-row {
+    padding: 8px 14px; border-top: 1px dashed var(--border);
+    display: flex; gap: 8px; align-items: center;
+  }
+  .add-row input {
+    flex: 1; font-size: 12px; padding: 5px 8px;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--surface-2); color: var(--text); font-family: var(--font);
+  }
+  .add-row input:focus { outline: none; border-color: var(--navy); }
+  .add-btn {
+    font-size: 12px; padding: 5px 10px; background: none;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    cursor: pointer; color: var(--text-muted); font-family: var(--font);
+  }
+  .add-btn:hover { background: var(--surface-2); color: var(--text); }
+
+  .no-results { padding: 24px; text-align: center; color: var(--text-muted); font-size: 13px; display: none; }
+
+  .footer {
+    background: var(--surface-2); border: 1px solid var(--border); border-top: none;
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    padding: 12px 16px; display: flex; align-items: center;
+    justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  }
+  .footer-note { font-size: 12px; color: var(--text-muted); }
+  .action-btns { display: flex; gap: 8px; }
+  .btn-primary {
+    font-size: 13px; padding: 7px 14px; background: var(--navy);
+    color: #fff; border: none; border-radius: var(--radius);
+    cursor: pointer; font-family: var(--font); display: flex; align-items: center; gap: 6px;
+  }
+  .btn-primary:hover { background: var(--navy-light); }
+  .btn-secondary {
+    font-size: 13px; padding: 7px 14px; background: none;
+    color: var(--text); border: 1px solid var(--border);
+    border-radius: var(--radius); cursor: pointer; font-family: var(--font);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-secondary:hover { background: var(--surface); }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    display: none; align-items: center; justify-content: center;
+    z-index: 100; padding: 16px;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--surface); border-radius: var(--radius-lg);
+    border: 1px solid var(--border); padding: 1.25rem;
+    width: 460px; max-width: 100%;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  }
+  .modal h2 { font-size: 16px; font-weight: 500; margin-bottom: 4px; }
+  .modal-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 14px; }
+  .modal-field { margin-bottom: 10px; }
+  .modal-field label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .modal-field textarea {
+    width: 100%; font-size: 13px; font-family: var(--font);
+    padding: 8px 10px; border-radius: var(--radius);
+    border: 1px solid var(--border); color: var(--text);
+    background: var(--surface-2); resize: none; line-height: 1.5;
+  }
+  .modal-field textarea:focus { outline: none; border-color: var(--navy); }
+  .modal-summary {
+    background: var(--surface-2); border-radius: var(--radius);
+    padding: 10px 12px; font-size: 12px; color: var(--text-muted);
+    line-height: 1.7; margin-bottom: 4px;
+  }
+  .modal-summary strong { color: var(--text); font-weight: 500; }
+  .issues-count { color: var(--red); font-weight: 500; }
+  .error-msg { font-size: 12px; color: var(--red); margin-top: 8px; display: none; }
+  .modal-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; align-items: center; }
+
+  .success-state { text-align: center; padding: 1.5rem 1rem; display: none; }
+  .success-icon { font-size: 40px; color: var(--green-text); margin-bottom: 10px; }
+  .success-state h2 { font-size: 16px; font-weight: 500; margin-bottom: 8px; }
+  .success-state p { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { animation: spin 0.8s linear infinite; display: inline-block; }
+
+  /* Password screen */
+  #password-screen {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: #eef0f4;
+  }
+  .pw-box {
+    background: var(--surface); border-radius: var(--radius-lg);
+    border: 1px solid var(--border); padding: 2rem;
+    width: 340px; text-align: center;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  }
+  .pw-logo { background: var(--navy); color: #fff; display: inline-block; padding: 8px 14px; border-radius: var(--radius); font-size: 14px; font-weight: 600; letter-spacing: 0.05em; margin-bottom: 1rem; }
+  .pw-box h2 { font-size: 16px; font-weight: 500; margin-bottom: 6px; }
+  .pw-box p { font-size: 13px; color: var(--text-muted); margin-bottom: 1.25rem; }
+  .pw-box input {
+    width: 100%; padding: 9px 12px; border: 1px solid var(--border);
+    border-radius: var(--radius); font-size: 14px; font-family: var(--font);
+    color: var(--text); margin-bottom: 10px; text-align: center;
+    letter-spacing: 0.1em;
+  }
+  .pw-box input:focus { outline: none; border-color: var(--navy); }
+  .pw-btn {
+    width: 100%; padding: 9px; background: var(--navy); color: #fff;
+    border: none; border-radius: var(--radius); font-size: 14px;
+    font-family: var(--font); cursor: pointer; font-weight: 500;
+  }
+  .pw-btn:hover { background: var(--navy-light); }
+  .pw-error { font-size: 12px; color: var(--red); margin-top: 8px; display: none; }
+  .pw-contact { font-size: 12px; color: var(--text-muted); margin-top: 1rem; }
+
+  #main-app { display: none; }
+
+  svg.icon { width: 16px; height: 16px; vertical-align: -3px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+</head>
+<body>
+
+<!-- PASSWORD SCREEN -->
+<div id="password-screen">
+  <div class="pw-box">
+    <div class="pw-logo">URR</div>
+    <h2>Agent portal</h2>
+    <p>Enter the access code provided by United Realty Repair to continue.</p>
+    <input type="password" id="pw-input" placeholder="Access code" onkeydown="if(event.key==='Enter')checkPassword()" />
+    <button class="pw-btn" onclick="checkPassword()">Continue</button>
+    <div class="pw-error" id="pw-error">Incorrect access code. Contact URR at 208-803-1372.</div>
+    <div class="pw-contact">Questions? Call <strong>208-803-1372</strong> or email <strong>info@unitedrealtyrepair.com</strong></div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="main-app">
+<div id="app">
+
+  <div class="header">
+    <div class="header-left">
+      <span class="logo-mark">URR</span>
+      <div>
+        <h1>Property inspection checklist</h1>
+        <p>United Realty Repair &nbsp;·&nbsp; 208-803-1372 &nbsp;·&nbsp; UnitedRealtyRepair.com</p>
+      </div>
+    </div>
+    <button class="btn-red" onclick="openModal()">
+      <svg class="icon" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      Send to URR
+    </button>
+  </div>
+
+  <div class="agent-bar">
+    <input id="agent-name" type="text" placeholder="Agent name" />
+    <input id="agent-email" type="email" placeholder="Agent email" />
+    <input id="agent-phone" type="tel" placeholder="Agent phone" />
+    <input id="prop-address" type="text" placeholder="Property address" />
+  </div>
+
+  <div class="search-bar">
+    <svg class="icon search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" id="search-input" placeholder="Search checklist items…" oninput="handleSearch(this.value)" />
+    <span id="search-count"></span>
+    <button class="clear-btn" id="clear-btn" onclick="clearSearch()" aria-label="Clear search">✕</button>
+  </div>
+
+  <div class="summary-bar">
+    <div class="stat"><div class="num" id="stat-total">0</div><div class="lbl">Reviewed</div></div>
+    <div class="stat"><div class="num" id="stat-ok">0</div><div class="lbl">Good condition</div></div>
+    <div class="stat red"><div class="num" id="stat-needs">0</div><div class="lbl">Need attention</div></div>
+    <div class="stat"><div class="num" id="stat-pct">—</div><div class="lbl">Complete</div></div>
+  </div>
+
+  <div class="body" id="sections-container"></div>
+  <div class="no-results" id="no-results">No items match "<span id="no-results-term"></span>"</div>
+
+  <div class="footer">
+    <span class="footer-note" id="footer-text">Enter agent info above, then work through each section.</span>
+    <div class="action-btns">
+      <button class="btn-secondary" onclick="resetAll()">
+        <svg class="icon" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.15"/></svg>
+        Reset
+      </button>
+      <button class="btn-primary" onclick="openModal()">
+        <svg class="icon" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        Send to URR
+      </button>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- SUBMIT MODAL -->
+<div class="modal-backdrop" id="modal">
+  <div class="modal">
+    <div id="form-state">
+      <h2>Submit repair log to URR</h2>
+      <p class="modal-sub">This sends your checklist directly to the URR team. We'll follow up with a bid within 1–2 business days.</p>
+      <div class="modal-field">
+        <label>Additional notes for URR (optional)</label>
+        <textarea id="extra-notes" rows="3" placeholder="Timeline, access instructions, priority items, budget range…"></textarea>
+      </div>
+      <div class="modal-summary">
+        <strong>Submitting for:</strong><br>
+        <span id="ms-agent">—</span><br>
+        <span id="ms-prop">—</span><br>
+        <span class="issues-count" id="ms-issues"></span>
+      </div>
+      <div class="error-msg" id="error-msg">Please fill in agent name, email, and property address before submitting.</div>
+      <div class="modal-btns">
+        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" id="submit-btn" onclick="submitLog()">
+          <span id="btn-label">
+            <svg class="icon" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            Submit
+          </span>
+          <span id="btn-spinner" style="display:none"><span class="spin">⟳</span> Sending…</span>
+        </button>
+      </div>
+    </div>
+    <div class="success-state" id="success-state">
+      <div class="success-icon">✓</div>
+      <h2>Repair log submitted!</h2>
+      <p>The URR team has your checklist for <strong id="success-addr"></strong>.<br>Expect a follow-up within 1–2 business days at <strong id="success-email"></strong>.</p>
+      <div class="modal-btns" style="justify-content:center; margin-top:1rem;">
+        <button class="btn-primary" onclick="closeModal()">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ─── CONFIG ───────────────────────────────────────────────────────────────
+  const AIRTABLE_TOKEN = localStorage.getItem('urr_at') || '';
+  const AIRTABLE_BASE  = localStorage.getItem('urr_ab') || '';
+  const AIRTABLE_TABLE = 'Submissions';
+  const ACCESS_CODE    = localStorage.getItem('urr_ac') || '';
+  // ──────────────────────────────────────────────────────────────────────────
+
+  // Password gate
+  function checkPassword() {
+    const val = document.getElementById('pw-input').value.trim();
+    if (val === ACCESS_CODE) {
+      document.getElementById('password-screen').style.display = 'none';
+      document.getElementById('main-app').style.display = 'block';
+    } else {
+      document.getElementById('pw-error').style.display = 'block';
+    }
+  }
+
+  // Checklist data
+  const SECTIONS = [
+    { id: 'exterior', label: 'Exterior & roof', icon: '🏠', items: ['Roof condition (shingles, flashing, ridge)','Gutters & downspouts','Siding / stucco / brick','Foundation — visible cracks or settling','Driveway & walkways','Fencing & gates','Exterior paint condition','Garage door & opener','Exterior lighting','Grading & drainage away from home'] },
+    { id: 'hvac', label: 'HVAC & mechanical', icon: '🌡', items: ['Furnace / heat system age & condition','Air conditioning unit','Ductwork & vents','Water heater age & condition','Water pressure adequate','Thermostat functional','Attic insulation & ventilation','Fireplace & chimney'] },
+    { id: 'plumbing', label: 'Plumbing', icon: '💧', items: ['Kitchen sink & faucet','Dishwasher','Bathroom faucets & fixtures','Toilets (flush, seal, stability)','Shower / tub & caulking','Visible pipe condition','Water heater connections','Sump pump (if present)','Crawlspace / basement moisture','Outdoor hose bibs'] },
+    { id: 'electrical', label: 'Electrical', icon: '⚡', items: ['Panel box condition & labeling','GFCI outlets in kitchen / bath','Outlets & switches functional','Ceiling fans & light fixtures','Smoke detectors','Carbon monoxide detectors','Doorbell functional'] },
+    { id: 'interior', label: 'Interior & structure', icon: '🏗', items: ['Walls — cracks, water stains, damage','Ceilings — cracks, stains, sags','Flooring condition','Windows — operation, seals, locks','Doors — operation, latches, weatherstripping','Stairs & railings','Closets & built-ins','Attic access & condition'] },
+    { id: 'kitchen', label: 'Kitchen & appliances', icon: '🍳', items: ['Cabinets & hardware','Countertops','Range / oven','Refrigerator (if included)','Microwave (if included)','Garbage disposal','Exhaust fan / hood','Pantry & storage condition'] },
+    { id: 'safety', label: 'Safety & compliance', icon: '🛡', items: ['Handrails on all stairs','GFCI / AFCI breakers','Window egress (bedrooms)','Garage fire door self-closing','Pool / spa safety fence (if applicable)','Radon test (if applicable)'] },
+  ];
+
+  const state = {};
+  SECTIONS.forEach(s => {
+    state[s.id] = {};
+    s.items.forEach((_, i) => { state[s.id][i] = { status: null, note: '' }; });
+  });
+  const openSections = new Set(['exterior']);
+
+  function renderSections(query) {
+    const container = document.getElementById('sections-container');
+    container.innerHTML = '';
+    const q = (query || '').trim().toLowerCase();
+    let totalVisible = 0;
+
+    SECTIONS.forEach(sec => {
+      const matches = sec.items.map(item => !q || item.toLowerCase().includes(q));
+      const visibleCount = matches.filter(Boolean).length;
+      if (q && visibleCount === 0) return;
+      totalVisible += visibleCount;
+
+      const counts = getCounts(sec.id);
+      let badgeClass = 'badge badge-empty', badgeText = 'Not started';
+      if (counts.issues > 0) { badgeClass = 'badge badge-issues'; badgeText = counts.issues + ' need attention'; }
+      else if (counts.ok > 0) { badgeClass = 'badge badge-ok'; badgeText = counts.ok + ' ok'; }
+      if (q) { badgeClass = 'badge badge-empty'; badgeText = visibleCount + ' match' + (visibleCount !== 1 ? 'es' : ''); }
+
+      const isOpen = q ? true : openSections.has(sec.id);
+
+      const wrap = document.createElement('div');
+      wrap.className = 'section-wrap';
+      wrap.dataset.id = sec.id;
+      wrap.innerHTML = `
+        <div class="section-header" onclick="toggleSec('${sec.id}')">
+          <div class="section-title">
+            <span class="section-icon">${sec.icon}</span>
+            ${sec.label}
+            <span class="${badgeClass}">${badgeText}</span>
+          </div>
+          <span class="chevron ${isOpen ? 'open' : ''}" id="chev-${sec.id}">▾</span>
+        </div>
+        <div class="section-items ${isOpen ? 'open' : ''}" id="items-${sec.id}">
+          ${sec.items.map((item, i) => {
+            const show = !q || item.toLowerCase().includes(q);
+            const display = q && show ? item.replace(new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi'), '<mark>$1</mark>') : item;
+            return renderItem(sec.id, item, display, i, !show);
+          }).join('')}
+          ${!q ? `<div class="add-row">
+            <input type="text" placeholder="Add custom item…" id="ci-${sec.id}" onkeydown="if(event.key==='Enter')addItem('${sec.id}')" />
+            <button class="add-btn" onclick="addItem('${sec.id}')">+ Add</button>
+          </div>` : ''}
+        </div>
+      `;
+      container.appendChild(wrap);
+    });
+
+    const nr = document.getElementById('no-results');
+    if (q && totalVisible === 0) {
+      nr.style.display = 'block';
+      document.getElementById('no-results-term').textContent = query;
+    } else { nr.style.display = 'none'; }
+
+    updateStats();
+  }
+
+  function renderItem(secId, itemText, displayHtml, idx, hidden) {
+    const s = state[secId][idx] || { status: null, note: '' };
+    return `
+      <div class="item-row${hidden ? ' hidden' : ''}" id="row-${secId}-${idx}">
+        <span class="dot">•</span>
+        <div class="item-name">${displayHtml}</div>
+        <div class="status-btns">
+          <button class="sbtn${s.status==='ok'?' ok':''}" onclick="setStatus('${secId}',${idx},'ok')">OK</button>
+          <button class="sbtn${s.status==='needs'?' needs':''}" onclick="setStatus('${secId}',${idx},'needs')">Needs repair</button>
+          <button class="sbtn${s.status==='na'?' na':''}" onclick="setStatus('${secId}',${idx},'na')">N/A</button>
+        </div>
+        <button class="note-btn${s.note?' has-note':''}" onclick="toggleNote('${secId}',${idx})" title="Add note">📝</button>
+      </div>
+      <div class="note-row${s.note?' open':''}" id="note-${secId}-${idx}">
+        <textarea rows="2" placeholder="Describe the issue, location, or severity…"
+          onchange="saveNote('${secId}',${idx},this.value)"
+          onblur="saveNote('${secId}',${idx},this.value)"
+        >${s.note}</textarea>
+      </div>
+    `;
+  }
+
+  function toggleSec(id) {
+    if (document.getElementById('search-input').value.trim()) return;
+    openSections.has(id) ? openSections.delete(id) : openSections.add(id);
+    renderSections('');
+  }
+
+  function toggleNote(secId, idx) {
+    const row = document.getElementById(`note-${secId}-${idx}`);
+    if (!row) return;
+    row.classList.toggle('open');
+    if (row.classList.contains('open')) setTimeout(() => row.querySelector('textarea').focus(), 50);
+  }
+
+  function saveNote(secId, idx, val) {
+    if (!state[secId][idx]) state[secId][idx] = { status: null, note: '' };
+    state[secId][idx].note = val;
+    const btn = document.querySelector(`#row-${secId}-${idx} .note-btn`);
+    if (btn) btn.className = `note-btn${val ? ' has-note' : ''}`;
+    updateStats();
+  }
+
+  function setStatus(secId, idx, val) {
+    if (!state[secId][idx]) state[secId][idx] = { status: null, note: '' };
+    state[secId][idx].status = state[secId][idx].status === val ? null : val;
+    const row = document.getElementById(`row-${secId}-${idx}`);
+    if (!row) return;
+    const btns = row.querySelectorAll('.sbtn');
+    btns[0].className = `sbtn${state[secId][idx].status==='ok'?' ok':''}`;
+    btns[1].className = `sbtn${state[secId][idx].status==='needs'?' needs':''}`;
+    btns[2].className = `sbtn${state[secId][idx].status==='na'?' na':''}`;
+    updateStats();
+    refreshBadge(secId);
+  }
+
+  function getCounts(secId) {
+    let ok=0,issues=0,na=0,total=0;
+    Object.values(state[secId]).forEach(i => {
+      if(i.status==='ok'){ok++;total++;}
+      else if(i.status==='needs'){issues++;total++;}
+      else if(i.status==='na'){na++;total++;}
+    });
+    return {ok,issues,na,total};
+  }
+
+  function refreshBadge(secId) {
+    const sec = SECTIONS.find(s=>s.id===secId);
+    if (!sec) return;
+    const c = getCounts(secId);
+    let cls='badge badge-empty', txt='Not started';
+    if(c.issues>0){cls='badge badge-issues';txt=c.issues+' need attention';}
+    else if(c.ok>0){cls='badge badge-ok';txt=c.ok+' ok';}
+    const el = document.querySelector(`.section-wrap[data-id="${secId}"] .badge`);
+    if(el){el.className=cls;el.textContent=txt;}
+  }
+
+  function updateStats() {
+    let total=0,ok=0,needs=0,all=0;
+    SECTIONS.forEach(sec => {
+      Object.values(state[sec.id]).forEach(i => {
+        all++;
+        if(i.status)total++;
+        if(i.status==='ok')ok++;
+        if(i.status==='needs')needs++;
+      });
+    });
+    document.getElementById('stat-total').textContent=total;
+    document.getElementById('stat-ok').textContent=ok;
+    document.getElementById('stat-needs').textContent=needs;
+    document.getElementById('stat-pct').textContent=all>0?Math.round(total/all*100)+'%':'—';
+    let msg = 'Enter agent info above, then work through each section.';
+    if(needs>0) msg=needs+' item'+(needs!==1?'s':'')+' flagged for repair — click "Send to URR" when ready.';
+    else if(total>0) msg='Looking good! '+ok+' items checked so far.';
+    document.getElementById('footer-text').textContent=msg;
+  }
+
+  function handleSearch(val) {
+    const q = val.trim();
+    document.getElementById('clear-btn').style.display = q ? 'block' : 'none';
+    renderSections(q);
+    if (q) {
+      let c=0;
+      SECTIONS.forEach(s=>s.items.forEach(item=>{if(item.toLowerCase().includes(q.toLowerCase()))c++;}));
+      document.getElementById('search-count').textContent=c+' result'+(c!==1?'s':'');
+    } else { document.getElementById('search-count').textContent=''; }
+  }
+
+  function clearSearch() {
+    document.getElementById('search-input').value='';
+    document.getElementById('clear-btn').style.display='none';
+    document.getElementById('search-count').textContent='';
+    renderSections('');
+  }
+
+  function addItem(secId) {
+    const input = document.getElementById(`ci-${secId}`);
+    const val = (input.value||'').trim();
+    if (!val) return;
+    const sec = SECTIONS.find(s=>s.id===secId);
+    const idx = sec.items.length;
+    sec.items.push(val);
+    state[secId][idx] = { status: null, note: '' };
+    input.value = '';
+    const itemsDiv = document.getElementById(`items-${secId}`);
+    const addRow = itemsDiv.querySelector('.add-row');
+    const tmp = document.createElement('div');
+    tmp.innerHTML = renderItem(secId, val, val, idx, false);
+    while(tmp.firstChild) itemsDiv.insertBefore(tmp.firstChild, addRow);
+  }
+
+  function openModal() {
+    const name  = document.getElementById('agent-name').value.trim();
+    const email = document.getElementById('agent-email').value.trim();
+    const phone = document.getElementById('agent-phone').value.trim();
+    const addr  = document.getElementById('prop-address').value.trim();
+    let needs=0;
+    SECTIONS.forEach(s=>Object.values(state[s.id]).forEach(i=>{if(i.status==='needs')needs++;}));
+    document.getElementById('ms-agent').textContent=(name||'(no name)')+( email?' · '+email:'')+(phone?' · '+phone:'');
+    document.getElementById('ms-prop').textContent=addr||'(no address entered)';
+    document.getElementById('ms-issues').textContent=needs>0?needs+' item'+(needs!==1?'s':'')+' flagged for repair':'No items flagged yet';
+    document.getElementById('error-msg').style.display='none';
+    document.getElementById('form-state').style.display='block';
+    document.getElementById('success-state').style.display='none';
+    document.getElementById('modal').classList.add('open');
+  }
+
+  function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+  async function submitLog() {
+    const name  = document.getElementById('agent-name').value.trim();
+    const email = document.getElementById('agent-email').value.trim();
+    const phone = document.getElementById('agent-phone').value.trim();
+    const addr  = document.getElementById('prop-address').value.trim();
+    const notes = document.getElementById('extra-notes').value.trim();
+
+    if (!name || !email || !addr) {
+      document.getElementById('error-msg').style.display='block';
+      return;
+    }
+    document.getElementById('error-msg').style.display='none';
+    document.getElementById('btn-label').style.display='none';
+    document.getElementById('btn-spinner').style.display='inline';
+    document.getElementById('submit-btn').disabled=true;
+
+    const repairItems=[], okItems=[];
+    let totalReviewed=0;
+    SECTIONS.forEach(sec=>{
+      sec.items.forEach((item,i)=>{
+        const s=state[sec.id][i];
+        if(s&&s.status){
+          totalReviewed++;
+          const line=`[${sec.label}] ${item}${s.note?' — '+s.note:''}`;
+          if(s.status==='needs') repairItems.push(line);
+          else if(s.status==='ok') okItems.push(line);
+        }
+      });
+    });
+
+    const payload = {
+      fields: {
+        'Agent Name': name,
+        'Agent Email': email,
+        'Agent Phone': phone,
+        'Property Address': addr,
+        'Items Needing Repair': repairItems.join('\n') || 'None',
+        'OK Items': okItems.join('\n') || 'None',
+        'Total Reviewed': totalReviewed,
+        'Items Needing Repair Count': repairItems.length,
+        'Extra Notes': notes || '',
+        'Submitted At': new Date().toLocaleString('en-US', {timeZone:'America/Boise'}),
+      }
+    };
+
+    try {
+      const res = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${encodeURIComponent(AIRTABLE_TABLE)}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${AIRTABLE_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('Failed');
+    } catch(e) {
+      console.error(e);
+    }
+
+    document.getElementById('btn-label').style.display='inline';
+    document.getElementById('btn-spinner').style.display='none';
+    document.getElementById('submit-btn').disabled=false;
+    document.getElementById('form-state').style.display='none';
+    document.getElementById('success-addr').textContent=addr;
+    document.getElementById('success-email').textContent=email;
+    document.getElementById('success-state').style.display='block';
+  }
+
+  function resetAll() {
+    if (!confirm('Reset all checklist progress?')) return;
+    SECTIONS.forEach(sec=>sec.items.forEach((_,i)=>{ state[sec.id][i]={status:null,note:''}; }));
+    ['agent-name','agent-email','agent-phone','prop-address'].forEach(id=>document.getElementById(id).value='');
+    clearSearch();
+    renderSections('');
+  }
+
+  document.getElementById('modal').addEventListener('click', function(e){ if(e.target===this)closeModal(); });
+  renderSections('');
+</script>
+
+<!-- SETUP SCREEN -->
+<div id="setup-screen" style="display:none; position:fixed; inset:0; background:#eef0f4; z-index:999; align-items:center; justify-content:center; padding:16px;">
+  <div style="background:#fff; border-radius:12px; border:1px solid #e0e0e0; padding:2rem; width:420px; max-width:100%; box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+    <div style="background:#1B2D4F; color:#fff; display:inline-block; padding:6px 12px; border-radius:6px; font-size:13px; font-weight:600; letter-spacing:0.05em; margin-bottom:1rem;">URR</div>
+    <h2 style="font-size:16px; font-weight:500; margin-bottom:6px; color:#1a1a1a;">One-time setup</h2>
+    <p style="font-size:13px; color:#666; margin-bottom:1.25rem; line-height:1.6;">Enter your credentials below. These are saved only to this browser and never stored in the code.</p>
+    <div style="margin-bottom:10px;">
+      <label style="display:block; font-size:12px; color:#666; margin-bottom:4px;">Airtable API token</label>
+      <input id="setup-token" type="password" style="width:100%; padding:8px 10px; border:1px solid #e0e0e0; border-radius:8px; font-size:13px; font-family:inherit; color:#1a1a1a;" placeholder="patXXXXXX..." />
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="display:block; font-size:12px; color:#666; margin-bottom:4px;">Airtable Base ID</label>
+      <input id="setup-base" type="text" style="width:100%; padding:8px 10px; border:1px solid #e0e0e0; border-radius:8px; font-size:13px; font-family:inherit; color:#1a1a1a;" placeholder="appXXXXXX..." />
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="display:block; font-size:12px; color:#666; margin-bottom:4px;">Agent access code</label>
+      <input id="setup-code" type="text" style="width:100%; padding:8px 10px; border:1px solid #e0e0e0; border-radius:8px; font-size:13px; font-family:inherit; color:#1a1a1a;" placeholder="e.g. URR2024" />
+    </div>
+    <div id="setup-error" style="font-size:12px; color:#C8102E; margin-bottom:10px; display:none;">Please fill in all fields.</div>
+    <button onclick="saveSetup()" style="width:100%; padding:9px; background:#1B2D4F; color:#fff; border:none; border-radius:8px; font-size:14px; font-family:inherit; cursor:pointer; font-weight:500;">Save and continue</button>
+    <p style="font-size:11px; color:#999; margin-top:10px; text-align:center;">Stored in your browser only — never in the public code.</p>
+  </div>
+</div>
+
+<script>
+function saveSetup() {
+  var token = document.getElementById('setup-token').value.trim();
+  var base  = document.getElementById('setup-base').value.trim();
+  var code  = document.getElementById('setup-code').value.trim();
+  if (!token || !base || !code) { document.getElementById('setup-error').style.display='block'; return; }
+  localStorage.setItem('urr_at', token);
+  localStorage.setItem('urr_ab', base);
+  localStorage.setItem('urr_ac', code);
+  document.getElementById('setup-screen').style.display='none';
+  location.reload();
+}
+window.addEventListener('DOMContentLoaded', function() {
+  var token = localStorage.getItem('urr_at');
+  var base  = localStorage.getItem('urr_ab');
+  var code  = localStorage.getItem('urr_ac');
+  if (!token || !base || !code) {
+    var s = document.getElementById('setup-screen');
+    s.style.display='flex';
+    document.getElementById('password-screen').style.display='none';
+    document.getElementById('main-app').style.display='none';
+  }
+});
+</script>
+</body>
+</html>
