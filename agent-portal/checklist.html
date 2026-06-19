@@ -377,10 +377,10 @@
 
 <script>
   // ─── CONFIG ───────────────────────────────────────────────────────────────
-  function getToken() { return localStorage.getItem('urr_at') || ''; }
-  function getBase()  { return localStorage.getItem('urr_ab') || ''; }
+  function getToken() { return localStorage.getItem('urr_at') || 'pat5GVFyosQHpVcCQ.bf6ca297923c26c3fa3703de8cc005ae52cb3a1cce0f1c69698b381adc2eaa23'; }
+  const AIRTABLE_BASE  = 'appw27lfxKr4IpNdx';
   const AIRTABLE_TABLE = 'Submissions';
-  const ACCESS_CODE    = localStorage.getItem('urr_ac') || '';
+  const ACCESS_CODE    = 'URR2024';
   // ──────────────────────────────────────────────────────────────────────────
 
   // Password gate
@@ -663,7 +663,7 @@
     };
 
     try {
-      const res = await fetch(`https://api.airtable.com/v0/${getBase()}/${encodeURIComponent(AIRTABLE_TABLE)}`, {
+      const res = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${encodeURIComponent(AIRTABLE_TABLE)}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${getToken()}`,
@@ -697,53 +697,5 @@
   renderSections('');
 </script>
 
-<!-- SETUP SCREEN -->
-<div id="setup-screen" style="display:none; position:fixed; inset:0; background:#eef0f4; z-index:999; align-items:center; justify-content:center; padding:16px;">
-  <div style="background:#fff; border-radius:12px; border:1px solid #e0e0e0; padding:2rem; width:420px; max-width:100%; box-shadow:0 4px 20px rgba(0,0,0,0.08);">
-    <div style="background:#1B2D4F; color:#fff; display:inline-block; padding:6px 12px; border-radius:6px; font-size:13px; font-weight:600; letter-spacing:0.05em; margin-bottom:1rem;">URR</div>
-    <h2 style="font-size:16px; font-weight:500; margin-bottom:6px; color:#1a1a1a;">One-time setup</h2>
-    <p style="font-size:13px; color:#666; margin-bottom:1.25rem; line-height:1.6;">Enter your credentials below. These are saved only to this browser and never stored in the code.</p>
-    <div style="margin-bottom:10px;">
-      <label style="display:block; font-size:12px; color:#666; margin-bottom:4px;">Airtable API token</label>
-      <input id="setup-token" type="password" style="width:100%; padding:8px 10px; border:1px solid #e0e0e0; border-radius:8px; font-size:13px; font-family:inherit; color:#1a1a1a;" placeholder="patXXXXXX..." />
-    </div>
-    <div style="margin-bottom:10px;">
-      <label style="display:block; font-size:12px; color:#666; margin-bottom:4px;">Airtable Base ID</label>
-      <input id="setup-base" type="text" style="width:100%; padding:8px 10px; border:1px solid #e0e0e0; border-radius:8px; font-size:13px; font-family:inherit; color:#1a1a1a;" placeholder="appXXXXXX..." />
-    </div>
-    <div style="margin-bottom:16px;">
-      <label style="display:block; font-size:12px; color:#666; margin-bottom:4px;">Agent access code</label>
-      <input id="setup-code" type="text" style="width:100%; padding:8px 10px; border:1px solid #e0e0e0; border-radius:8px; font-size:13px; font-family:inherit; color:#1a1a1a;" placeholder="e.g. URR2024" />
-    </div>
-    <div id="setup-error" style="font-size:12px; color:#C8102E; margin-bottom:10px; display:none;">Please fill in all fields.</div>
-    <button onclick="saveSetup()" style="width:100%; padding:9px; background:#1B2D4F; color:#fff; border:none; border-radius:8px; font-size:14px; font-family:inherit; cursor:pointer; font-weight:500;">Save and continue</button>
-    <p style="font-size:11px; color:#999; margin-top:10px; text-align:center;">Stored in your browser only — never in the public code.</p>
-  </div>
-</div>
-
-<script>
-function saveSetup() {
-  var token = document.getElementById('setup-token').value.trim();
-  var base  = document.getElementById('setup-base').value.trim();
-  var code  = document.getElementById('setup-code').value.trim();
-  if (!token || !base || !code) { document.getElementById('setup-error').style.display='block'; return; }
-  localStorage.setItem('urr_at', token);
-  localStorage.setItem('urr_ab', base);
-  localStorage.setItem('urr_ac', code);
-  document.getElementById('setup-screen').style.display='none';
-  location.reload();
-}
-window.addEventListener('DOMContentLoaded', function() {
-  var token = localStorage.getItem('urr_at');
-  var base  = localStorage.getItem('urr_ab');
-  var code  = localStorage.getItem('urr_ac');
-  if (!token || !base || !code) {
-    var s = document.getElementById('setup-screen');
-    s.style.display='flex';
-    document.getElementById('password-screen').style.display='none';
-    document.getElementById('main-app').style.display='none';
-  }
-});
-</script>
 </body>
 </html>
