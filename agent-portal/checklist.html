@@ -377,8 +377,8 @@
 
 <script>
   // ─── CONFIG ───────────────────────────────────────────────────────────────
-  const AIRTABLE_TOKEN = localStorage.getItem('urr_at') || '';
-  const AIRTABLE_BASE  = localStorage.getItem('urr_ab') || '';
+  function getToken() { return localStorage.getItem('urr_at') || ''; }
+  function getBase()  { return localStorage.getItem('urr_ab') || ''; }
   const AIRTABLE_TABLE = 'Submissions';
   const ACCESS_CODE    = localStorage.getItem('urr_ac') || '';
   // ──────────────────────────────────────────────────────────────────────────
@@ -663,10 +663,10 @@
     };
 
     try {
-      const res = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${encodeURIComponent(AIRTABLE_TABLE)}`, {
+      const res = await fetch(`https://api.airtable.com/v0/${getBase()}/${encodeURIComponent(AIRTABLE_TABLE)}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${AIRTABLE_TOKEN}`,
+          'Authorization': `Bearer ${getToken()}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload)
