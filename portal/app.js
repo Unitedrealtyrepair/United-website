@@ -334,12 +334,22 @@ function ingestListing(out) {
   subUploadsFolderId = su ? su.id : null;
 
   allFiles = (out.files || []).map((f) => {
+    const office = f.source === "office";
     if (f.albumId) {
-      return { ...f, tab: "Photos", internal: f.source === "office" };
+      // Images in a subfolder = photo album entry.
+      // Documents in a subfolder = sorted into their normal tab.
+      if (isImage(f)) return { ...f, tab: "Photos", internal: office };
+      const c = categorize(f);
+      return { ...f, ...c, internal: c.internal || office, albumId: undefined, albumName: undefined };
     }
     const c = categorize(f);
-    return { ...f, ...c, internal: c.internal || f.source === "office" };
+    return { ...f, ...c, internal: c.internal || office };
   });
+}
+
+function albumHasVisualsOrIsSpecial(fo, files) {
+  // Show an album section if it contains images, or if it's Sub Uploads (upload target)
+  return fo.isSubUploads || files.some((f) => f.albumId === fo.id);
 }
 
 function showApiError(msg) {
@@ -347,6 +357,23 @@ function showApiError(msg) {
   const el = $("api-error");
   el.textContent = msg;
   el.classList.remove("hidden");
+}
+
+function offerKeyInput() {
+  const el = $("api-error");
+  const input = document.createElement("input");
+  input.type = "text";
+  input.placeholder = "Paste Google API key here";
+  input.style.cssText = "display:block;margin:14px auto 0;padding:10px;width:min(420px,90%);border:1.5px solid #dde3ec;border-radius:8px;font-family:inherit;";
+  const btn = document.createElement("button");
+  btn.textContent = "Save key";
+  btn.style.cssText = "display:block;margin:10px auto 0;padding:10px 22px;background:#0f2440;color:#fff;border:none;border-radius:8px;font-family:inherit;font-weight:700;cursor:pointer;";
+  btn.addEventListener("click", async () => {
+    await chrome.storage.local.set({ urrApiKey: input.value.trim() });
+    loadFiles();
+  });
+  el.appendChild(input);
+  el.appendChild(btn);
 }
 
 // ---------- Money helpers ----------
@@ -482,6 +509,7 @@ function render() {
     for (const fo of photoFolders) {
       if (!canSeeAlbum(fo.id)) continue;
       const albumFiles = files.filter((f) => f.albumId === fo.id);
+      if (albumFiles.length === 0 && !fo.isSubUploads) continue;
 
       const divider = document.createElement("div");
       divider.className = "photos-divider";
