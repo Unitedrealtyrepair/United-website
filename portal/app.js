@@ -259,16 +259,22 @@ async function loadFiles() {
   $("file-list").innerHTML = "";
   $("empty-msg").classList.add("hidden");
 
-  try {
-    const out = await api({ action: "files", email: SESSION.email, code: SESSION.code, project: currentProject.name });
-    if (!out.ok) throw new Error(out.error || "listing failed");
-    ingestListing(out);
-    $("loading").classList.add("hidden");
-    render();
-  } catch (err) {
-    showApiError("Couldn't load files right now. Try Refresh in a moment.");
-    console.error(err);
+  let lastErr = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const out = await api({ action: "files", email: SESSION.email, code: SESSION.code, project: currentProject.name });
+      if (!out.ok) throw new Error(out.error || "listing failed");
+      ingestListing(out);
+      $("loading").classList.add("hidden");
+      render();
+      return;
+    } catch (err) {
+      lastErr = err;
+      console.warn("files attempt " + attempt + " failed:", err);
+      await new Promise((r) => setTimeout(r, 1200 * attempt));
+    }
   }
+  showApiError("Couldn't load files (" + (lastErr && lastErr.message ? lastErr.message : "network") + "). Tap Refresh to retry.");
 }
 
 let projectFolderTree = {};
