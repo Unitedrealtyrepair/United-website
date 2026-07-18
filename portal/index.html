@@ -6,7 +6,7 @@
   <title>URR Project Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=52" />
+  <link rel="stylesheet" href="styles.css?v=53" />
 </head>
 <body>
 
@@ -274,6 +274,9 @@
     <!-- ===== Photo lightbox ===== -->
     <div id="lightbox" class="lightbox hidden">
       <button id="lightbox-close" class="lightbox-close">&times;</button>
+      <button id="lightbox-prev" class="lightbox-nav prev hidden">&#8249;</button>
+      <button id="lightbox-next" class="lightbox-nav next hidden">&#8250;</button>
+      <div id="lightbox-counter" class="lightbox-counter hidden"></div>
       <img id="lightbox-img" alt="" class="hidden" />
       <iframe id="lightbox-frame" class="hidden" allow="autoplay"></iframe>
       <div id="lightbox-name" class="lightbox-name"></div>
@@ -284,6 +287,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=52"></script>
+  <script src="app.js?v=53"></script>
 </body>
 </html>

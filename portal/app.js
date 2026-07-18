@@ -735,7 +735,7 @@ function fileCard(f) {
 
   a.addEventListener("click", (e) => {
     e.preventDefault();
-    openLightbox(f);
+    openLightboxGallery(f);
   });
 
   if (isImage(f)) {
@@ -1489,6 +1489,31 @@ async function deleteSub() {
 }
 
 // ---------- Lightbox ----------
+let lightboxList = [];
+let lightboxIndex = -1;
+
+function openLightboxGallery(f) {
+  // Siblings = files in the same folder on the same tab, in display order
+  const siblings = visibleFiles()
+    .filter((x) => (x.albumName || "") === (f.albumName || ""))
+    .sort((a, b) => (b.modifiedTime || "").localeCompare(a.modifiedTime || ""));
+  lightboxList = siblings.length ? siblings : [f];
+  lightboxIndex = Math.max(0, lightboxList.findIndex((x) => x.id === f.id));
+  showLightboxAt(lightboxIndex);
+}
+
+function showLightboxAt(i) {
+  if (lightboxList.length === 0) return;
+  lightboxIndex = (i + lightboxList.length) % lightboxList.length;
+  openLightbox(lightboxList[lightboxIndex]);
+  const multi = lightboxList.length > 1;
+  $("lightbox-prev").classList.toggle("hidden", !multi);
+  $("lightbox-next").classList.toggle("hidden", !multi);
+  const counter = $("lightbox-counter");
+  counter.classList.toggle("hidden", !multi);
+  counter.textContent = (lightboxIndex + 1) + " of " + lightboxList.length;
+}
+
 function openLightbox(f) {
   const img = $("lightbox-img");
   const frame = $("lightbox-frame");
@@ -1507,6 +1532,8 @@ function openLightbox(f) {
   $("lightbox").classList.remove("hidden");
 }
 function closeLightbox() {
+  lightboxList = [];
+  lightboxIndex = -1;
   $("lightbox").classList.add("hidden");
   $("lightbox-img").src = "";
   $("lightbox-frame").src = "";
@@ -1555,6 +1582,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("tv-close").addEventListener("click", () => closeModal("task-view-modal"));
 
   $("lightbox-close").addEventListener("click", closeLightbox);
+  $("lightbox-prev").addEventListener("click", () => showLightboxAt(lightboxIndex - 1));
+  $("lightbox-next").addEventListener("click", () => showLightboxAt(lightboxIndex + 1));
+  document.addEventListener("keydown", (e) => {
+    if ($("lightbox").classList.contains("hidden")) return;
+    if (e.key === "ArrowLeft") showLightboxAt(lightboxIndex - 1);
+    if (e.key === "ArrowRight") showLightboxAt(lightboxIndex + 1);
+  });
   $("lightbox").addEventListener("click", (e) => { if (e.target.id === "lightbox") closeLightbox(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLightbox(); });
 
