@@ -671,3 +671,38 @@ body {
   white-space: nowrap;
   max-width: 100%;
 }
+
+/* ---- Log photo attachments & dest pickers ---- */
+.log-photo-strip { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.log-photo-strip img {
+  width: 74px; height: 74px;
+  object-fit: cover;
+  border-radius: 8px;
+  cursor: pointer;
+  background: #eef1f6;
+  border: 1px solid var(--border);
+}
+.dest-select {
+  padding: 10px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  background: #fff;
+  max-width: 46vw;
+}
+#log-photos { margin-bottom: 8px; font-family: inherit; font-size: 13px; }
+
+/* ---- Project switcher ---- */
+.project-switcher {
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 7px;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  max-width: 60vw;
+}
+.project-switcher option { color: #0f2440; }

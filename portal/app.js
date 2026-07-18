@@ -180,13 +180,44 @@ async function doLogin() {
 
 function enterPortal(initialData) {
   currentUser = { email: SESSION.email, role: SESSION.role };
-  currentProject = SESSION.projects[0];
+  if (!currentProject || !SESSION.projects.some((p) => p.name === currentProject.name)) {
+    const savedName = sessionStorage.getItem("urrProject");
+    currentProject = SESSION.projects.find((p) => p.name === savedName) || SESSION.projects[0];
+  }
   $("login-screen").classList.add("hidden");
   $("portal-screen").classList.remove("hidden");
-  $("project-name").textContent = currentProject.name;
+  renderProjectName();
   $("user-badge").textContent = SESSION.email + " · " + SESSION.role;
   buildTabs();
   loadState(initialData).then(() => { render(); loadFiles(); });
+}
+
+function renderProjectName() {
+  const holder = $("project-name");
+  holder.innerHTML = "";
+  if (SESSION.projects.length <= 1) {
+    holder.textContent = currentProject.name;
+    return;
+  }
+  const sel = document.createElement("select");
+  sel.className = "project-switcher";
+  for (const p of SESSION.projects) {
+    const o = document.createElement("option");
+    o.value = p.name;
+    o.textContent = p.name;
+    sel.appendChild(o);
+  }
+  sel.value = currentProject.name;
+  sel.addEventListener("change", () => {
+    currentProject = SESSION.projects.find((p) => p.name === sel.value);
+    sessionStorage.setItem("urrProject", currentProject.name);
+    allFiles = [];
+    photoFolders = [];
+    projectFolderTree = {};
+    buildTabs();
+    loadState(null).then(() => { render(); loadFiles(); });
+  });
+  holder.appendChild(sel);
 }
 
 function logout() {
@@ -240,37 +271,60 @@ async function loadFiles() {
   }
 }
 
-async function uploadPhotos(fileList, btn, hint) {
+let projectFolderTree = {};
+
+async function loadFolderTree() {
+  try {
+    const out = await api({ action: "folders", email: SESSION.email, code: SESSION.code, project: currentProject.name });
+    if (out.ok) projectFolderTree = out.areas || {};
+  } catch (e) { console.warn("folders load failed", e); }
+}
+
+async function uploadOne(file, dest) {
+  const b64 = await new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result).split(",")[1]);
+    r.onerror = () => rej(new Error("read failed"));
+    r.readAsDataURL(file);
+  });
+  return api({
+    action: "upload",
+    email: SESSION.email,
+    code: SESSION.code,
+    project: currentProject.name,
+    filename: file.name,
+    mimeType: file.type,
+    data: b64,
+    destArea: (dest && dest.destArea) || "crew",
+    destFolderName: (dest && dest.destFolderName) || "",
+    destAreaRoot: !!(dest && dest.destAreaRoot)
+  });
+}
+
+async function uploadPhotos(fileList, btn, hint, dest) {
   const files = Array.from(fileList || []);
   if (files.length === 0) return;
   btn.disabled = true;
-  let done = 0, failed = 0;
+  let done = 0, failed = 0, lastErr = "";
   for (const file of files) {
     hint.textContent = "Uploading " + (done + failed + 1) + " of " + files.length + "… (" + file.name + ")";
     try {
-      const b64 = await new Promise((res, rej) => {
-        const r = new FileReader();
-        r.onload = () => res(String(r.result).split(",")[1]);
-        r.onerror = () => rej(new Error("read failed"));
-        r.readAsDataURL(file);
-      });
-      const out = await api({
-        action: "upload",
-        email: SESSION.email,
-        code: SESSION.code,
-        project: currentProject.name,
-        filename: file.name,
-        mimeType: file.type,
-        data: b64
-      });
-      if (out.ok) done++; else failed++;
+      const out = await uploadOne(file, dest);
+      if (out.ok) done++;
+      else { failed++; lastErr = out.error || "unknown"; }
     } catch (err) {
       console.warn("upload failed", err);
       failed++;
+      lastErr = err.message;
     }
   }
   btn.disabled = false;
-  hint.textContent = done + " photo" + (done === 1 ? "" : "s") + " uploaded" + (failed ? " · " + failed + " failed" : "") + " — refreshing…";
+  uploadStatus = failed
+    ? "✗ Upload failed — server said: " + lastErr
+    : "✓ " + done + " photo" + (done === 1 ? "" : "s") + " uploaded";
+  hint.textContent = uploadStatus;
+  console.error("URR upload result:", { done, failed, lastErr });
+  setTimeout(() => { uploadStatus = ""; }, 15000);
   loadFiles();
 }
 
@@ -345,13 +399,68 @@ function render() {
     btn.textContent = "+ Add Photos";
     btn.addEventListener("click", () => input.click());
 
+    let areaSel = null, folderSel = null;
+    if (isAdmin()) {
+      areaSel = document.createElement("select");
+      areaSel.className = "dest-select";
+      [["customer","→ Customer folder"],["crew","→ Crew folder"],["office","→ Office (private)"]].forEach(([v,l]) => {
+        const o = document.createElement("option"); o.value = v; o.textContent = l; areaSel.appendChild(o);
+      });
+      areaSel.value = "crew";
+
+      folderSel = document.createElement("select");
+      folderSel.className = "dest-select";
+      const rebuildFolders = () => {
+        folderSel.innerHTML = "";
+        const root = document.createElement("option");
+        root.value = "";
+        root.textContent = "(main folder)";
+        folderSel.appendChild(root);
+        const subsIn = (projectFolderTree[areaSel.value] || []);
+        for (const sf of subsIn) {
+          const o = document.createElement("option");
+          o.value = sf.name;
+          o.textContent = "📁 " + sf.name;
+          folderSel.appendChild(o);
+        }
+        const nf = document.createElement("option");
+        nf.value = "__new__";
+        nf.textContent = "➕ New folder…";
+        folderSel.appendChild(nf);
+        if (areaSel.value === "crew") folderSel.value = subsIn.some(s => /sub[\s\-_]?uploads?/i.test(s.name)) ? subsIn.find(s => /sub[\s\-_]?uploads?/i.test(s.name)).name : "";
+      };
+      rebuildFolders();
+      loadFolderTree().then(rebuildFolders);
+      areaSel.addEventListener("change", rebuildFolders);
+      folderSel.addEventListener("change", () => {
+        if (folderSel.value === "__new__") {
+          const name = prompt("New folder name:");
+          if (name && name.trim()) {
+            const o = document.createElement("option");
+            o.value = name.trim();
+            o.textContent = "📁 " + name.trim() + " (new)";
+            folderSel.insertBefore(o, folderSel.lastChild);
+            folderSel.value = name.trim();
+          } else {
+            folderSel.value = "";
+          }
+        }
+      });
+      bar.appendChild(areaSel);
+      bar.appendChild(folderSel);
+    }
+
     const hint = document.createElement("span");
     hint.className = "photos-hint";
-    hint.textContent = isAdmin()
-      ? "Uploads land in the Sub Uploads album — use the email chips to control who sees it."
-      : "Pick your job photos — they upload straight to United Realty Repair.";
+    hint.textContent = uploadStatus || (isAdmin()
+      ? "Pick where the photos go, then Add."
+      : "Pick your job photos — they upload straight to United Realty Repair.");
 
-    input.addEventListener("change", () => uploadPhotos(input.files, btn, hint));
+    input.addEventListener("change", () => uploadPhotos(input.files, btn, hint, {
+      destArea: areaSel ? areaSel.value : "crew",
+      destFolderName: folderSel ? (folderSel.value === "__new__" ? "" : folderSel.value) : "",
+      destAreaRoot: areaSel && folderSel && !folderSel.value
+    }));
 
     bar.appendChild(btn);
     bar.appendChild(hint);
@@ -1002,6 +1111,22 @@ function renderLogs() {
     notes.textContent = l.notes;
     card.appendChild(notes);
 
+    if (l.photos && l.photos.length) {
+      const strip = document.createElement("div");
+      strip.className = "log-photo-strip";
+      for (const pid of l.photos) {
+        const img = document.createElement("img");
+        img.src = "https://drive.google.com/thumbnail?id=" + encodeURIComponent(pid) + "&sz=w200";
+        img.loading = "lazy";
+        img.addEventListener("click", (e) => {
+          e.stopPropagation();
+          openLightbox({ id: pid, name: "Log photo — " + fmtDateLong(l.date), mimeType: "image/jpeg" });
+        });
+        strip.appendChild(img);
+      }
+      card.appendChild(strip);
+    }
+
     if (l.author) {
       const by = document.createElement("div");
       by.className = "log-author";
@@ -1037,15 +1162,53 @@ function openLogModal(id) {
   $("log-notes").value = l ? l.notes : "";
   $("log-internal").checked = l ? !!l.internal : false;
   $("log-internal").closest("label").classList.toggle("hidden", !isAdmin());
+  $("log-photos").value = "";
+  $("log-photo-status").textContent = "";
+  renderLogPhotoPreviews(l ? (l.photos || []) : []);
   $("log-delete").classList.toggle("hidden", !(l && canEditLog(l)));
   $("log-modal").classList.remove("hidden");
+}
+
+function renderLogPhotoPreviews(ids) {
+  const wrap = $("log-photo-previews");
+  wrap.innerHTML = "";
+  for (const id of ids) {
+    const img = document.createElement("img");
+    img.src = "https://drive.google.com/thumbnail?id=" + encodeURIComponent(id) + "&sz=w120";
+    wrap.appendChild(img);
+  }
 }
 
 async function saveLog() {
   const notes = $("log-notes").value.trim();
   const date = $("log-date").value;
   if (!notes || !date) return;
+
+  // Upload any attached photos first
+  const existing = editingLogId ? ((logs.find((x) => x.id === editingLogId) || {}).photos || []) : [];
+  const photoIds = [...existing];
+  const files = Array.from($("log-photos").files || []);
+  if (files.length) {
+    const internal = isAdmin() && $("log-internal").checked;
+    $("log-save").disabled = true;
+    let n = 0;
+    for (const file of files) {
+      n++;
+      $("log-photo-status").textContent = "Uploading photo " + n + " of " + files.length + "…";
+      try {
+        const out = await uploadOne(file, {
+          destArea: internal ? "office" : "crew",
+          destFolderName: "Log Photos"
+        });
+        if (out.ok && out.fileId) photoIds.push(out.fileId);
+      } catch (e) { console.warn("log photo failed", e); }
+    }
+    $("log-save").disabled = false;
+    $("log-photo-status").textContent = "";
+  }
+
   const data = {
+    photos: photoIds,
     date,
     weather: $("log-weather").value.trim(),
     crew: $("log-crew").value.trim(),

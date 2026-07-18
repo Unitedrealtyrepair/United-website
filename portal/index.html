@@ -229,6 +229,10 @@
         <label>What happened today</label>
         <textarea id="log-notes" rows="4" placeholder="Work completed, deliveries, inspections, issues..."></textarea>
         <label class="checkbox-row"><input type="checkbox" id="log-internal" /> Internal only (hide from customer &amp; subs)</label>
+        <label>Photos (optional)</label>
+        <input type="file" id="log-photos" accept="image/*" multiple />
+        <div id="log-photo-status" class="photos-hint"></div>
+        <div id="log-photo-previews" class="log-photo-strip"></div>
         <div class="modal-actions">
           <button id="log-delete" class="btn-danger hidden">Delete</button>
           <span class="spacer"></span>
