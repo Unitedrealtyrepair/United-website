@@ -33,6 +33,8 @@ async function api(payload) {
 let currentUser = null;
 let presenceMap = {};
 let presenceTimer = null;
+let uploadStatus = uploadStatus || "";
+let expandedGroups = new Set();
 let currentProject = null;
 let allFiles = [];
 let activeTab = null;
@@ -409,8 +411,13 @@ function ingestListing(out) {
       // Images in a subfolder = photo album entry.
       // Documents in a subfolder = sorted into their normal tab.
       if (isImage(f)) return { ...f, tab: "Photos", internal: office };
-      const c = categorize(f);
-      return { ...f, ...c, internal: c.internal || office };
+      // Folder name wins: a file in a "...PERMIT..." folder is a Document,
+      // even if its filename says "receipt".
+      const folderCat = categorize({ name: f.albumName || "", mimeType: "" });
+      const fileCat = categorize(f);
+      const byFolder = /invoice|change[\s\-_]?order|estimate|proposal|bid|schedule|timeline|material|receipt|supply|permit|inspection|plan|contract|warranty|scope|spec/.test((f.albumName || "").toLowerCase());
+      const c = byFolder ? folderCat : fileCat;
+      return { ...f, tab: c.tab, internal: fileCat.internal || office };
     }
     const c = categorize(f);
     return { ...f, ...c, internal: c.internal || office };
@@ -581,10 +588,17 @@ function render() {
       const albumFiles = files.filter((f) => f.albumId === fo.id);
       if (albumFiles.length === 0 && !fo.isSubUploads) continue;
 
+      const key = "Photos::" + fo.id;
+      const open = expandedGroups.has(key) || fo.isSubUploads;
       const divider = document.createElement("div");
-      divider.className = "photos-divider";
+      divider.className = "photos-divider clickable";
       const title = document.createElement("span");
-      title.textContent = "📁 " + fo.name;
+      title.textContent = (open ? "▾ " : "▸ ") + "📁 " + fo.name + "  (" + albumFiles.length + ")";
+      title.style.cursor = "pointer";
+      title.addEventListener("click", () => {
+        if (expandedGroups.has(key)) expandedGroups.delete(key); else expandedGroups.add(key);
+        render();
+      });
       divider.appendChild(title);
 
       if (isAdmin()) {
@@ -622,6 +636,7 @@ function render() {
       }
       list.appendChild(divider);
 
+      if (!open) continue;
       if (albumFiles.length === 0) {
         const emptyEl = document.createElement("div");
         emptyEl.className = "photos-hint album-empty";
@@ -634,16 +649,23 @@ function render() {
     return;
   }
 
-  // Group by folder on document-style tabs
+  // Group by folder on document-style tabs (collapsible)
   const loose2 = files.filter((f) => !f.albumName);
   for (const f of loose2) list.appendChild(fileCard(f));
   const groupNames = [...new Set(files.filter((f) => f.albumName).map((f) => f.albumName))].sort();
   for (const gn of groupNames) {
+    const inGroup = files.filter((x) => x.albumName === gn);
+    const key = activeTab + "::" + gn;
+    const open = expandedGroups.has(key);
     const divider = document.createElement("div");
-    divider.className = "photos-divider";
-    divider.textContent = "📁 " + gn;
+    divider.className = "photos-divider clickable";
+    divider.textContent = (open ? "▾ " : "▸ ") + "📁 " + gn + "  (" + inGroup.length + ")";
+    divider.addEventListener("click", () => {
+      if (open) expandedGroups.delete(key); else expandedGroups.add(key);
+      render();
+    });
     list.appendChild(divider);
-    for (const f of files.filter((x) => x.albumName === gn)) list.appendChild(fileCard(f));
+    if (open) for (const f of inGroup) list.appendChild(fileCard(f));
   }
 
 }
@@ -664,28 +686,6 @@ function canSeeAlbum(albumId) {
 function projectMembers() {
   // everyone on this project except admins
   return URR_CONFIG.users.filter((u) =>
-    u.role !== "admin" &&
-    (u.projects || []).includes(currentProject.name));
-
-
-}
-
-function canSeeAlbum(albumId) {
-  if (isAdmin()) return true;
-  const fo = photoFolders.find((x) => x.id === albumId);
-  if (!fo) return false;
-  // Subs always see the Sub Uploads folder so they can check their own uploads
-  if (fo.isSubUploads && currentUser.role === "sub") return true;
-  const allowed = folderPerms[albumId];
-  // No chips set = the whole audience of that folder sees it.
-  // Chips set = only those emails see it.
-  if (!allowed || allowed.length === 0) return true;
-  return allowed.includes(currentUser.email);
-}
-
-function projectMembers() {
-  // everyone on this project except admins (list comes from the backend at login)
-  return (SESSION.members || []).filter((u) =>
     u.role !== "admin" &&
     (u.projects || []).includes(currentProject.name));
 }

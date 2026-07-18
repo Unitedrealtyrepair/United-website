@@ -715,3 +715,6 @@ body {
 .presence-dot.away { background: #e67e22; }
 .presence-who { font-weight: 600; font-size: 14px; }
 .presence-meta { font-size: 12px; color: var(--muted); }
+
+.photos-divider.clickable { cursor: pointer; user-select: none; }
+.photos-divider.clickable:hover { color: var(--navy); }
