@@ -513,7 +513,7 @@ function render() {
       [["customer","→ Customer folder"],["crew","→ Sub folder"],["office","→ Office (private)"]].forEach(([v,l]) => {
         const o = document.createElement("option"); o.value = v; o.textContent = l; areaSel.appendChild(o);
       });
-      areaSel.value = "crew";
+      areaSel.value = "office";
 
       folderSel = document.createElement("select");
       folderSel.className = "dest-select";
@@ -625,8 +625,8 @@ function render() {
     list.appendChild(crumb);
   }
 
-  // Admin chips for the folder currently open (Photos)
-  if (path && activeTab === "Photos" && isAdmin()) {
+  // Admin chips for whichever folder is open (all tabs)
+  if (path && isAdmin()) {
     const fo = photoFolders.find((x) => x.name === path);
     if (fo) {
       const perms = document.createElement("div");
