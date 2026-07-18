@@ -410,7 +410,7 @@ function ingestListing(out) {
       // Documents in a subfolder = sorted into their normal tab.
       if (isImage(f)) return { ...f, tab: "Photos", internal: office };
       const c = categorize(f);
-      return { ...f, ...c, internal: c.internal || office, albumId: undefined, albumName: undefined };
+      return { ...f, ...c, internal: c.internal || office };
     }
     const c = categorize(f);
     return { ...f, ...c, internal: c.internal || office };
@@ -634,7 +634,39 @@ function render() {
     return;
   }
 
-  for (const f of files) list.appendChild(fileCard(f));
+  // Group by folder on document-style tabs
+  const loose2 = files.filter((f) => !f.albumName);
+  for (const f of loose2) list.appendChild(fileCard(f));
+  const groupNames = [...new Set(files.filter((f) => f.albumName).map((f) => f.albumName))].sort();
+  for (const gn of groupNames) {
+    const divider = document.createElement("div");
+    divider.className = "photos-divider";
+    divider.textContent = "📁 " + gn;
+    list.appendChild(divider);
+    for (const f of files.filter((x) => x.albumName === gn)) list.appendChild(fileCard(f));
+  }
+
+}
+
+function canSeeAlbum(albumId) {
+  if (isAdmin()) return true;
+  const fo = photoFolders.find((x) => x.id === albumId);
+  if (!fo) return false;
+  // Subs always see the Sub Uploads folder so they can check their own uploads
+  if (fo.isSubUploads && currentUser.role === "sub") return true;
+  const allowed = folderPerms[albumId];
+  // No chips set = the whole audience of that folder sees it.
+  // Chips set = only those emails see it.
+  if (!allowed || allowed.length === 0) return true;
+  return allowed.includes(currentUser.email);
+}
+
+function projectMembers() {
+  // everyone on this project except admins
+  return URR_CONFIG.users.filter((u) =>
+    u.role !== "admin" &&
+    (u.projects || []).includes(currentProject.name));
+
 
 }
 
