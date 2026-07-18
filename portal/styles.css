@@ -611,3 +611,53 @@ body {
   background: #fff;
   box-shadow: 0 20px 80px rgba(0,0,0,0.6);
 }
+
+/* ============ Mobile responsive ============ */
+@media (max-width: 720px) {
+  .portal-header {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+  .header-right { flex-wrap: wrap; gap: 8px; }
+  .user-badge { font-size: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .portal-header button { padding: 8px 12px; font-size: 13px; }
+
+  .tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    white-space: nowrap;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { padding: 12px 13px; font-size: 14px; flex-shrink: 0; }
+
+  .content { padding: 14px 10px; }
+
+  /* Calendar tightened for phones */
+  .cal-toolbar { flex-wrap: wrap; gap: 10px; }
+  .cal-month-label { font-size: 17px; }
+  .cal-weekdays div { font-size: 10px; }
+  .cal-grid { gap: 3px; }
+  .cal-day { min-height: 58px; padding: 3px; border-radius: 6px; }
+  .cal-day-num { font-size: 10px; }
+  .cal-event {
+    font-size: 8.5px;
+    padding: 2px 3px;
+    border-radius: 3px;
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .upcoming-item { flex-wrap: wrap; gap: 8px; padding: 12px 14px; }
+  .ov-grid, .ov-row2 { grid-template-columns: 1fr; }
+  .budget-summary { gap: 16px; }
+  .bs-val { font-size: 19px; }
+  .file-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  .file-thumb { height: 110px; }
+  .modal { max-width: 100%; padding: 20px 16px; }
+  .photos-toolbar { gap: 8px; }
+  .section-toolbar { gap: 10px; }
+}
