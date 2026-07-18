@@ -31,6 +31,8 @@ async function api(payload) {
 }
 
 let currentUser = null;
+let presenceMap = {};
+let presenceTimer = null;
 let currentProject = null;
 let allFiles = [];
 let activeTab = null;
@@ -190,6 +192,7 @@ function enterPortal(initialData) {
   $("user-badge").textContent = SESSION.email + " · " + SESSION.role;
   buildTabs();
   loadState(initialData).then(() => { render(); loadFiles(); });
+  startPresence();
 }
 
 function renderProjectName() {
@@ -220,7 +223,68 @@ function renderProjectName() {
   holder.appendChild(sel);
 }
 
+
+function startPresence() {
+  if (presenceTimer) clearInterval(presenceTimer);
+  const beat = async () => {
+    try { await api({ action: "ping", email: SESSION.email, code: SESSION.code, project: currentProject.name }); } catch (e) {}
+    if (isAdmin()) {
+      try {
+        const out = await api({ action: "presence", email: SESSION.email, code: SESSION.code });
+        if (out.ok) { presenceMap = out.presence || {}; if (activeTab === "Overview") renderPresence(); }
+      } catch (e) {}
+    }
+  };
+  beat();
+  presenceTimer = setInterval(beat, 60000);
+}
+
+function presenceStatus(iso) {
+  if (!iso) return { cls: "offline", label: "Never logged in" };
+  const mins = (Date.now() - new Date(iso).getTime()) / 60000;
+  if (mins < 2.5) return { cls: "online", label: "Online now" };
+  if (mins < 15) return { cls: "away", label: Math.round(mins) + " min ago" };
+  const d = new Date(iso);
+  return { cls: "offline", label: "Last seen " + d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) };
+}
+
+function renderPresence() {
+  const card = $("ov-presence-card");
+  const wrap = $("ov-presence");
+  if (!card || !wrap) return;
+  if (!isAdmin()) { card.classList.add("hidden"); return; }
+  card.classList.remove("hidden");
+  wrap.innerHTML = "";
+  const members = (SESSION.members || []).filter((m) => m.role !== "admin");
+  if (members.length === 0) {
+    wrap.appendChild(ovEmpty("No customers or subs added yet"));
+    return;
+  }
+  for (const m of members) {
+    const rec = presenceMap[m.email] || null;
+    const st = presenceStatus(rec ? rec.t : null);
+    const row = document.createElement("div");
+    row.className = "presence-row";
+    const dot = document.createElement("span");
+    dot.className = "presence-dot " + st.cls;
+    row.appendChild(dot);
+    const info = document.createElement("div");
+    info.className = "presence-info";
+    const who = document.createElement("div");
+    who.className = "presence-who";
+    who.textContent = m.email + " · " + m.role;
+    const meta = document.createElement("div");
+    meta.className = "presence-meta";
+    meta.textContent = st.label + (rec && rec.project && st.cls !== "offline" ? " · viewing " + rec.project : "");
+    info.appendChild(who);
+    info.appendChild(meta);
+    row.appendChild(info);
+    wrap.appendChild(row);
+  }
+}
+
 function logout() {
+  if (presenceTimer) { clearInterval(presenceTimer); presenceTimer = null; }
   sessionStorage.removeItem("urrSession");
   SESSION = null;
   currentUser = null;
@@ -678,6 +742,7 @@ function taskStatus(t) {
 }
 
 function renderOverview() {
+  renderPresence();
   const today = ymd(new Date());
 
   // Progress

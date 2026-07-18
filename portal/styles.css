@@ -706,3 +706,12 @@ body {
   max-width: 60vw;
 }
 .project-switcher option { color: #0f2440; }
+
+/* ---- Presence ---- */
+.presence-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.presence-row:last-child { border-bottom: none; }
+.presence-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; background: #b8c1cf; }
+.presence-dot.online { background: #2ecc71; box-shadow: 0 0 0 3px rgba(46,204,113,0.2); }
+.presence-dot.away { background: #e67e22; }
+.presence-who { font-weight: 600; font-size: 14px; }
+.presence-meta { font-size: 12px; color: var(--muted); }
