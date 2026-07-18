@@ -661,3 +661,13 @@ body {
   .photos-toolbar { gap: 8px; }
   .section-toolbar { gap: 10px; }
 }
+
+/* Fix: uneven calendar columns — long event pills can't stretch their column */
+.cal-grid, .cal-weekdays { grid-template-columns: repeat(7, minmax(0, 1fr)) !important; }
+.cal-day { min-width: 0; overflow: hidden; }
+.cal-event {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
