@@ -704,7 +704,7 @@ function canSeeAlbum(albumId) {
 
 function projectMembers() {
   // everyone on this project except admins
-  return URR_CONFIG.users.filter((u) =>
+  return (SESSION.members || []).filter((u) =>
     u.role !== "admin" &&
     (u.projects || []).includes(currentProject.name));
 }
