@@ -33,7 +33,7 @@ async function api(payload) {
 let currentUser = null;
 let presenceMap = {};
 let presenceTimer = null;
-let uploadStatus = uploadStatus || "";
+let uploadStatus = "";
 let expandedGroups = new Set();
 let navPathByTab = {};
 const syncEnabled = () => true;
@@ -510,7 +510,7 @@ function render() {
     if (isAdmin()) {
       areaSel = document.createElement("select");
       areaSel.className = "dest-select";
-      [["customer","→ Customer folder"],["crew","→ Crew folder"],["office","→ Office (private)"]].forEach(([v,l]) => {
+      [["customer","→ Customer folder"],["crew","→ Sub folder"],["office","→ Office (private)"]].forEach(([v,l]) => {
         const o = document.createElement("option"); o.value = v; o.textContent = l; areaSel.appendChild(o);
       });
       areaSel.value = "crew";
