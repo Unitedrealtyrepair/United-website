@@ -35,6 +35,8 @@ let presenceMap = {};
 let presenceTimer = null;
 let uploadStatus = uploadStatus || "";
 let expandedGroups = new Set();
+let navPathByTab = {};
+const syncEnabled = () => true;
 let currentProject = null;
 let allFiles = [];
 let activeTab = null;
@@ -219,6 +221,7 @@ function renderProjectName() {
     allFiles = [];
     photoFolders = [];
     projectFolderTree = {};
+    navPathByTab = {};
     buildTabs();
     loadState(null).then(() => { render(); loadFiles(); });
   });
@@ -488,7 +491,7 @@ function render() {
   if (!isFileTab) return;
 
   // Photos tab: in-portal upload for subs & admin
-  if (activeTab === "Photos" && (isAdmin() || currentUser.role === "sub")) {
+  if (activeTab === "Photos" && (isAdmin() || currentUser.role === "sub") && syncEnabled()) {
     const bar = document.createElement("div");
     bar.className = "photos-toolbar";
 
@@ -531,7 +534,8 @@ function render() {
         nf.value = "__new__";
         nf.textContent = "➕ New folder…";
         folderSel.appendChild(nf);
-        if (areaSel.value === "crew") folderSel.value = subsIn.some(s => /sub[\s\-_]?uploads?/i.test(s.name)) ? subsIn.find(s => /sub[\s\-_]?uploads?/i.test(s.name)).name : "";
+        const su = subsIn.find(s => /sub[\s\-_]?uploads?/i.test(s.name));
+        if (areaSel.value === "crew" && su) folderSel.value = su.name;
       };
       rebuildFolders();
       loadFolderTree().then(rebuildFolders);
@@ -573,101 +577,116 @@ function render() {
   }
 
   const files = visibleFiles().sort((a, b) => (b.modifiedTime || "").localeCompare(a.modifiedTime || ""));
-  const visibleAlbums = activeTab === "Photos" ? photoFolders.filter((fo) => canSeeAlbum(fo.id)) : [];
-  if (files.length === 0 && visibleAlbums.length === 0) {
-    $("empty-msg").classList.remove("hidden");
-    return;
-  }
 
-  if (activeTab === "Photos") {
-    const loose = files.filter((f) => !f.albumId);
-    for (const f of loose) list.appendChild(fileCard(f));
+  // ---------- Folder explorer ----------
+  const path = navPathByTab[activeTab] || "";
 
-    for (const fo of photoFolders) {
-      if (!canSeeAlbum(fo.id)) continue;
-      const albumFiles = files.filter((f) => f.albumId === fo.id);
-      if (albumFiles.length === 0 && !fo.isSubUploads) continue;
+  // Folders visible on this tab: those containing (recursively) files of this tab
+  const tabFolders = photoFolders.filter((fo) => {
+    if (activeTab === "Photos" && !canSeeAlbum(fo.id)) return false;
+    if (fo.isSubUploads && activeTab === "Photos") return true;
+    return files.some((f) => f.albumName === fo.name || (f.albumName || "").indexOf(fo.name + " / ") === 0);
+  });
 
-      const key = "Photos::" + fo.id;
-      const open = expandedGroups.has(key) || fo.isSubUploads;
-      const divider = document.createElement("div");
-      divider.className = "photos-divider clickable";
-      const title = document.createElement("span");
-      title.textContent = (open ? "▾ " : "▸ ") + "📁 " + fo.name + "  (" + albumFiles.length + ")";
-      title.style.cursor = "pointer";
-      title.addEventListener("click", () => {
-        if (expandedGroups.has(key)) expandedGroups.delete(key); else expandedGroups.add(key);
-        render();
-      });
-      divider.appendChild(title);
+  const countIn = (fo) => files.filter((f) => f.albumName === fo.name || (f.albumName || "").indexOf(fo.name + " / ") === 0).length;
+  const parentOf = (name) => {
+    const i = name.lastIndexOf(" / ");
+    return i === -1 ? "" : name.slice(0, i);
+  };
+  const lastSeg = (name) => {
+    const i = name.lastIndexOf(" / ");
+    return i === -1 ? name : name.slice(i + 3);
+  };
 
-      if (isAdmin()) {
-        const perms = document.createElement("span");
-        perms.className = "album-perms";
-        const lbl = document.createElement("span");
-        lbl.className = "album-perms-label";
-        const allowed = folderPerms[fo.id] || [];
-        lbl.textContent = allowed.length === 0 ? "Visible to everyone in this folder — limit to:" : "Limited to:";
-        perms.appendChild(lbl);
-        const audience = fo.source === "customer" ? "customer" : fo.source === "crew" ? "sub" : null;
-        for (const u of projectMembers().filter((m) => !audience || m.role === audience)) {
-          const chip = document.createElement("button");
-          const on = allowed.includes(u.email);
-          chip.className = "perm-chip" + (on ? " on" : "");
-          chip.textContent = (on ? "✓ " : "") + u.email + " (" + u.role + ")";
-          chip.addEventListener("click", async (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            let list2 = folderPerms[fo.id] || [];
-            list2 = on ? list2.filter((x) => x !== u.email) : list2.concat([u.email]);
-            folderPerms[fo.id] = list2;
-            await saveFolderPerms();
-            render();
-          });
-          perms.appendChild(chip);
-        }
-        if (projectMembers().length === 0) {
-          const none = document.createElement("span");
-          none.className = "photos-hint";
-          none.textContent = "no customer/sub on this project yet";
-          perms.appendChild(none);
-        }
-        divider.appendChild(perms);
-      }
-      list.appendChild(divider);
-
-      if (!open) continue;
-      if (albumFiles.length === 0) {
-        const emptyEl = document.createElement("div");
-        emptyEl.className = "photos-hint album-empty";
-        emptyEl.textContent = "No photos in this folder yet.";
-        list.appendChild(emptyEl);
-      } else {
-        for (const f of albumFiles) list.appendChild(fileCard(f));
-      }
-    }
-    return;
-  }
-
-  // Group by folder on document-style tabs (collapsible)
-  const loose2 = files.filter((f) => !f.albumName);
-  for (const f of loose2) list.appendChild(fileCard(f));
-  const groupNames = [...new Set(files.filter((f) => f.albumName).map((f) => f.albumName))].sort();
-  for (const gn of groupNames) {
-    const inGroup = files.filter((x) => x.albumName === gn);
-    const key = activeTab + "::" + gn;
-    const open = expandedGroups.has(key);
-    const divider = document.createElement("div");
-    divider.className = "photos-divider clickable";
-    divider.textContent = (open ? "▾ " : "▸ ") + "📁 " + gn + "  (" + inGroup.length + ")";
-    divider.addEventListener("click", () => {
-      if (open) expandedGroups.delete(key); else expandedGroups.add(key);
-      render();
+  // Breadcrumb
+  if (path) {
+    const crumb = document.createElement("div");
+    crumb.className = "crumb-bar";
+    const home = document.createElement("button");
+    home.className = "crumb";
+    home.textContent = activeTab;
+    home.addEventListener("click", () => { navPathByTab[activeTab] = ""; render(); });
+    crumb.appendChild(home);
+    const segs = path.split(" / ");
+    let acc = "";
+    segs.forEach((seg, i) => {
+      const sep = document.createElement("span");
+      sep.className = "crumb-sep";
+      sep.textContent = "›";
+      crumb.appendChild(sep);
+      acc = acc ? acc + " / " + seg : seg;
+      const b = document.createElement("button");
+      b.className = "crumb" + (i === segs.length - 1 ? " current" : "");
+      b.textContent = seg;
+      const target = acc;
+      b.addEventListener("click", () => { navPathByTab[activeTab] = target; render(); });
+      crumb.appendChild(b);
     });
-    list.appendChild(divider);
-    if (open) for (const f of inGroup) list.appendChild(fileCard(f));
+    list.appendChild(crumb);
   }
 
+  // Admin chips for the folder currently open (Photos)
+  if (path && activeTab === "Photos" && isAdmin()) {
+    const fo = photoFolders.find((x) => x.name === path);
+    if (fo) {
+      const perms = document.createElement("div");
+      perms.className = "album-perms crumb-perms";
+      const lbl = document.createElement("span");
+      lbl.className = "album-perms-label";
+      const allowed = folderPerms[fo.id] || [];
+      lbl.textContent = allowed.length === 0 ? "Visible to everyone in this folder — limit to:" : "Limited to:";
+      perms.appendChild(lbl);
+      const audience = fo.source === "customer" ? "customer" : fo.source === "crew" ? "sub" : null;
+      for (const u of projectMembers().filter((m) => !audience || m.role === audience)) {
+        const on = allowed.includes(u.email);
+        const chip = document.createElement("button");
+        chip.className = "perm-chip" + (on ? " on" : "");
+        chip.textContent = (on ? "✓ " : "") + u.email + " (" + u.role + ")";
+        chip.addEventListener("click", async () => {
+          let list2 = folderPerms[fo.id] || [];
+          list2 = on ? list2.filter((x) => x !== u.email) : list2.concat([u.email]);
+          folderPerms[fo.id] = list2;
+          await saveFolderPerms();
+          render();
+        });
+        perms.appendChild(chip);
+      }
+      list.appendChild(perms);
+    }
+  }
+
+  // Folder tiles at this level
+  const children = tabFolders
+    .filter((fo) => parentOf(fo.name) === path)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  for (const fo of children) {
+    const tile = document.createElement("button");
+    tile.className = "folder-tile";
+    const n = countIn(fo);
+    tile.innerHTML = "";
+    const ic = document.createElement("div");
+    ic.className = "folder-tile-icon";
+    ic.textContent = "📁";
+    const nm = document.createElement("div");
+    nm.className = "folder-tile-name";
+    nm.textContent = lastSeg(fo.name);
+    const ct = document.createElement("div");
+    ct.className = "folder-tile-count";
+    ct.textContent = n + (n === 1 ? " item" : " items");
+    tile.appendChild(ic);
+    tile.appendChild(nm);
+    tile.appendChild(ct);
+    tile.addEventListener("click", () => { navPathByTab[activeTab] = fo.name; render(); });
+    list.appendChild(tile);
+  }
+
+  // Files at this level
+  const here = files.filter((f) => (f.albumName || "") === path);
+  for (const f of here) list.appendChild(fileCard(f));
+
+  if (children.length === 0 && here.length === 0) {
+    $("empty-msg").classList.remove("hidden");
+  }
 }
 
 function canSeeAlbum(albumId) {
