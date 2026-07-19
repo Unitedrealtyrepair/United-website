@@ -6,7 +6,7 @@
   <title>URR Project Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=61" />
+  <link rel="stylesheet" href="styles.css?v=63" />
 </head>
 <body>
 
@@ -14,7 +14,9 @@
   <div id="login-screen" class="screen">
     <div class="login-card">
       <div class="brand">
-        <div class="brand-mark">URR</div>
+        <img src="logo.png" alt="United Realty Repair" class="login-logo"
+             onerror="this.style.display='none'; document.getElementById('logo-fallback').style.display='flex';" />
+        <div class="brand-mark" id="logo-fallback" style="display:none;">URR</div>
         <h1>United Realty Repair</h1>
         <p class="tagline">Project Portal</p>
       </div>
@@ -22,7 +24,7 @@
       <input type="email" id="email-input" placeholder="you@example.com" autocomplete="email" />
       <label for="code-input">Access code</label>
       <input type="password" id="code-input" placeholder="Provided by United Realty Repair" autocomplete="current-password" />
-      <button id="login-btn">View My Project</button>
+      <button id="login-btn">Login</button>
       <p id="login-error" class="error hidden">Access denied. Check your email and access code, or contact United Realty Repair.</p>
       <p id="login-wait" class="hidden" style="text-align:center;color:#6b7687;font-size:14px;margin-top:12px;">Checking…</p>
     </div>
@@ -32,7 +34,7 @@
   <div id="portal-screen" class="screen hidden">
     <header class="portal-header">
       <div class="header-left">
-        <div class="brand-mark small">URR</div>
+        <img src="logo-mark.png?v=1" alt="URR" class="header-logo" />
         <div>
           <div class="header-company">United Realty Repair</div>
           <div class="header-project" id="project-name">Project</div>
@@ -293,6 +295,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=61"></script>
+  <script src="app.js?v=63"></script>
 </body>
 </html>
