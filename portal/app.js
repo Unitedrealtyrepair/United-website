@@ -33,6 +33,15 @@ async function api(payload) {
 let currentUser = null;
 let presenceMap = {};
 let presenceTimer = null;
+let presenceRoster = [];
+let inboxThreads = {};     // admin: { email: {items, unread} }
+let myThread = [];         // non-admin thread
+let unreadMsgs = 0;
+let activityList = [];
+let msgTargetEmail = null; // admin's selected thread
+function presenceRosterList() {
+  return presenceRoster.length ? presenceRoster : (SESSION && SESSION.members ? SESSION.members : []);
+}
 let uploadStatus = "";
 let expandedGroups = new Set();
 let navPathByTab = {};
@@ -233,12 +242,25 @@ function startPresence() {
   if (presenceTimer) clearInterval(presenceTimer);
   const beat = async () => {
     try { await api({ action: "ping", email: SESSION.email, code: SESSION.code, project: currentProject.name }); } catch (e) {}
-    if (isAdmin()) {
-      try {
-        const out = await api({ action: "presence", email: SESSION.email, code: SESSION.code });
-        if (out.ok) { presenceMap = out.presence || {}; if (activeTab === "Overview") renderPresence(); }
-      } catch (e) {}
-    }
+    try {
+      const out = await api({ action: "inbox", email: SESSION.email, code: SESSION.code });
+      if (out.ok) {
+        activityList = out.activity || [];
+        if (isAdmin()) {
+          inboxThreads = out.threads || {};
+          unreadMsgs = Object.values(inboxThreads).reduce((s, t) => s + (t.unread || 0), 0);
+          presenceMap = out.presence || {};
+          if (out.users) presenceRoster = out.users;
+          renderPresenceBadge();
+          if (activeTab === "Overview") renderPresence();
+        } else {
+          myThread = out.thread || [];
+          unreadMsgs = out.unreadMsgs || 0;
+        }
+        renderMsgBadge();
+        renderBell();
+      }
+    } catch (e) {}
   };
   beat();
   presenceTimer = setInterval(beat, 60000);
@@ -253,6 +275,239 @@ function presenceStatus(iso) {
   return { cls: "offline", label: "Last seen " + d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) };
 }
 
+function presenceRecFor(email) {
+  return presenceMap[String(email || "").toLowerCase()] || null;
+}
+
+function renderPresenceBadge() {
+  const btn = $("presence-badge");
+  const pop = $("presence-pop");
+  if (!btn || !pop) return;
+  if (!isAdmin()) { btn.classList.add("hidden"); pop.classList.add("hidden"); return; }
+  btn.classList.remove("hidden");
+  const roster = presenceRosterList().filter((m) => m.role !== "admin");
+  let online = 0;
+  for (const m of roster) {
+    const rec = presenceRecFor(m.email);
+    if (rec && presenceStatus(rec.t).cls === "online") online++;
+  }
+  btn.textContent = "👥 " + online + " online";
+  btn.classList.toggle("has-online", online > 0);
+
+  pop.innerHTML = "";
+  if (roster.length === 0) {
+    const d = document.createElement("div");
+    d.className = "presence-meta";
+    d.style.padding = "10px 14px";
+    d.textContent = "No customers or subs yet";
+    pop.appendChild(d);
+  }
+  for (const m of roster) {
+    const rec = presenceRecFor(m.email);
+    const st = presenceStatus(rec ? rec.t : null);
+    const row = document.createElement("div");
+    row.className = "presence-row";
+    const dot = document.createElement("span");
+    dot.className = "presence-dot " + st.cls;
+    row.appendChild(dot);
+    const info = document.createElement("div");
+    info.className = "presence-info";
+    const who = document.createElement("div");
+    who.className = "presence-who";
+    who.textContent = m.email + " · " + m.role;
+    const meta = document.createElement("div");
+    meta.className = "presence-meta";
+    meta.textContent = st.label + (rec && rec.project && st.cls !== "offline" ? " · " + rec.project : "");
+    info.appendChild(who);
+    info.appendChild(meta);
+    row.appendChild(info);
+    pop.appendChild(row);
+  }
+}
+
+function lastSeenActivityKey() {
+  return "urrActSeen_" + (SESSION ? SESSION.email : "");
+}
+
+function unseenActivityCount() {
+  const seen = localStorage.getItem(lastSeenActivityKey()) || "";
+  return activityList.filter((a) => a.t > seen).length;
+}
+
+function renderBell() {
+  const btn = $("bell-badge");
+  if (!btn) return;
+  btn.classList.remove("hidden");
+  const n = unseenActivityCount();
+  btn.textContent = "🔔" + (n > 0 ? " " + n : "");
+  btn.classList.toggle("has-online", n > 0);
+}
+
+function renderBellPop() {
+  const pop = $("bell-pop");
+  if (!pop) return;
+  pop.innerHTML = "";
+  if (activityList.length === 0) {
+    const d = document.createElement("div");
+    d.className = "presence-meta";
+    d.style.padding = "10px 14px";
+    d.textContent = "No updates yet";
+    pop.appendChild(d);
+    return;
+  }
+  for (const a of activityList) {
+    const row = document.createElement("div");
+    row.className = "presence-row";
+    const info = document.createElement("div");
+    info.className = "presence-info";
+    const who = document.createElement("div");
+    who.className = "presence-who";
+    const icon = a.kind === "schedule" ? "📅" : a.kind === "budget" ? "💵" : a.kind === "log" ? "📝" : a.kind === "photos" ? "📷" : "•";
+    who.textContent = icon + " " + a.summary;
+    const meta = document.createElement("div");
+    meta.className = "presence-meta";
+    const d2 = new Date(a.t);
+    meta.textContent = a.project + " · " + d2.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + d2.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) + (a.by && a.by !== "admin" ? " · " + a.by : "");
+    info.appendChild(who);
+    info.appendChild(meta);
+    row.appendChild(info);
+    pop.appendChild(row);
+  }
+}
+
+function renderMsgBadge() {
+  const btn = $("msg-badge");
+  if (!btn) return;
+  btn.classList.remove("hidden");
+  btn.textContent = "✉" + (unreadMsgs > 0 ? " " + unreadMsgs : "");
+  btn.classList.toggle("has-online", unreadMsgs > 0);
+}
+
+function renderMsgPop() {
+  const pop = $("msg-pop");
+  if (!pop) return;
+  pop.innerHTML = "";
+
+  const thread = document.createElement("div");
+  thread.className = "msg-thread";
+
+  let items = [];
+  if (isAdmin()) {
+    const sel = document.createElement("select");
+    sel.className = "dest-select msg-user-select";
+    const roster = presenceRosterList().filter((m) => m.role !== "admin");
+    if (roster.length === 0) {
+      const d = document.createElement("div");
+      d.className = "presence-meta";
+      d.style.padding = "10px 14px";
+      d.textContent = "Add users to the sheet first";
+      pop.appendChild(d);
+      return;
+    }
+    for (const m of roster) {
+      const o = document.createElement("option");
+      o.value = m.email.toLowerCase();
+      const un = (inboxThreads[m.email.toLowerCase()] || {}).unread || 0;
+      o.textContent = m.email + (un > 0 ? " (" + un + ")" : "");
+      sel.appendChild(o);
+    }
+    if (!msgTargetEmail) msgTargetEmail = sel.options[0].value;
+    sel.value = msgTargetEmail;
+    sel.addEventListener("change", () => {
+      msgTargetEmail = sel.value;
+      renderMsgPop();
+      markThreadRead();
+    });
+    pop.appendChild(sel);
+    items = (inboxThreads[msgTargetEmail] || {}).items || [];
+  } else {
+    items = myThread;
+  }
+
+  const meLabel = isAdmin() ? "admin" : SESSION.email.toLowerCase();
+  if (items.length === 0) {
+    const d = document.createElement("div");
+    d.className = "presence-meta";
+    d.style.padding = "8px 4px";
+    d.textContent = "No messages yet";
+    thread.appendChild(d);
+  }
+  for (const m of items) {
+    const bub = document.createElement("div");
+    const mine = m.from === meLabel;
+    bub.className = "msg-bubble " + (mine ? "mine" : "theirs");
+    bub.textContent = m.text;
+    const t = document.createElement("div");
+    t.className = "msg-time";
+    const d2 = new Date(m.t);
+    t.textContent = (mine ? "You" : (m.from === "admin" ? "United Realty Repair" : m.from)) + " · " + d2.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + d2.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    const wrap = document.createElement("div");
+    wrap.className = "msg-wrap-line " + (mine ? "mine" : "theirs");
+    wrap.appendChild(bub);
+    wrap.appendChild(t);
+    thread.appendChild(wrap);
+  }
+  pop.appendChild(thread);
+  thread.scrollTop = thread.scrollHeight;
+
+  const bar = document.createElement("div");
+  bar.className = "msg-input-bar";
+  const inp = document.createElement("input");
+  inp.type = "text";
+  inp.placeholder = "Type a message…";
+  inp.maxLength = 2000;
+  const send = document.createElement("button");
+  send.className = "add-task-btn";
+  send.textContent = "Send";
+  const doSend = async () => {
+    const text = inp.value.trim();
+    if (!text) return;
+    send.disabled = true;
+    try {
+      const payload = { action: "sendMessage", email: SESSION.email, code: SESSION.code, text };
+      if (isAdmin()) payload.to = msgTargetEmail;
+      const out = await api(payload);
+      if (!out.ok) throw new Error(out.error || "failed");
+      inp.value = "";
+      const now = new Date().toISOString();
+      const msg = { id: "tmp" + Date.now(), from: meLabel, text, t: now, readBy: [meLabel] };
+      if (isAdmin()) {
+        if (!inboxThreads[msgTargetEmail]) inboxThreads[msgTargetEmail] = { items: [], unread: 0 };
+        inboxThreads[msgTargetEmail].items.push(msg);
+      } else {
+        myThread.push(msg);
+      }
+      renderMsgPop();
+    } catch (err) {
+      alert("Couldn't send: " + err.message);
+    }
+    send.disabled = false;
+    inp.focus();
+  };
+  send.addEventListener("click", doSend);
+  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") doSend(); });
+  bar.appendChild(inp);
+  bar.appendChild(send);
+  pop.appendChild(bar);
+}
+
+async function markThreadRead() {
+  try {
+    const payload = { action: "readMessages", email: SESSION.email, code: SESSION.code };
+    if (isAdmin()) {
+      payload.with = msgTargetEmail;
+      if (inboxThreads[msgTargetEmail]) {
+        unreadMsgs -= inboxThreads[msgTargetEmail].unread || 0;
+        inboxThreads[msgTargetEmail].unread = 0;
+      }
+    } else {
+      unreadMsgs = 0;
+    }
+    renderMsgBadge();
+    await api(payload);
+  } catch (e) {}
+}
+
 function renderPresence() {
   const card = $("ov-presence-card");
   const wrap = $("ov-presence");
@@ -260,13 +515,13 @@ function renderPresence() {
   if (!isAdmin()) { card.classList.add("hidden"); return; }
   card.classList.remove("hidden");
   wrap.innerHTML = "";
-  const members = (SESSION.members || []).filter((m) => m.role !== "admin");
+  const members = presenceRosterList().filter((m) => m.role !== "admin");
   if (members.length === 0) {
     wrap.appendChild(ovEmpty("No customers or subs added yet"));
     return;
   }
   for (const m of members) {
-    const rec = presenceMap[m.email] || null;
+    const rec = presenceRecFor(m.email);
     const st = presenceStatus(rec ? rec.t : null);
     const row = document.createElement("div");
     row.className = "presence-row";
@@ -737,6 +992,28 @@ function fileCard(f) {
     e.preventDefault();
     openLightboxGallery(f);
   });
+  if (isAdmin()) {
+    const del = document.createElement("button");
+    del.className = "file-del";
+    del.title = "Delete file";
+    del.textContent = "🗑";
+    del.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!confirm("Delete \"" + f.name + "\"? It goes to Drive's trash.")) return;
+      del.disabled = true;
+      try {
+        const out = await api({ action: "deleteFile", email: SESSION.email, code: SESSION.code, fileId: f.id });
+        if (!out.ok) throw new Error(out.error || "failed");
+        allFiles = allFiles.filter((x) => x.id !== f.id);
+        render();
+      } catch (err) {
+        alert("Couldn't delete: " + err.message);
+        del.disabled = false;
+      }
+    });
+    a.appendChild(del);
+  }
 
   if (isImage(f)) {
     const img = document.createElement("img");
@@ -1529,6 +1806,10 @@ function openLightbox(f) {
     img.src = "";
   }
   $("lightbox-name").textContent = f.name;
+  const openBtn = $("lightbox-open");
+  if (openBtn) {
+    openBtn.href = f.link || ("https://drive.google.com/file/d/" + f.id + "/view");
+  }
   $("lightbox").classList.remove("hidden");
 }
 function closeLightbox() {
@@ -1582,6 +1863,34 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("tv-close").addEventListener("click", () => closeModal("task-view-modal"));
 
   $("lightbox-close").addEventListener("click", closeLightbox);
+  const mbtn = $("msg-badge");
+  if (mbtn) mbtn.addEventListener("click", () => {
+    const pop = $("msg-pop");
+    pop.classList.toggle("hidden");
+    if (!pop.classList.contains("hidden")) { renderMsgPop(); markThreadRead(); }
+  });
+  const bbtn = $("bell-badge");
+  if (bbtn) bbtn.addEventListener("click", () => {
+    const pop = $("bell-pop");
+    pop.classList.toggle("hidden");
+    if (!pop.classList.contains("hidden")) {
+      renderBellPop();
+      localStorage.setItem(lastSeenActivityKey(), new Date().toISOString());
+      renderBell();
+    }
+  });
+  document.addEventListener("click", (e) => {
+    for (const w of ["msg", "bell"]) {
+      const pop = $(w + "-pop");
+      if (pop && !pop.classList.contains("hidden") && !e.target.closest("." + w + "-wrap")) pop.classList.add("hidden");
+    }
+  });
+  const pbtn = $("presence-badge");
+  if (pbtn) pbtn.addEventListener("click", () => $("presence-pop").classList.toggle("hidden"));
+  document.addEventListener("click", (e) => {
+    const pop = $("presence-pop");
+    if (pop && !pop.classList.contains("hidden") && !e.target.closest(".presence-wrap")) pop.classList.add("hidden");
+  });
   $("lightbox-prev").addEventListener("click", () => showLightboxAt(lightboxIndex - 1));
   $("lightbox-next").addEventListener("click", () => showLightboxAt(lightboxIndex + 1));
   document.addEventListener("keydown", (e) => {

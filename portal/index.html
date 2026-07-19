@@ -6,7 +6,7 @@
   <title>URR Project Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=53" />
+  <link rel="stylesheet" href="styles.css?v=56" />
 </head>
 <body>
 
@@ -40,6 +40,9 @@
       </div>
       <div class="header-right">
         <span id="user-badge" class="user-badge"></span>
+        <div class="msg-wrap presence-wrap"><button id="msg-badge" class="presence-badge hidden">✉</button><div id="msg-pop" class="presence-pop msg-pop hidden"></div></div>
+        <div class="bell-wrap presence-wrap"><button id="bell-badge" class="presence-badge hidden">🔔</button><div id="bell-pop" class="presence-pop hidden"></div></div>
+        <div class="presence-wrap"><button id="presence-badge" class="presence-badge hidden">👥 0 online</button><div id="presence-pop" class="presence-pop hidden"></div></div>
         <button id="refresh-btn" title="Refresh files">&#8635; Refresh</button>
         <button id="logout-btn">Sign out</button>
       </div>
@@ -280,6 +283,7 @@
       <img id="lightbox-img" alt="" class="hidden" />
       <iframe id="lightbox-frame" class="hidden" allow="autoplay"></iframe>
       <div id="lightbox-name" class="lightbox-name"></div>
+      <a id="lightbox-open" class="lightbox-open" target="_blank" rel="noopener">Open full ↗</a>
     </div>
 
     <footer class="portal-footer">
@@ -287,6 +291,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=53"></script>
+  <script src="app.js?v=56"></script>
 </body>
 </html>
