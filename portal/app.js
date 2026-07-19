@@ -205,6 +205,7 @@ function enterPortal(initialData) {
   $("user-badge").textContent = SESSION.email + " · " + SESSION.role;
   buildTabs();
   loadState(initialData).then(() => { render(); loadFiles(); });
+  resetSharedState();
   startPresence();
 }
 
@@ -245,7 +246,13 @@ function startPresence() {
     try {
       const out = await api({ action: "inbox", email: SESSION.email, code: SESSION.code });
       if (out.ok) {
+        if (out.v) console.log("URR backend " + out.v);
         activityList = out.activity || [];
+        if (!isAdmin()) {
+          presenceMap = {};
+          presenceRoster = [];
+          inboxThreads = {};
+        }
         if (isAdmin()) {
           inboxThreads = out.threads || {};
           unreadMsgs = Object.values(inboxThreads).reduce((s, t) => s + (t.unread || 0), 0);
@@ -543,8 +550,22 @@ function renderPresence() {
   }
 }
 
+function resetSharedState() {
+  presenceMap = {};
+  presenceRoster = [];
+  inboxThreads = {};
+  myThread = [];
+  unreadMsgs = 0;
+  activityList = [];
+  msgTargetEmail = null;
+  const pb = $("presence-badge"), pp = $("presence-pop");
+  if (pb) pb.classList.add("hidden");
+  if (pp) { pp.classList.add("hidden"); pp.innerHTML = ""; }
+}
+
 function logout() {
   if (presenceTimer) { clearInterval(presenceTimer); presenceTimer = null; }
+  resetSharedState();
   sessionStorage.removeItem("urrSession");
   SESSION = null;
   currentUser = null;
@@ -1176,7 +1197,9 @@ function ovTask(t, kind) {
 }
 
 // ---------- Calendar ----------
-function ymd(d) { return d.toISOString().slice(0, 10); }
+function ymd(d) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
 
 function adminTooltipNotes(t) {
   if (!isAdmin()) return "";
