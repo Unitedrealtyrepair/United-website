@@ -1831,7 +1831,12 @@ function openLightbox(f) {
   $("lightbox-name").textContent = f.name;
   const openBtn = $("lightbox-open");
   if (openBtn) {
-    openBtn.href = f.link || ("https://drive.google.com/file/d/" + f.id + "/view");
+    if (isAdmin()) {
+      openBtn.classList.remove("hidden");
+      openBtn.href = f.link || ("https://drive.google.com/file/d/" + f.id + "/view");
+    } else {
+      openBtn.classList.add("hidden");
+    }
   }
   $("lightbox").classList.remove("hidden");
 }

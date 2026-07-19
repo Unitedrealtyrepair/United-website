@@ -897,3 +897,6 @@ body {
 @media (max-width: 720px) {
   .msg-pop { position: fixed; left: 3vw; right: 3vw; top: 110px; min-width: 0; }
 }
+
+/* Open-full sits above the filename, admin-only */
+.lightbox-open { bottom: 58px; }
