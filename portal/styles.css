@@ -900,3 +900,5 @@ body {
 
 /* Open-full sits above the filename, admin-only */
 .lightbox-open { bottom: 58px; }
+
+.notify-row { margin: 10px 0 4px; grid-column: 1 / -1; }

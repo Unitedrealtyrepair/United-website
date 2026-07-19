@@ -38,7 +38,42 @@ let inboxThreads = {};     // admin: { email: {items, unread} }
 let myThread = [];         // non-admin thread
 let unreadMsgs = 0;
 let activityList = [];
-let msgTargetEmail = null; // admin's selected thread
+let msgTargetEmail = null;
+let pendingNotify = { task: [], log: [], upload: [] };
+
+function projectUsersForNotify() {
+  return presenceRosterList().filter((m) =>
+    m.role !== "admin" &&
+    (Array.isArray(m.projects)
+      ? m.projects.includes(currentProject.name)
+      : String(m.projects || "").split(",").map((s) => s.trim()).includes(currentProject.name))
+  );
+}
+
+function buildNotifyChips(container, slot) {
+  container.innerHTML = "";
+  pendingNotify[slot] = [];
+  if (!isAdmin()) return;
+  const users = projectUsersForNotify();
+  if (users.length === 0) return;
+  const lbl = document.createElement("span");
+  lbl.className = "album-perms-label";
+  lbl.textContent = "🔔 Notify:";
+  container.appendChild(lbl);
+  for (const u of users) {
+    const em = u.email.toLowerCase();
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "perm-chip";
+    chip.textContent = u.email + " (" + u.role + ")";
+    chip.addEventListener("click", () => {
+      const i = pendingNotify[slot].indexOf(em);
+      if (i === -1) { pendingNotify[slot].push(em); chip.classList.add("on"); chip.textContent = "✓ " + u.email + " (" + u.role + ")"; }
+      else { pendingNotify[slot].splice(i, 1); chip.classList.remove("on"); chip.textContent = u.email + " (" + u.role + ")"; }
+    });
+    container.appendChild(chip);
+  }
+} // admin's selected thread
 function presenceRosterList() {
   return presenceRoster.length ? presenceRoster : (SESSION && SESSION.members ? SESSION.members : []);
 }
@@ -123,9 +158,9 @@ async function loadState(initialData) {
   }
 }
 
-async function pushCollection(key, data) {
+async function pushCollection(key, data, notify) {
   try {
-    const out = await api({ action: "save", email: SESSION.email, code: SESSION.code, key, data });
+    const out = await api({ action: "save", email: SESSION.email, code: SESSION.code, key, data, notify: notify || [] });
     setSyncStatus(out.ok ? "synced" : "offline");
   } catch (err) {
     console.warn("save failed", err);
@@ -142,9 +177,9 @@ function setSyncStatus(state) {
     : "Synced";
 }
 
-async function saveSchedule() { cacheSet(pkey("Schedule"), schedule); pushCollection(pkey("Schedule"), schedule); }
+async function saveSchedule() { cacheSet(pkey("Schedule"), schedule); pushCollection(pkey("Schedule"), schedule, pendingNotify.task); pendingNotify.task = []; }
 async function saveBudget()   { cacheSet(pkey("Budget"), budget);     pushCollection(pkey("Budget"), budget); }
-async function saveLogs()     { cacheSet(pkey("Logs"), logs);         pushCollection(pkey("Logs"), logs); }
+async function saveLogs()     { cacheSet(pkey("Logs"), logs); pushCollection(pkey("Logs"), logs, pendingNotify.log); pendingNotify.log = []; }
 async function saveSubs()     { cacheSet("urrSubs", subs);            pushCollection("urrSubs", subs); }
 async function saveFolderPerms() { cacheSet(pkey("FolderPerms"), folderPerms); pushCollection(pkey("FolderPerms"), folderPerms); }
 
@@ -648,7 +683,8 @@ async function uploadOne(file, dest) {
     data: b64,
     destArea: (dest && dest.destArea) || "crew",
     destFolderName: (dest && dest.destFolderName) || "",
-    destAreaRoot: !!(dest && dest.destAreaRoot)
+    destAreaRoot: !!(dest && dest.destAreaRoot),
+    notify: (dest && dest.notify) || []
   });
 }
 
@@ -767,19 +803,20 @@ function render() {
   if (!isFileTab) return;
 
   // Photos tab: in-portal upload for subs & admin
-  if (activeTab === "Photos" && (isAdmin() || currentUser.role === "sub") && syncEnabled()) {
+  if ((activeTab === "Photos" || activeTab === "Documents") && (isAdmin() || currentUser.role === "sub" || currentUser.role === "customer") && syncEnabled()) {
     const bar = document.createElement("div");
     bar.className = "photos-toolbar";
 
+    const isDocs = activeTab === "Documents";
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = "image/*";
+    if (!isDocs) input.accept = "image/*";
     input.multiple = true;
     input.style.display = "none";
 
     const btn = document.createElement("button");
     btn.className = "add-task-btn photos-add";
-    btn.textContent = "+ Add Photos";
+    btn.textContent = isDocs ? "+ Add Documents" : "+ Add Photos";
     btn.addEventListener("click", () => input.click());
 
     let areaSel = null, folderSel = null;
@@ -837,10 +874,17 @@ function render() {
     const hint = document.createElement("span");
     hint.className = "photos-hint";
     hint.textContent = uploadStatus || (isAdmin()
-      ? "Pick where the photos go, then Add."
-      : "Pick your job photos — they upload straight to United Realty Repair.");
+      ? "Pick a destination, then Add."
+      : currentUser.role === "customer"
+        ? "Files you add go straight to United Realty Repair."
+        : "Pick your job photos — they upload straight to United Realty Repair.");
+
+    const notifyRow = document.createElement("div");
+    notifyRow.className = "album-perms notify-row";
+    buildNotifyChips(notifyRow, "upload");
 
     input.addEventListener("change", () => uploadPhotos(input.files, btn, hint, {
+      notify: pendingNotify.upload.slice(),
       destArea: areaSel ? areaSel.value : "crew",
       destFolderName: folderSel ? (folderSel.value === "__new__" ? "" : folderSel.value) : "",
       destAreaRoot: areaSel && folderSel && !folderSel.value
@@ -850,6 +894,7 @@ function render() {
     bar.appendChild(hint);
     bar.appendChild(input);
     list.appendChild(bar);
+    if (isAdmin() && notifyRow.childNodes.length > 0) list.appendChild(notifyRow);
   }
 
   const files = visibleFiles().sort((a, b) => (b.modifiedTime || "").localeCompare(a.modifiedTime || ""));
@@ -1372,6 +1417,8 @@ function openTaskModal(taskId) {
   $("task-modal-title").textContent = t ? "Edit Scheduled Trade" : "Schedule a Trade";
   $("task-trade").value = t ? t.trade : TRADES[0];
   $("task-sub").value = t ? (t.sub || "") : "";
+  const tn = $("task-notify");
+  if (tn) buildNotifyChips(tn, "task");
   $("task-start").value = t ? t.start : ymd(new Date());
   $("task-end").value = t ? t.end : ymd(new Date());
   $("task-status").value = t ? (t.status || taskStatus(t)) : "scheduled";
@@ -1606,6 +1653,8 @@ function openLogModal(id) {
   editingLogId = id || null;
   const l = id ? logs.find((x) => x.id === id) : null;
   $("log-modal-title").textContent = l ? "Edit Log Entry" : "Add Log Entry";
+  const ln = $("log-notify");
+  if (ln) buildNotifyChips(ln, "log");
   $("log-date").value = l ? l.date : ymd(new Date());
   $("log-weather").value = l ? (l.weather || "") : "";
   $("log-crew").value = l ? (l.crew || "") : "";

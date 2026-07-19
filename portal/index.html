@@ -6,7 +6,7 @@
   <title>URR Project Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=59" />
+  <link rel="stylesheet" href="styles.css?v=61" />
 </head>
 <body>
 
@@ -175,7 +175,8 @@
         <input type="text" id="task-note-sub" placeholder="e.g. rough-in only, bring your own ladder" />
         <label class="note-label private">Private Note <span>— only you see this</span></label>
         <input type="text" id="task-note-admin" placeholder="e.g. customer is difficult about noise, watch scheduling" />
-        <div class="modal-actions">
+        <div id="task-notify" class="album-perms notify-row"></div>
+            <div class="modal-actions">
           <button id="task-delete" class="btn-danger hidden">Delete</button>
           <span class="spacer"></span>
           <button id="task-cancel" class="btn-ghost">Cancel</button>
@@ -240,7 +241,8 @@
         <input type="file" id="log-photos" accept="image/*" multiple />
         <div id="log-photo-status" class="photos-hint"></div>
         <div id="log-photo-previews" class="log-photo-strip"></div>
-        <div class="modal-actions">
+        <div id="log-notify" class="album-perms notify-row"></div>
+            <div class="modal-actions">
           <button id="log-delete" class="btn-danger hidden">Delete</button>
           <span class="spacer"></span>
           <button id="log-cancel" class="btn-ghost">Cancel</button>
@@ -291,6 +293,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=59"></script>
+  <script src="app.js?v=61"></script>
 </body>
 </html>
