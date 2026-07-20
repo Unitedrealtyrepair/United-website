@@ -6,7 +6,7 @@
   <title>URR Project Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=74" />
+  <link rel="stylesheet" href="styles.css?v=75" />
 </head>
 <body>
 
@@ -328,6 +328,11 @@
         </div>
         <label>Title</label>
         <input type="text" id="est-name" placeholder="e.g. Kitchen &amp; Bath Remodel — 2515 Bannock" />
+        <div class="est-head-grid est-cust-grid">
+          <div><label>Customer name</label><input type="text" id="est-cust-name" placeholder="e.g. Nathan Danner" /></div>
+          <div><label>Billing address</label><input type="text" id="est-bill-addr" placeholder="street, city, state zip" /></div>
+          <div><label>Service address</label><input type="text" id="est-svc-addr" placeholder="job site address" /></div>
+        </div>
         <div id="est-sections"></div>
         <button id="est-add-section" class="btn-ghost est-add-sec">+ Add Section</button>
 
@@ -368,8 +373,20 @@
         <input type="file" id="est-attach-input" multiple class="hidden" />
 
         <label>Contract / Terms <span class="lbl-hint">— customer must agree before approving</span></label>
-        <textarea id="est-terms" rows="5" placeholder="Paste your terms / Idaho Code 45-525 disclosure here"></textarea>
-        <button id="est-terms-default" class="btn-ghost est-add-item">Save as my default terms</button>
+        <div class="est-terms-bar">
+          <select id="est-terms-select"></select>
+          <button id="est-terms-toggle" class="btn-ghost">Expand ▾</button>
+        </div>
+        <div id="est-terms-preview" class="est-terms-preview"></div>
+        <div id="est-terms-editor" class="hidden">
+          <textarea id="est-terms" rows="9" placeholder="Paste your terms / Idaho Code 45-525 disclosure here"></textarea>
+          <div class="est-terms-actions">
+            <button id="est-terms-update" class="btn-ghost">💾 Update this template</button>
+            <button id="est-terms-saveas" class="btn-ghost">＋ Save as new template</button>
+            <button id="est-terms-setdef" class="btn-ghost">★ Set as default</button>
+            <button id="est-terms-deltpl" class="btn-ghost">🗑 Delete template</button>
+          </div>
+        </div>
 
         <label>Notes to customer <span class="lbl-hint">— shown on the estimate</span></label>
         <input type="text" id="est-cust-notes" placeholder="e.g. valid for 30 days, 50% deposit to schedule" />
@@ -384,31 +401,26 @@
       </div>
     </div>
 
+    <!-- ===== Estimate PDF preview (admin) ===== -->
+    <div id="est-preview-modal" class="modal-overlay hidden">
+      <div class="modal modal-wide est-preview-shell">
+        <div class="est-preview-tools">
+          <span class="est-preview-hint">This is exactly what the customer sees — no markup, no internal notes.</span>
+          <span class="spacer"></span>
+          <button id="est-pdf-btn" class="btn-primary">⬇ Download PDF</button>
+          <button id="est-preview-edit" class="btn-ghost">✎ Back to edit</button>
+          <button id="est-preview-close" class="btn-ghost">Close</button>
+        </div>
+        <div id="est-preview-doc" class="est-doc"></div>
+      </div>
+    </div>
+
     <!-- ===== Estimate view modal (customer + admin preview) ===== -->
     <div id="est-view-modal" class="modal-overlay hidden">
       <div class="modal modal-wide">
-        <h2 id="ev-title">Estimate</h2>
-        <div class="tv-row" id="ev-meta"></div>
-        <div id="ev-body"></div>
-        <div class="est-sums ev-sums">
-          <div><span>Subtotal</span><b id="ev-subtotal">$0</b></div>
-          <div id="ev-disc-row" class="hidden"><span>Discount</span><b id="ev-disc">−$0</b></div>
-          <div><span>Tax</span><b id="ev-tax">$0</b></div>
-          <div class="est-grand"><span>Total</span><b id="ev-grand">$0</b></div>
-          <div id="ev-dep-row" class="hidden"><span>Deposit due</span><b id="ev-dep">$0</b></div>
-        </div>
-        <div id="ev-schedule"></div>
-        <div id="ev-attachments"></div>
-        <div class="tv-row tv-note hidden" id="ev-notes-row">
-          <div class="tv-note-label">Notes from United Realty Repair</div>
-          <div id="ev-notes"></div>
-        </div>
-        <div class="tv-row tv-note hidden" id="ev-terms-row">
-          <div class="tv-note-label">Contract Terms</div>
-          <div id="ev-terms" class="ev-terms-text"></div>
-        </div>
+        <div id="ev-doc" class="est-doc"></div>
         <div id="ev-sign-row" class="ev-sign hidden">
-          <label class="checkbox-row"><input type="checkbox" id="ev-agree" /> I have read and agree to the terms above</label>
+          <label class="checkbox-row"><input type="checkbox" id="ev-agree" /> I have read and agree to the contract terms above</label>
           <label>Sign by typing your full legal name</label>
           <input type="text" id="ev-sign-name" placeholder="Your full name" />
         </div>
@@ -447,6 +459,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=74"></script>
+  <script src="app.js?v=75"></script>
 </body>
 </html>

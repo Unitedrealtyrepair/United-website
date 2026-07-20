@@ -1199,3 +1199,51 @@ body {
   .est-row { grid-template-columns: 1fr 52px 72px 108px 28px 76px 22px; }
   .ev-row { grid-template-columns: 1fr 44px 76px 84px; font-size: 13px; }
 }
+
+/* ===== Branded estimate document (v75) ===== */
+.est-doc { background: #fff; padding: 8px 6px 4px; }
+.doc-head { display: flex; justify-content: space-between; gap: 20px; border-bottom: 4px solid #0f2440; padding-bottom: 14px; }
+.doc-co { display: flex; gap: 14px; align-items: flex-start; }
+.doc-logo { width: 150px; height: auto; }
+.doc-co-info { font-size: 12.5px; color: #40506a; line-height: 1.5; }
+.doc-co-info b { color: #0f2440; font-size: 14px; }
+.doc-meta { text-align: right; min-width: 240px; }
+.doc-kind { font-size: 26px; font-weight: 800; color: #c8102e; letter-spacing: 2px; margin-bottom: 6px; }
+.doc-meta-grid { display: grid; grid-template-columns: auto auto; gap: 2px 12px; justify-content: end; font-size: 12.5px; }
+.doc-meta-grid span { color: #8a96a8; text-align: right; }
+.doc-meta-grid b { color: #0f2440; text-align: right; }
+.doc-billto { margin-top: 10px; font-size: 12.5px; text-align: right; color: #40506a; }
+.doc-billto span { display: block; color: #8a96a8; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+.doc-billto b { color: #0f2440; font-size: 14px; }
+.doc-title { font-size: 17px; font-weight: 800; color: #0f2440; margin: 12px 0 2px; }
+.doc-approved { background: #e8f6ec; color: #1c7c3c; border-left: 3px solid #1c7c3c; padding: 8px 12px; border-radius: 6px; font-weight: 700; font-size: 13.5px; margin: 10px 0; }
+.doc-sums { max-width: 340px; margin-left: auto; }
+.doc-notes, .doc-terms { margin-top: 8px; font-size: 13px; color: #40506a; }
+.doc-foot { margin-top: 18px; border-top: 2px solid #c8102e; padding-top: 8px; font-size: 11.5px; color: #8a96a8; text-align: center; }
+.est-preview-shell { padding-top: 12px; }
+.est-preview-tools { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; position: sticky; top: 0; background: #fff; z-index: 5; padding: 6px 0; border-bottom: 1px solid #e4e9f1; }
+.est-preview-hint { font-size: 12.5px; color: #8a96a8; }
+.est-preview-btn { font-size: 12.5px; margin-top: 8px; padding: 5px 10px; }
+
+/* Terms library */
+.est-terms-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.est-terms-bar select { flex: 1; padding: 8px 10px; border: 1.5px solid #dde3ec; border-radius: 8px; font-family: inherit; }
+.est-terms-preview { font-size: 12.5px; color: #5a6b84; background: #f7f9fc; border: 1px dashed #dde3ec; border-radius: 8px; padding: 10px 12px; cursor: pointer; white-space: pre-wrap; }
+.est-terms-preview:hover { background: #eef3fa; }
+.est-terms-empty { color: #a0acc0; font-style: italic; }
+.est-terms-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.est-terms-actions .btn-ghost { font-size: 12.5px; padding: 6px 10px; }
+
+/* Schedule rows with %/$ */
+.est-sched-row { display: grid; grid-template-columns: 1fr 52px 100px 96px 26px; gap: 6px; margin-bottom: 4px; align-items: center; }
+.est-sched-row select { padding: 7px 6px; border: 1.5px solid #dde3ec; border-radius: 7px; font-family: inherit; }
+.est-sched-amt { font-weight: 700; font-size: 13px; color: #0f2440; text-align: right; }
+.est-cust-grid { grid-template-columns: 1fr 1.4fr 1.4fr; }
+@media (max-width: 720px) {
+  .doc-head { flex-direction: column; }
+  .doc-meta { text-align: left; }
+  .doc-meta-grid { justify-content: start; }
+  .doc-meta-grid span, .doc-meta-grid b { text-align: left; }
+  .doc-billto { text-align: left; }
+  .est-cust-grid { grid-template-columns: 1fr; }
+}
