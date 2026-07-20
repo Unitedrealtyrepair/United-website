@@ -1078,3 +1078,12 @@ body {
   pointer-events: none;
 }
 .file-check.on { background: #c8102e; }
+
+/* ===== Select bar docked in toolbar (v71) ===== */
+.select-bar-docked {
+  margin: 0 0 0 auto;
+  width: auto;
+}
+@media (max-width: 720px) {
+  .select-bar-docked { margin: 8px 0 0; width: 100%; }
+}

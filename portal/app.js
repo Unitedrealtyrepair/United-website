@@ -811,9 +811,11 @@ function render() {
   if (!isFileTab) return;
 
   // Photos tab: in-portal upload for subs & admin
+  let uploadToolbar = null;
   if ((activeTab === "Photos" || activeTab === "Documents") && (isAdmin() || currentUser.role === "sub" || currentUser.role === "customer") && syncEnabled()) {
     const bar = document.createElement("div");
     bar.className = "photos-toolbar";
+    uploadToolbar = bar;
 
     const isDocs = activeTab === "Documents";
     const input = document.createElement("input");
@@ -907,9 +909,17 @@ function render() {
 
   const files = visibleFiles().sort((a, b) => (b.modifiedTime || "").localeCompare(a.modifiedTime || ""));
 
-  // Multi-select / ZIP bar
+  // Multi-select / ZIP controls — docked right of the upload toolbar when
+  // one exists, otherwise their own row.
   const selBar = buildSelectBar(list, files.length);
-  if (selBar) list.appendChild(selBar);
+  if (selBar) {
+    if (uploadToolbar) {
+      selBar.classList.add("select-bar-docked");
+      uploadToolbar.appendChild(selBar);
+    } else {
+      list.appendChild(selBar);
+    }
+  }
 
   // ---------- Folder explorer ----------
   const path = navPathByTab[activeTab] || "";
@@ -2135,6 +2145,27 @@ function buildSelectBar(list, fileCount) {
   dl.disabled = selectedIds.size === 0;
   dl.addEventListener("click", () => downloadSelectedZip(dl));
   bar.appendChild(dl);
+
+  const all = document.createElement("button");
+  all.className = "btn-ghost";
+  const hereFiles = () => {
+    const path = navPathByTab[activeTab] || "";
+    return visibleFiles().filter((f) => (f.albumName || "") === path);
+  };
+  const here = hereFiles();
+  const allSelected = here.length > 0 && here.every((f) => selectedIds.has(f.id));
+  all.textContent = allSelected ? "Deselect all" : "Select all";
+  all.addEventListener("click", () => {
+    const hf = hereFiles();
+    const everything = hf.length > 0 && hf.every((f) => selectedIds.has(f.id));
+    for (const f of hf) {
+      if (everything) selectedIds.delete(f.id);
+      else selectedIds.add(f.id);
+    }
+    render();
+  });
+  bar.appendChild(all);
+
   const cancel = document.createElement("button");
   cancel.className = "btn-ghost";
   cancel.textContent = "Cancel";
