@@ -245,7 +245,7 @@ async function doLogin() {
     const out = await api({ action: "login", email, code });
     $("login-wait").classList.add("hidden");
     if (!out.ok) { $("login-error").classList.remove("hidden"); return; }
-    SESSION = { email: out.email, code, role: out.role, projects: out.projects, apiKey: out.apiKey };
+    SESSION = { email: out.email, code, role: out.role, projects: out.projects, apiKey: out.apiKey, members: out.members || [] };
     sessionStorage.setItem("urrSession", JSON.stringify(SESSION));
     enterPortal(out.data);
   } catch (err) {
@@ -1104,10 +1104,16 @@ function canSeeAlbum(albumId) {
 }
 
 function projectMembers() {
-  // everyone on this project except admins
-  return (SESSION.members || []).filter((u) =>
-    u.role !== "admin" &&
-    (u.projects || []).includes(currentProject.name));
+  // everyone on this project except admins — from login members, falling
+  // back to the presence roster (whose projects field is a comma string)
+  const source = (SESSION.members && SESSION.members.length) ? SESSION.members : presenceRosterList();
+  return source.filter((u) => {
+    if (u.role === "admin") return false;
+    const pl = Array.isArray(u.projects)
+      ? u.projects
+      : String(u.projects || "").split(",").map((s) => s.trim());
+    return pl.includes(currentProject.name);
+  });
 }
 
 function visibleFiles() {
