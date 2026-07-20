@@ -22,7 +22,7 @@ const COMPANY = {
 const ROLE_ACCESS = {
   admin:    ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Invoices", "Change Orders", "Estimates", "Materials", "Subs"],
   customer: ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Invoices", "Change Orders", "Estimates"],
-  sub:      ["Schedule", "Daily Logs", "Photos", "Invoices", "Materials"]
+  sub:      ["Schedule", "Daily Logs", "Documents", "Photos", "Invoices", "Estimates", "Materials"]
 };
 
 let SESSION = null; // { email, code, role, projects, apiKey }
@@ -123,6 +123,7 @@ let estimates = [];     // [{id, number, title, date, status, taxRate, sections:
 let termsLibrary = [];  // [{id, name, body, default}] — admin-only contract templates
 let custInvoices = [];  // customer invoices — memory only
 let folderGrants = {};  // { folderId: [sub emails granted access] } — admin-only
+let subBids = [];       // sub bid submissions — memory only
 let editingEstId = null;
 let estDraft = null;    // working copy while the builder modal is open
 let photoFolders = [];  // [{id, name, isSubUploads}]
@@ -152,6 +153,7 @@ function applyRemote(remote) {
   estimates = remote[pkey("Estimates")] || []; // server pre-filters per role; memory only
   if (remote["urrTermsLibrary"]) termsLibrary = remote["urrTermsLibrary"];
   custInvoices = remote[pkey("CustInvoices")] || [];
+  subBids = remote[pkey("SubEstimates")] || [];
   if (remote[pkey("FolderGrants")]) folderGrants = remote[pkey("FolderGrants")];
   if (remote["urrSubs"]) subs = remote["urrSubs"];
   cacheSet(pkey("Schedule"), schedule);
@@ -169,6 +171,7 @@ async function loadState(initialData) {
   invoices = [];
   estimates = [];
   custInvoices = [];
+  subBids = [];
   folderGrants = {};
   subs = cacheGet("urrSubs") || [];
   if (initialData) { applyRemote(initialData); setSyncStatus("synced"); return; }
@@ -294,8 +297,15 @@ function renderProjectName() {
     photoFolders = [];
     projectFolderTree = {};
     navPathByTab = {};
+    selectMode = false;
+    selectedIds = new Set();
+    subUploadsFolderId = null;
+    schedule = []; budget = []; logs = []; folderPerms = {}; folderGrants = {};
+    invoices = []; estimates = []; custInvoices = []; subBids = [];
     buildTabs();
-    loadState(null).then(() => { render(); loadFiles(); });
+    render();       // swap the screen to the new project instantly
+    loadFiles();    // start the (slow) Drive walk right away
+    loadState(null).then(render);
   });
   holder.appendChild(sel);
 }
@@ -663,7 +673,10 @@ function buildTabs() {
 }
 
 // ---------- Drive API ----------
+let filesToken = 0;
+
 async function loadFiles() {
+  const token = ++filesToken;
   $("loading").classList.remove("hidden");
   $("api-error").classList.add("hidden");
   $("file-list").innerHTML = "";
@@ -673,17 +686,21 @@ async function loadFiles() {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const out = await api({ action: "files", email: SESSION.email, code: SESSION.code, project: currentProject.name });
+      if (token !== filesToken) return; // user switched projects mid-flight — drop stale data
       if (!out.ok) throw new Error(out.error || "listing failed");
       ingestListing(out);
       $("loading").classList.add("hidden");
       render();
       return;
     } catch (err) {
+      if (token !== filesToken) return;
       lastErr = err;
       console.warn("files attempt " + attempt + " failed:", err);
       await new Promise((r) => setTimeout(r, 1200 * attempt));
+      if (token !== filesToken) return;
     }
   }
+  if (token !== filesToken) return;
   showApiError("Couldn't load files (" + (lastErr && lastErr.message ? lastErr.message : "network") + "). Tap Refresh to retry.");
 }
 
@@ -810,7 +827,7 @@ function render() {
     "logs-section":     activeTab === "Daily Logs",
     "subs-section":     activeTab === "Subs",
     "invoices-section": activeTab === "Invoices",
-    "estimates-section": activeTab === "Estimates" && (isAdmin() || currentUser.role === "customer")
+    "estimates-section": activeTab === "Estimates"
   };
   for (const [id, show] of Object.entries(sections)) {
     $(id).classList.toggle("hidden", !show);
@@ -819,7 +836,7 @@ function render() {
   // Admin keeps the invoice FILE view under the submitted-invoice panel
   const isFileTab = !Object.values(sections).some(Boolean)
     || (activeTab === "Invoices" && isAdmin())
-    || (activeTab === "Estimates" && (isAdmin() || currentUser.role === "customer"));
+    || activeTab === "Estimates";
 
   if (activeTab === "Overview") renderOverview();
   if (activeTab === "Schedule") {
@@ -831,7 +848,7 @@ function render() {
   if (activeTab === "Daily Logs") renderLogs();
   if (activeTab === "Subs") renderSubs();
   if (activeTab === "Invoices") renderInvoices();
-  if (activeTab === "Estimates" && (isAdmin() || currentUser.role === "customer")) renderEstimates();
+  if (activeTab === "Estimates") renderEstimates();
 
   // File grid only on file tabs
   const list = $("file-list");
@@ -2179,11 +2196,144 @@ function estDisplayTotals(e) {
   return calcEstimate(e);
 }
 
+const BID_STATUS_LABEL = { submitted: "Submitted", reviewed: "Under review", accepted: "Accepted", declined: "Declined" };
+const BID_STATUS_CLASS = { submitted: "scheduled", reviewed: "in-progress", accepted: "complete", declined: "declined" };
+
+function renderBids(list) {
+  const isSub = currentUser.role === "sub";
+  const sorted = subBids.slice().sort((a, b) => (b.t || "").localeCompare(a.t || ""));
+  const wrap = document.createElement("div");
+  const title = document.createElement("div");
+  title.className = "section-title ci-title";
+  title.textContent = isSub ? "Your Submitted Bids" : "Bids from Subs";
+  if (!isSub || sorted.length) wrap.appendChild(title);
+  if (!isSub && sorted.length === 0) {
+    const em = document.createElement("div");
+    em.className = "status-msg";
+    em.textContent = "No sub bids submitted yet.";
+    wrap.appendChild(em);
+  }
+  for (const b of sorted) {
+    const st = b.status || "submitted";
+    const card = document.createElement("div");
+    card.className = "log-card inv-card";
+    const head = document.createElement("div");
+    head.className = "log-head";
+    const t = document.createElement("div");
+    t.className = "log-date";
+    t.textContent = b.title || b.fileName || "Bid";
+    head.appendChild(t);
+    const badge = document.createElement("span");
+    badge.className = "status-badge " + (BID_STATUS_CLASS[st] || "scheduled");
+    badge.textContent = BID_STATUS_LABEL[st] || st;
+    head.appendChild(badge);
+    card.appendChild(head);
+    const meta = document.createElement("div");
+    meta.className = "log-meta";
+    meta.textContent = [
+      isAdmin() ? authorLabel(b.sub) : null,
+      b.t ? new Date(b.t).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null,
+      b.amount ? fmtMoney(b.amount) : null
+    ].filter(Boolean).join("  ·  ");
+    card.appendChild(meta);
+    if (b.notes) {
+      const nt = document.createElement("div");
+      nt.className = "log-notes";
+      nt.textContent = b.notes;
+      card.appendChild(nt);
+    }
+    if (isAdmin()) {
+      const row = document.createElement("div");
+      row.className = "inv-actions";
+      const open = document.createElement("button");
+      open.className = "btn-ghost inv-btn";
+      open.textContent = "Open bid file";
+      open.addEventListener("click", (e2) => {
+        e2.stopPropagation();
+        lightboxList = [{ id: b.fileId, name: b.fileName, mimeType: /\.pdf$/i.test(b.fileName || "") ? "application/pdf" : "" }];
+        lightboxIndex = 0;
+        openLightbox(lightboxList[0]);
+      });
+      row.appendChild(open);
+      [["reviewed", "Mark reviewed"], ["accepted", "✓ Accept"], ["declined", "Decline"]].forEach(([s, lbl]) => {
+        if (st === s) return;
+        const btn = document.createElement("button");
+        btn.className = (s === "accepted" ? "btn-primary" : "btn-ghost") + " inv-btn";
+        btn.textContent = lbl;
+        btn.addEventListener("click", (e2) => { e2.stopPropagation(); bidAction(b, { status: s }); });
+        row.appendChild(btn);
+      });
+      const del = document.createElement("button");
+      del.className = "btn-danger inv-btn";
+      del.textContent = "Delete";
+      del.addEventListener("click", (e2) => {
+        e2.stopPropagation();
+        if (confirm("Delete this bid and trash its file?")) bidAction(b, { remove: true });
+      });
+      row.appendChild(del);
+      card.appendChild(row);
+    }
+    wrap.appendChild(card);
+  }
+  list.appendChild(wrap);
+}
+
+async function bidAction(b, payload) {
+  try {
+    const out = await api({ action: "bidUpdate", email: SESSION.email, code: SESSION.code, project: currentProject.name, bidId: b.id, ...payload });
+    if (out.ok && out.bids) { subBids = out.bids; render(); }
+  } catch (e) { console.warn("bid update failed", e); }
+}
+
+async function submitBid() {
+  const file = ($("bid-file").files || [])[0];
+  const status = $("bid-status-msg");
+  if (!file) { status.textContent = "Attach your bid file (PDF or photo) first."; return; }
+  const btn = $("bid-submit");
+  btn.disabled = true;
+  status.textContent = "Sending to the URR office…";
+  try {
+    const b64 = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(String(r.result).split(",")[1]);
+      r.onerror = () => rej(new Error("read failed"));
+      r.readAsDataURL(file);
+    });
+    const out = await api({
+      action: "submitBid",
+      email: SESSION.email, code: SESSION.code, project: currentProject.name,
+      filename: file.name, mimeType: file.type, data: b64,
+      title: $("bid-title").value.trim(),
+      amount: parseFloat($("bid-amount").value) || 0,
+      notes: $("bid-notes").value.trim()
+    });
+    if (!out.ok) throw new Error(out.error || "submit failed");
+    subBids.unshift(out.bid);
+    $("bid-title").value = "";
+    $("bid-amount").value = "";
+    $("bid-notes").value = "";
+    $("bid-file").value = "";
+    status.textContent = "✓ Bid sent to the URR office.";
+    render();
+    $("bid-status-msg").textContent = "✓ Bid sent to the URR office.";
+  } catch (e) {
+    status.textContent = "✗ " + (e.message || "submit failed");
+  }
+  btn.disabled = false;
+}
+
 function renderEstimates() {
+  const isSub = currentUser.role === "sub";
   $("add-est-btn").classList.toggle("hidden", !isAdmin());
-  $("est-title-bar").textContent = isAdmin() ? "Estimates" : "Your Estimates";
+  $("bid-form").classList.toggle("hidden", !isSub);
+  $("est-title-bar").textContent = isAdmin() ? "Estimates" : isSub ? "Submit a Bid" : "Your Estimates";
   const list = $("est-list");
   list.innerHTML = "";
+  if (isSub) {
+    $("est-empty").classList.add("hidden");
+    renderBids(list);
+    return;
+  }
   const sorted = estimates.slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""));
   $("est-empty").classList.toggle("hidden", sorted.length > 0);
   $("est-empty").textContent = isAdmin()
@@ -2232,6 +2382,7 @@ function renderEstimates() {
     });
     list.appendChild(card);
   }
+  if (isAdmin()) renderBids(list);
 }
 
 // ----- Admin builder -----
@@ -3950,6 +4101,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("code-input").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
 
   $("inv-submit").addEventListener("click", submitInvoice);
+  $("bid-submit").addEventListener("click", submitBid);
 
   $("add-est-btn").addEventListener("click", () => openEstModal(null));
   $("est-add-section").addEventListener("click", () => {
