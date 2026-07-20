@@ -2043,6 +2043,16 @@ async function fetchFileBlob(f) {
   return new Blob([bytes], { type: out.mimeType || "application/octet-stream" });
 }
 
+// Fast path: direct media fetch (no Apps Script round-trip), backend fallback.
+async function fetchFileBlobFast(f) {
+  try {
+    const res = await fetch("https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(f.id) +
+      "?alt=media&key=" + encodeURIComponent(SESSION.apiKey || ""));
+    if (res.ok) return await res.blob();
+  } catch (e) {}
+  return fetchFileBlob(f);
+}
+
 // ---------- Lazy script loading (pdf.js, JSZip) ----------
 function loadScript(src) {
   return new Promise((res, rej) => {
@@ -2088,12 +2098,29 @@ async function downloadSelectedZip(btn) {
     btn.textContent = "Preparing…";
     await loadScript(JSZIP_URL);
     const zip = new window.JSZip();
+
+    // Fetch in parallel (6 at a time) instead of one by one
+    const results = new Array(files.length);
+    let next = 0, done = 0, failed = 0;
+    async function worker() {
+      while (next < files.length) {
+        const i = next++;
+        try {
+          results[i] = await fetchFileBlobFast(files[i]);
+        } catch (e) {
+          results[i] = null;
+          failed++;
+        }
+        done++;
+        btn.textContent = "Fetching " + done + " of " + files.length + "…";
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(6, files.length) }, worker));
+
     const used = {};
-    let n = 0;
-    for (const f of files) {
-      n++;
-      btn.textContent = "Adding " + n + " of " + files.length + "…";
-      const blob = await fetchFileBlob(f);
+    for (let i = 0; i < files.length; i++) {
+      if (!results[i]) continue;
+      const f = files[i];
       let name = safeName(f.name);
       if (used[name.toLowerCase()]) {
         const dot = name.lastIndexOf(".");
@@ -2102,10 +2129,13 @@ async function downloadSelectedZip(btn) {
         name = stem + " (" + used[name.toLowerCase()] + ")" + ext;
       }
       used[safeName(f.name).toLowerCase()] = (used[safeName(f.name).toLowerCase()] || 0) + 1;
-      zip.file(name, blob);
+      zip.file(name, results[i]);
+      results[i] = null; // free as we go
     }
-    btn.textContent = "Zipping…";
-    const out = await zip.generateAsync({ type: "blob" });
+    if (failed === files.length) throw new Error("all fetches failed");
+    const out = await zip.generateAsync({ type: "blob" }, (meta) => {
+      btn.textContent = "Zipping… " + Math.round(meta.percent) + "%";
+    });
     const url = URL.createObjectURL(out);
     const a = document.createElement("a");
     a.href = url;
@@ -2186,7 +2216,7 @@ async function showPdfInLightbox(f, token) {
   zoomBar.classList.add("hidden");
   pages.innerHTML = '<div class="pdf-loading">Loading document…</div>';
   const pdfjs = await ensurePdfJs();
-  const blob = await fetchFileBlob(f);
+  const blob = await fetchFileBlobFast(f);
   if (token !== lightboxToken) return;
   const buf = await blob.arrayBuffer();
   if (token !== lightboxToken) return;
@@ -2296,7 +2326,7 @@ async function downloadLightboxFile(f, btn) {
   btn.textContent = "Downloading…";
   btn.disabled = true;
   try {
-    const blob = await fetchFileBlob(f);
+    const blob = await fetchFileBlobFast(f);
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
