@@ -916,3 +916,55 @@ body {
   box-shadow: 0 1px 6px rgba(0,0,0,0.25);
 }
 @media (max-width: 720px) { .header-logo { height: 44px; width: 44px; } }
+
+/* ===== Invoices (v66) ===== */
+.inv-form {
+  background: #fff;
+  border: 1px solid #e4e9f1;
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 18px;
+  max-width: 520px;
+}
+.inv-form label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #40506a;
+  margin: 12px 0 4px;
+}
+.inv-form input[type="text"],
+.inv-form input[type="number"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid #dde3ec;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+.inv-form input[type="file"] { font-size: 14px; }
+.inv-form .btn-primary { margin-top: 14px; }
+.inv-privacy {
+  font-size: 13px;
+  color: #5a6b84;
+  background: #f2f6fc;
+  border-left: 3px solid #0f2440;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin: 0 0 4px;
+}
+.inv-card .status-badge { margin-left: auto; }
+.inv-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.inv-btn {
+  font-size: 13px;
+  padding: 7px 14px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}

@@ -14,7 +14,7 @@ const BACKEND_URL = "https://script.google.com/macros/s/AKfycbyawmC9BmS689FgvFsM
 const ROLE_ACCESS = {
   admin:    ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Invoices", "Change Orders", "Estimates", "Materials", "Subs"],
   customer: ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Invoices", "Change Orders", "Estimates"],
-  sub:      ["Schedule", "Daily Logs", "Photos", "Materials"]
+  sub:      ["Schedule", "Daily Logs", "Photos", "Invoices", "Materials"]
 };
 
 let SESSION = null; // { email, code, role, projects, apiKey }
@@ -110,6 +110,7 @@ let budget = [];     // [{id, desc, cat, amount, paid}]
 let logs = [];       // [{id, date, weather, crew, notes, internal}]
 let subs = [];       // global: [{id, name, company, trade, phone, email, notes}]
 let folderPerms = {};   // { subfolderId: [emails allowed to view] }
+let invoices = [];      // [{id, t, sub, number, amount, notes, fileId, fileName, status}] — memory only, never cached
 let photoFolders = [];  // [{id, name, isSubUploads}]
 let subUploadsFolderId = null;
 let calMonth = new Date();
@@ -133,6 +134,7 @@ function applyRemote(remote) {
   if (remote[pkey("Budget")]) budget = remote[pkey("Budget")];
   if (remote[pkey("Logs")]) logs = remote[pkey("Logs")];
   if (remote[pkey("FolderPerms")]) folderPerms = remote[pkey("FolderPerms")];
+  invoices = remote[pkey("Invoices")] || []; // server pre-filters per role; never cached to localStorage
   if (remote["urrSubs"]) subs = remote["urrSubs"];
   cacheSet(pkey("Schedule"), schedule);
   cacheSet(pkey("Budget"), budget);
@@ -146,6 +148,7 @@ async function loadState(initialData) {
   budget = cacheGet(pkey("Budget")) || [];
   logs = cacheGet(pkey("Logs")) || [];
   folderPerms = cacheGet(pkey("FolderPerms")) || {};
+  invoices = [];
   subs = cacheGet("urrSubs") || [];
   if (initialData) { applyRemote(initialData); setSyncStatus("synced"); return; }
   try {
@@ -778,13 +781,15 @@ function render() {
     "calendar-section": activeTab === "Schedule",
     "budget-section":   activeTab === "Budget",
     "logs-section":     activeTab === "Daily Logs",
-    "subs-section":     activeTab === "Subs"
+    "subs-section":     activeTab === "Subs",
+    "invoices-section": activeTab === "Invoices" && (isAdmin() || currentUser.role === "sub")
   };
   for (const [id, show] of Object.entries(sections)) {
     $(id).classList.toggle("hidden", !show);
   }
 
-  const isFileTab = !Object.values(sections).some(Boolean);
+  // Admin keeps the invoice FILE view under the submitted-invoice panel
+  const isFileTab = !Object.values(sections).some(Boolean) || (activeTab === "Invoices" && isAdmin());
 
   if (activeTab === "Overview") renderOverview();
   if (activeTab === "Schedule") {
@@ -795,6 +800,7 @@ function render() {
   if (activeTab === "Budget") renderBudget();
   if (activeTab === "Daily Logs") renderLogs();
   if (activeTab === "Subs") renderSubs();
+  if (activeTab === "Invoices" && (isAdmin() || currentUser.role === "sub")) renderInvoices();
 
   // File grid only on file tabs
   const list = $("file-list");
@@ -1734,6 +1740,129 @@ async function deleteLog() {
   render();
 }
 
+// ---------- Invoices (sub → admin office only) ----------
+function renderInvoices() {
+  const isSub = currentUser.role === "sub";
+  $("inv-form").classList.toggle("hidden", !isSub);
+  $("inv-title").textContent = isSub ? "Submit an Invoice" : "Invoices Submitted by Subs";
+
+  const list = $("inv-list");
+  list.innerHTML = "";
+  const sorted = invoices.slice().sort((a, b) => (b.t || "").localeCompare(a.t || ""));
+  $("inv-empty").classList.toggle("hidden", sorted.length > 0);
+  $("inv-empty").textContent = isSub
+    ? "No invoices submitted yet. Your submissions go straight to the URR office — the customer and other subs never see them."
+    : "No sub invoices submitted yet.";
+
+  for (const inv of sorted) {
+    const card = document.createElement("div");
+    card.className = "log-card inv-card";
+
+    const head = document.createElement("div");
+    head.className = "log-head";
+    const title = document.createElement("div");
+    title.className = "log-date";
+    title.textContent = (inv.number ? "Invoice #" + inv.number : (inv.fileName || "Invoice"));
+    head.appendChild(title);
+    const badge = document.createElement("span");
+    badge.className = "status-badge " + (inv.status === "paid" ? "complete" : "scheduled");
+    badge.textContent = inv.status === "paid" ? "Paid" : "Submitted";
+    head.appendChild(badge);
+    card.appendChild(head);
+
+    const meta = document.createElement("div");
+    meta.className = "log-meta";
+    const when = inv.t ? new Date(inv.t).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
+    meta.textContent = [
+      isAdmin() ? authorLabel(inv.sub) : null,
+      when,
+      inv.amount ? fmtMoney(inv.amount) : null
+    ].filter(Boolean).join("  ·  ");
+    card.appendChild(meta);
+
+    if (inv.notes) {
+      const notes = document.createElement("div");
+      notes.className = "log-notes";
+      notes.textContent = inv.notes;
+      card.appendChild(notes);
+    }
+
+    if (isAdmin()) {
+      const row = document.createElement("div");
+      row.className = "inv-actions";
+      const open = document.createElement("a");
+      open.className = "btn-ghost inv-btn";
+      open.textContent = "Open file ↗";
+      open.href = "https://drive.google.com/file/d/" + encodeURIComponent(inv.fileId) + "/view";
+      open.target = "_blank";
+      open.rel = "noopener";
+      row.appendChild(open);
+      const toggle = document.createElement("button");
+      toggle.className = "btn-primary inv-btn";
+      toggle.textContent = inv.status === "paid" ? "Mark unpaid" : "Mark paid";
+      toggle.addEventListener("click", () => invoiceAction(inv, { status: inv.status === "paid" ? "submitted" : "paid" }));
+      row.appendChild(toggle);
+      const del = document.createElement("button");
+      del.className = "btn-danger inv-btn";
+      del.textContent = "Delete";
+      del.addEventListener("click", () => {
+        if (confirm("Delete this invoice and trash its file?")) invoiceAction(inv, { remove: true });
+      });
+      row.appendChild(del);
+      card.appendChild(row);
+    }
+    list.appendChild(card);
+  }
+}
+
+async function invoiceAction(inv, payload) {
+  try {
+    const out = await api({ action: "invoiceUpdate", email: SESSION.email, code: SESSION.code, project: currentProject.name, invId: inv.id, ...payload });
+    if (out.ok && out.invoices) { invoices = out.invoices; render(); }
+  } catch (e) { console.warn("invoice update failed", e); }
+}
+
+async function submitInvoice() {
+  const file = ($("inv-file").files || [])[0];
+  const status = $("inv-status");
+  if (!file) { status.textContent = "Attach your invoice file (PDF or photo) first."; return; }
+  const btn = $("inv-submit");
+  btn.disabled = true;
+  status.textContent = "Sending to the URR office…";
+  try {
+    const b64 = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(String(r.result).split(",")[1]);
+      r.onerror = () => rej(new Error("read failed"));
+      r.readAsDataURL(file);
+    });
+    const out = await api({
+      action: "submitInvoice",
+      email: SESSION.email,
+      code: SESSION.code,
+      project: currentProject.name,
+      filename: file.name,
+      mimeType: file.type,
+      data: b64,
+      number: $("inv-number").value.trim(),
+      amount: parseFloat($("inv-amount").value) || 0,
+      notes: $("inv-notes").value.trim()
+    });
+    if (!out.ok) throw new Error(out.error || "submit failed");
+    invoices.unshift(out.invoice);
+    $("inv-number").value = "";
+    $("inv-amount").value = "";
+    $("inv-notes").value = "";
+    $("inv-file").value = "";
+    status.textContent = "✓ Invoice sent to the URR office.";
+    render();
+    $("inv-status").textContent = "✓ Invoice sent to the URR office.";
+  } catch (e) {
+    status.textContent = "✗ " + (e.message || "submit failed");
+  }
+  btn.disabled = false;
+}
+
 // ---------- Subs ----------
 function renderSubs() {
   const list = $("subs-list");
@@ -1984,6 +2113,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   $("code-input").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
+
+  $("inv-submit").addEventListener("click", submitInvoice);
 
   // Restore session for this browser tab
   try {
