@@ -629,6 +629,7 @@ function buildTabs() {
       activeTab = t;
       selectMode = false;
       selectedIds = new Set();
+      if (t === "Subs") subFilesData = null;
       nav.querySelectorAll(".tab").forEach((x) => x.classList.remove("active"));
       b.classList.add("active");
       render();
@@ -1894,6 +1895,107 @@ async function submitInvoice() {
 }
 
 // ---------- Subs ----------
+let subFilesData = null;   // admin-only: [{id, name, files:[...]}]
+let subFilesLoading = false;
+
+function subFileKey(s) {
+  return (s.email || s.company || s.name || "").trim();
+}
+
+async function loadSubFiles() {
+  if (subFilesLoading) return;
+  subFilesLoading = true;
+  try {
+    const out = await api({ action: "subFiles", email: SESSION.email, code: SESSION.code });
+    if (out.ok) { subFilesData = out.groups || []; render(); }
+  } catch (e) { console.warn("subFiles load failed", e); }
+  subFilesLoading = false;
+}
+
+function subDocsBlock(s) {
+  const key = subFileKey(s);
+  const wrap = document.createElement("div");
+  wrap.className = "sub-docs";
+  const title = document.createElement("div");
+  title.className = "sub-docs-title";
+  title.textContent = "📁 Documents (admin only)";
+  wrap.appendChild(title);
+
+  const group = (subFilesData || []).find((g) => g.name.toLowerCase() === key.toLowerCase());
+  const files = group ? group.files : [];
+  if (subFilesData === null) {
+    const ld = document.createElement("div");
+    ld.className = "sub-doc-empty";
+    ld.textContent = "Loading…";
+    wrap.appendChild(ld);
+  } else if (files.length === 0) {
+    const em = document.createElement("div");
+    em.className = "sub-doc-empty";
+    em.textContent = "No documents yet — add their W9, insurance cert, license…";
+    wrap.appendChild(em);
+  } else {
+    for (const f of files) {
+      const row = document.createElement("div");
+      row.className = "sub-doc-row";
+      const nm = document.createElement("button");
+      nm.className = "sub-doc-name";
+      nm.textContent = (isPdf(f) ? "📄 " : isImage(f) ? "🖼️ " : "📎 ") + f.name;
+      nm.addEventListener("click", (e) => { e.stopPropagation(); lightboxList = [f]; lightboxIndex = 0; openLightbox(f); });
+      row.appendChild(nm);
+      const del = document.createElement("button");
+      del.className = "sub-doc-del";
+      del.textContent = "🗑";
+      del.title = "Delete";
+      del.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!confirm('Delete "' + f.name + '"?')) return;
+        del.disabled = true;
+        try {
+          const out = await api({ action: "deleteFile", email: SESSION.email, code: SESSION.code, fileId: f.id });
+          if (!out.ok) throw new Error(out.error || "failed");
+          subFilesData = null;
+          loadSubFiles();
+        } catch (err) { alert("Couldn't delete: " + err.message); del.disabled = false; }
+      });
+      row.appendChild(del);
+      wrap.appendChild(row);
+    }
+  }
+
+  const bar = document.createElement("div");
+  bar.className = "sub-doc-addbar";
+  const input = document.createElement("input");
+  input.type = "file";
+  input.multiple = true;
+  input.style.display = "none";
+  const btn = document.createElement("button");
+  btn.className = "btn-ghost sub-doc-add";
+  btn.textContent = "+ Add document";
+  btn.addEventListener("click", (e) => { e.stopPropagation(); input.click(); });
+  input.addEventListener("click", (e) => e.stopPropagation());
+  input.addEventListener("change", async () => {
+    const list = Array.from(input.files || []);
+    if (!list.length) return;
+    btn.disabled = true;
+    let n = 0;
+    for (const file of list) {
+      n++;
+      btn.textContent = "Uploading " + n + " of " + list.length + "…";
+      try {
+        await uploadOne(file, { destArea: "subfiles", destFolderName: key, notify: [] });
+      } catch (err) { console.warn("sub doc upload failed", err); }
+    }
+    btn.textContent = "+ Add document";
+    btn.disabled = false;
+    subFilesData = null;
+    loadSubFiles();
+  });
+  bar.appendChild(btn);
+  bar.appendChild(input);
+  wrap.appendChild(bar);
+  return wrap;
+}
+
 function renderSubs() {
   const list = $("subs-list");
   list.innerHTML = "";
@@ -1930,12 +2032,16 @@ function renderSubs() {
     if (s.notes) lines.appendChild(subLine("📝", s.notes, null));
     card.appendChild(lines);
 
+    card.appendChild(subDocsBlock(s));
+
     card.addEventListener("click", (e) => {
       if (e.target.tagName === "A") return;
+      if (e.target.closest && e.target.closest(".sub-docs")) return;
       openSubModal(s.id);
     });
     list.appendChild(card);
   }
+  if (subFilesData === null) loadSubFiles();
 }
 
 function subLine(icon, text, href) {
