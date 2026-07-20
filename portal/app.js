@@ -1999,19 +1999,18 @@ function isPdf(f) {
   return /pdf/i.test(f.mimeType || "") || /\.pdf$/i.test(f.name || "");
 }
 
-function driveMediaUrl(id) {
-  return "https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(id) +
-         "?alt=media&key=" + encodeURIComponent(SESSION.apiKey || "");
-}
-
 function freeLightboxBlob() {
   if (lightboxBlobUrl) { try { URL.revokeObjectURL(lightboxBlobUrl); } catch (e) {} lightboxBlobUrl = null; }
 }
 
-async function fetchDriveBlob(f) {
-  const res = await fetch(driveMediaUrl(f.id));
-  if (!res.ok) throw new Error("HTTP " + res.status);
-  return res.blob();
+// File bytes come from OUR backend — the client never touches Drive URLs.
+async function fetchFileBlob(f) {
+  const out = await api({ action: "fileData", email: SESSION.email, code: SESSION.code, project: currentProject.name, fileId: f.id });
+  if (!out.ok) throw new Error(out.error || "fetch failed");
+  const bin = atob(out.data);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: out.mimeType || "application/octet-stream" });
 }
 
 function openLightbox(f) {
@@ -2025,14 +2024,14 @@ function openLightbox(f) {
     img.classList.remove("hidden");
     frame.classList.add("hidden");
     frame.src = "";
-  } else if (isPdf(f) && !isAdmin()) {
-    // Non-admins: render the PDF natively in the browser — no Drive UI,
+  } else if (isPdf(f)) {
+    // Everyone: render the PDF natively in the browser — no Drive UI,
     // no popout. Falls back to the Drive preview only if the fetch fails.
     img.classList.add("hidden");
     img.src = "";
     frame.classList.remove("hidden");
     frame.src = "about:blank";
-    fetchDriveBlob(f).then((blob) => {
+    fetchFileBlob(f).then((blob) => {
       if (token !== lightboxToken) return;
       lightboxBlobUrl = URL.createObjectURL(blob.type === "application/pdf" ? blob : new Blob([blob], { type: "application/pdf" }));
       frame.src = lightboxBlobUrl + "#toolbar=1";
@@ -2065,11 +2064,11 @@ function openLightbox(f) {
 }
 
 async function downloadLightboxFile(f, btn) {
-  const orig = btn.textContent;
+  const orig = "⬇ Download";
   btn.textContent = "Downloading…";
   btn.disabled = true;
   try {
-    const blob = await fetchDriveBlob(f);
+    const blob = await fetchFileBlob(f);
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -2078,11 +2077,12 @@ async function downloadLightboxFile(f, btn) {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
+    btn.textContent = "✓ Downloaded";
+    setTimeout(() => { btn.textContent = orig; }, 3000);
   } catch (e) {
-    // Fallback: Drive's direct-download endpoint (skips the Drive viewer)
-    window.open("https://drive.google.com/uc?export=download&id=" + encodeURIComponent(f.id), "_blank", "noopener");
+    btn.textContent = "✗ Failed — tap to retry";
+    setTimeout(() => { btn.textContent = orig; }, 4000);
   }
-  btn.textContent = orig;
   btn.disabled = false;
 }
 function closeLightbox() {
