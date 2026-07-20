@@ -2626,6 +2626,7 @@ function blankEstimate() {
     customerName: "",
     billingAddress: "",
     serviceAddress: currentProject ? currentProject.name : "",
+    display: { qty: true, rate: true, amount: true, sectionTotal: false },
     termsTemplateId: (termsLibrary.find((t) => t.default) || {}).id || "",
     terms: (termsLibrary.find((t) => t.default) || {}).body || cacheGet("urrEstimateTermsLocal") || "",
     customerNotes: "",
@@ -2660,6 +2661,11 @@ function openEstModal(id) {
   $("est-cust-name").value = estDraft.customerName || "";
   $("est-bill-addr").value = estDraft.billingAddress || "";
   $("est-svc-addr").value = estDraft.serviceAddress || (currentProject ? currentProject.name : "");
+  const disp = estDraft.display || { qty: true, rate: true, amount: true, sectionTotal: false };
+  $("est-show-qty").checked = disp.qty !== false;
+  $("est-show-rate").checked = disp.rate !== false;
+  $("est-show-amount").checked = disp.amount !== false;
+  $("est-show-sectotal").checked = disp.sectionTotal === true;
   $("est-terms").value = estDraft.terms || "";
   renderTermsControls();
   $("est-cust-notes").value = estDraft.customerNotes || "";
@@ -2771,10 +2777,14 @@ function renderEstSections() {
     s.items.forEach((it) => {
       const row = document.createElement("div");
       row.className = "est-row";
-      const desc = document.createElement("input");
-      desc.type = "text"; desc.placeholder = "Work / material description";
+      const desc = document.createElement("textarea");
+      desc.rows = 1;
+      desc.className = "est-grow";
+      desc.placeholder = "Work / material description (Enter = new line)";
       desc.value = it.desc || "";
-      desc.addEventListener("input", () => { it.desc = desc.value; });
+      const growDesc = () => { desc.style.height = "auto"; desc.style.height = desc.scrollHeight + "px"; };
+      desc.addEventListener("input", () => { it.desc = desc.value; growDesc(); });
+      setTimeout(growDesc, 0);
       const qty = document.createElement("input");
       qty.type = "number"; qty.min = "0"; qty.step = "0.01"; qty.value = it.qty;
       qty.addEventListener("input", () => { it.qty = qty.value; refreshTotals(); });
@@ -2816,12 +2826,14 @@ function renderEstSections() {
       // Second row: item notes + photos
       const extra = document.createElement("div");
       extra.className = "est-row-extra";
-      const notes = document.createElement("input");
-      notes.type = "text";
-      notes.className = "est-item-notes";
-      notes.placeholder = "Notes for this line (customer sees these)";
+      const notes = document.createElement("textarea");
+      notes.rows = 1;
+      notes.className = "est-item-notes est-grow";
+      notes.placeholder = "Notes for this line — customer sees these (Enter = new line)";
       notes.value = it.notes || "";
-      notes.addEventListener("input", () => { it.notes = notes.value; });
+      const growNotes = () => { notes.style.height = "auto"; notes.style.height = notes.scrollHeight + "px"; };
+      notes.addEventListener("input", () => { it.notes = notes.value; growNotes(); });
+      setTimeout(growNotes, 0);
       extra.appendChild(notes);
       const strip = document.createElement("div");
       strip.className = "est-thumb-strip";
@@ -2988,6 +3000,12 @@ async function saveEstimate() {
   estDraft.deposit = parseFloat($("est-dep-val").value) || 0;
   estDraft.depositType = $("est-dep-type").value;
   estDraft.terms = $("est-terms").value;
+  estDraft.display = {
+    qty: $("est-show-qty").checked,
+    rate: $("est-show-rate").checked,
+    amount: $("est-show-amount").checked,
+    sectionTotal: $("est-show-sectotal").checked
+  };
   estDraft.customerName = $("est-cust-name").value.trim();
   estDraft.billingAddress = $("est-bill-addr").value.trim();
   estDraft.serviceAddress = $("est-svc-addr").value.trim();
@@ -3056,16 +3074,30 @@ function evPhotoStrip(photos, host) {
 }
 
 // Normalize both shapes (admin raw / server customer copy) into final-price doc data
+function nl2brHtml(s) {
+  return escapeHtml(s).replace(/\n/g, "<br>");
+}
+
 function normalizeEstDoc(e) {
-  let totals, custByItem = {};
+  let totals, custByItem = {}, secTotals = {};
   if (e.totals) {
     totals = { subtotal: e.totals.subtotal, discountAmt: e.totals.discount, tax: e.totals.tax, total: e.totals.total, depositAmt: e.totals.deposit };
+    for (const s of (e.sections || [])) if (s.sectionTotal !== undefined) secTotals[s.id] = s.sectionTotal;
   } else {
     const c = calcEstimate(e);
     totals = c;
     for (const L of c.lines) custByItem[L.item.id] = L.customer;
+    secTotals = c.bySection;
   }
+  const disp = e.display || {};
   return {
+    display: {
+      qty: disp.qty !== false,
+      rate: disp.rate !== false,
+      amount: disp.amount !== false,
+      sectionTotal: disp.sectionTotal === true
+    },
+    secTotals,
     number: e.number || "", title: e.title || "", date: e.date || "", expires: e.expires || "",
     status: e.status, signedName: e.signedName || "", respondedAt: e.respondedAt || "",
     customerName: e.customerName || "", billingAddress: e.billingAddress || "",
@@ -3075,11 +3107,14 @@ function normalizeEstDoc(e) {
     schedule: (e.schedule || []).map((r) => ({ desc: r.desc, amount: e.totals ? r.amount : schedAmount(r, totals.total) })),
     sections: (e.sections || []).map((s) => ({
       name: s.name,
+      id: s.id,
       items: (s.items || []).map((it) => {
-        const total = e.totals ? (Number(it.total) || 0) : (custByItem[it.id] || 0);
-        const qty = Number(it.qty) || 0;
-        return { desc: it.desc, notes: it.notes || "", photos: it.photos || [], qty,
-                 rate: e.totals ? (Number(it.rate) || 0) : (qty > 0 ? r2(total / qty) : total), total };
+        const total = e.totals ? (it.total !== undefined ? Number(it.total) || 0 : null) : (custByItem[it.id] || 0);
+        const qty = it.qty !== undefined ? Number(it.qty) || 0 : null;
+        let rate;
+        if (e.totals) rate = it.rate !== undefined ? Number(it.rate) || 0 : null;
+        else rate = qty > 0 ? r2(total / qty) : total;
+        return { desc: it.desc, notes: it.notes || "", photos: it.photos || [], qty, rate, total };
       })
     }))
   };
@@ -3158,6 +3193,8 @@ function renderEstimateDoc(e, host, kind) {
     host.appendChild(strip);
   }
 
+  const d = n.display;
+  const gridCols = "1fr" + (d.qty ? " 56px" : "") + (d.rate ? " 96px" : "") + (d.amount ? " 100px" : "");
   for (const s of n.sections) {
     const sec = document.createElement("div");
     sec.className = "ev-section";
@@ -3167,14 +3204,20 @@ function renderEstimateDoc(e, host, kind) {
     sec.appendChild(h);
     const cols = document.createElement("div");
     cols.className = "ev-row ev-cols";
-    cols.innerHTML = "<span>Description</span><span>Qty</span><span>Rate</span><span>Amount</span>";
+    cols.style.gridTemplateColumns = gridCols;
+    cols.innerHTML = "<span>Description</span>" + (d.qty ? "<span>Qty</span>" : "") +
+      (d.rate ? "<span>Rate</span>" : "") + (d.amount ? "<span>Amount</span>" : "");
     sec.appendChild(cols);
     for (const it of s.items) {
       const row = document.createElement("div");
       row.className = "ev-row";
-      row.innerHTML = "<span>" + escapeHtml(it.desc || "") +
-        (it.notes ? "<div class='ev-item-notes'>" + escapeHtml(it.notes) + "</div>" : "") +
-        "</span><span>" + it.qty + "</span><span>" + fmtMoney(it.rate) + "</span><span>" + fmtMoney(it.total) + "</span>";
+      row.style.gridTemplateColumns = gridCols;
+      row.innerHTML = "<span class='ev-desc'>" + nl2brHtml(it.desc || "") +
+        (it.notes ? "<div class='ev-item-notes'>" + nl2brHtml(it.notes) + "</div>" : "") +
+        "</span>" +
+        (d.qty ? "<span>" + (it.qty !== null ? it.qty : "") + "</span>" : "") +
+        (d.rate ? "<span>" + (it.rate !== null ? fmtMoney(it.rate) : "") + "</span>" : "") +
+        (d.amount ? "<span>" + (it.total !== null ? fmtMoney(it.total) : "") + "</span>" : "");
       sec.appendChild(row);
       if (it.photos.length) {
         const strip = document.createElement("div");
@@ -3182,6 +3225,15 @@ function renderEstimateDoc(e, host, kind) {
         evPhotoStrip(it.photos, strip);
         sec.appendChild(strip);
       }
+    }
+    if (d.sectionTotal && n.secTotals[s.id] !== undefined) {
+      const st = document.createElement("div");
+      st.className = "ev-row ev-sec-total";
+      st.style.gridTemplateColumns = gridCols;
+      st.innerHTML = "<span>Section subtotal</span>" + (d.qty ? "<span></span>" : "") +
+        (d.rate ? "<span></span>" : "") +
+        "<span" + (d.amount ? "" : " style='grid-column:-2'") + "><b>" + fmtMoney(n.secTotals[s.id]) + "</b></span>";
+      sec.appendChild(st);
     }
     host.appendChild(sec);
   }
@@ -3403,8 +3455,12 @@ async function generateEstimatePdf(e, progress, kind) {
     y += 8;
   }
 
-  // ---- Sections ----
-  const colQty = W - M - 62, colRate = W - M - 34, colAmt = W - M;
+  // ---- Sections (columns follow the customer-display settings) ----
+  const d = n.display;
+  const colAmt = W - M;
+  const colRate = d.amount ? W - M - 34 : W - M;
+  const colQty = (d.rate && d.amount) ? W - M - 62 : (d.rate || d.amount) ? W - M - 34 : W - M;
+  const descW = d.qty || d.rate || d.amount ? 110 : W - 2 * M - 6;
   for (const s of n.sections) {
     ensure(16);
     doc.setFont("helvetica", "bold").setFontSize(11).setTextColor(...NAVY);
@@ -3414,9 +3470,9 @@ async function generateEstimatePdf(e, progress, kind) {
     y += 7;
     doc.setFont("helvetica", "bold").setFontSize(7).setTextColor(...GRAY);
     doc.text("DESCRIPTION", M, y);
-    doc.text("QTY", colQty, y, { align: "right" });
-    doc.text("RATE", colRate, y, { align: "right" });
-    doc.text("AMOUNT", colAmt, y, { align: "right" });
+    if (d.qty) doc.text("QTY", colQty, y, { align: "right" });
+    if (d.rate) doc.text("RATE", colRate, y, { align: "right" });
+    if (d.amount) doc.text("AMOUNT", colAmt, y, { align: "right" });
     y += 2;
     doc.setDrawColor(...LINE).setLineWidth(0.3);
     doc.line(M, y, W - M, y);
@@ -3424,20 +3480,20 @@ async function generateEstimatePdf(e, progress, kind) {
 
     for (const it of s.items) {
       doc.setFont("helvetica", "normal").setFontSize(9.5);
-      const descLines = doc.splitTextToSize(it.desc || "", 120);
+      const descLines = doc.splitTextToSize(it.desc || "", descW);
       let noteLines = [];
       if (it.notes) {
         doc.setFontSize(8);
-        noteLines = doc.splitTextToSize(it.notes, 120);
+        noteLines = doc.splitTextToSize(it.notes, descW);
       }
       const rowH = descLines.length * 4.4 + noteLines.length * 3.8 + 3;
       ensure(rowH);
       doc.setFont("helvetica", "normal").setFontSize(9.5).setTextColor(45, 58, 82);
       doc.text(descLines, M, y);
-      doc.text(String(it.qty), colQty, y, { align: "right" });
-      doc.text(money(it.rate), colRate, y, { align: "right" });
+      if (d.qty && it.qty !== null) doc.text(String(it.qty), colQty, y, { align: "right" });
+      if (d.rate && it.rate !== null) doc.text(money(it.rate), colRate, y, { align: "right" });
       doc.setFont("helvetica", "bold").setTextColor(...NAVY);
-      doc.text(money(it.total), colAmt, y, { align: "right" });
+      if (d.amount && it.total !== null) doc.text(money(it.total), colAmt, y, { align: "right" });
       let iy = y + descLines.length * 4.4;
       if (noteLines.length) {
         doc.setFont("helvetica", "italic").setFontSize(8).setTextColor(...GRAY);
@@ -3464,6 +3520,13 @@ async function generateEstimatePdf(e, progress, kind) {
         }
         y += size + 5;
       }
+    }
+    if (d.sectionTotal && n.secTotals[s.id] !== undefined) {
+      ensure(7);
+      doc.setFont("helvetica", "bold").setFontSize(9.5).setTextColor(...NAVY);
+      doc.text("Section subtotal", W - M - 40, y, { align: "right" });
+      doc.text(money(n.secTotals[s.id]), colAmt, y, { align: "right" });
+      y += 6;
     }
     y += 3;
   }

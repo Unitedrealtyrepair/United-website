@@ -1277,3 +1277,13 @@ body {
 .cost-receipt { font-size: 15px; padding: 4px 8px; }
 .costs-total { font-size: 13px; font-weight: 700; color: #40506a; margin: -6px 0 10px; }
 @media (max-width: 720px) { .pl-grid { grid-template-columns: 1fr 1fr; } }
+
+/* ===== v82: multiline items, display toggles ===== */
+.est-grow { resize: none; overflow: hidden; min-height: 34px; line-height: 1.35; }
+.est-row textarea { padding: 7px 8px; border: 1.5px solid #dde3ec; border-radius: 7px; font-family: inherit; font-size: 13.5px; width: 100%; box-sizing: border-box; }
+.ev-desc, .ev-item-notes { white-space: normal; }
+.ev-row span:first-child { text-align: left; }
+.ev-sec-total { border-bottom: 2px solid #0f2440; font-size: 13.5px; }
+.ev-sec-total b { color: #0f2440; }
+.est-display-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 10px 0 4px; background: #f7f9fc; border: 1px dashed #dde3ec; border-radius: 8px; padding: 8px 12px; }
+.est-disp-chk { font-size: 13px; font-weight: 600; color: #40506a; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }

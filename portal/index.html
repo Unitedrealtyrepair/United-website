@@ -6,7 +6,7 @@
   <title>URR Project Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=81" />
+  <link rel="stylesheet" href="styles.css?v=82" />
 </head>
 <body>
 
@@ -358,6 +358,13 @@
           <div><label>Billing address</label><input type="text" id="est-bill-addr" placeholder="street, city, state zip" /></div>
           <div><label>Service address</label><input type="text" id="est-svc-addr" placeholder="job site address" /></div>
         </div>
+        <div class="est-display-row">
+          <span class="album-perms-label">Customer sees:</span>
+          <label class="est-disp-chk"><input type="checkbox" id="est-show-qty" checked /> Qty</label>
+          <label class="est-disp-chk"><input type="checkbox" id="est-show-rate" checked /> Rate</label>
+          <label class="est-disp-chk"><input type="checkbox" id="est-show-amount" checked /> Line amounts</label>
+          <label class="est-disp-chk"><input type="checkbox" id="est-show-sectotal" /> Section totals</label>
+        </div>
         <div id="est-sections"></div>
         <button id="est-add-section" class="btn-ghost est-add-sec">+ Add Section</button>
 
@@ -512,6 +519,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=81"></script>
+  <script src="app.js?v=82"></script>
 </body>
 </html>
