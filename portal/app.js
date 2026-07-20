@@ -124,6 +124,8 @@ let termsLibrary = [];  // [{id, name, body, default}] — admin-only contract t
 let custInvoices = [];  // customer invoices — memory only
 let folderGrants = {};  // { folderId: [sub emails granted access] } — admin-only
 let subBids = [];       // sub bid submissions — memory only
+let costs = [];         // job costing entries — ADMIN ONLY, memory only
+let editingCostId = null;
 let editingEstId = null;
 let estDraft = null;    // working copy while the builder modal is open
 let photoFolders = [];  // [{id, name, isSubUploads}]
@@ -154,6 +156,7 @@ function applyRemote(remote) {
   if (remote["urrTermsLibrary"]) termsLibrary = remote["urrTermsLibrary"];
   custInvoices = remote[pkey("CustInvoices")] || [];
   subBids = remote[pkey("SubEstimates")] || [];
+  costs = remote[pkey("Costs")] || [];
   if (remote[pkey("FolderGrants")]) folderGrants = remote[pkey("FolderGrants")];
   if (remote["urrSubs"]) subs = remote["urrSubs"];
   cacheSet(pkey("Schedule"), schedule);
@@ -172,6 +175,7 @@ async function loadState(initialData) {
   estimates = [];
   custInvoices = [];
   subBids = [];
+  costs = [];
   folderGrants = {};
   subs = cacheGet("urrSubs") || [];
   if (initialData) { applyRemote(initialData); setSyncStatus("synced"); return; }
@@ -212,6 +216,7 @@ async function saveFolderPerms() { cacheSet(pkey("FolderPerms"), folderPerms); p
 async function saveEstimates()   { pushCollection(pkey("Estimates"), estimates); }
 async function saveTermsLibrary() { pushCollection("urrTermsLibrary", termsLibrary); }
 async function saveFolderGrants() { pushCollection(pkey("FolderGrants"), folderGrants); }
+async function saveCosts()        { pushCollection(pkey("Costs"), costs); }
 
 // ---------- Categorization ----------
 const RULES = [
@@ -301,7 +306,7 @@ function renderProjectName() {
     selectedIds = new Set();
     subUploadsFolderId = null;
     schedule = []; budget = []; logs = []; folderPerms = {}; folderGrants = {};
-    invoices = []; estimates = []; custInvoices = []; subBids = [];
+    invoices = []; estimates = []; custInvoices = []; subBids = []; costs = [];
     buildTabs();
     render();       // swap the screen to the new project instantly
     loadFiles();    // start the (slow) Drive walk right away
@@ -829,6 +834,7 @@ function render() {
     "invoices-section": activeTab === "Invoices",
     "estimates-section": activeTab === "Estimates"
   };
+  $("pl-card").classList.toggle("hidden", !(activeTab === "Budget" && isAdmin()));
   for (const [id, show] of Object.entries(sections)) {
     $(id).classList.toggle("hidden", !show);
   }
@@ -844,7 +850,8 @@ function render() {
     renderCalendar();
     renderUpcoming();
   }
-  if (activeTab === "Budget") renderBudget();
+  if (activeTab === "Budget") { renderBudget(); renderPL(); }
+  renderCostsPanel();
   if (activeTab === "Daily Logs") renderLogs();
   if (activeTab === "Subs") renderSubs();
   if (activeTab === "Invoices") renderInvoices();
@@ -1581,6 +1588,199 @@ async function deleteTask() {
 }
 
 // ---------- Budget ----------
+// ---------- Job costing (ADMIN ONLY) ----------
+const COST_CATS = ["Material", "Labor", "Sub", "Equipment", "Permit/Fee", "Other"];
+const COST_ICON = { Material: "🧱", Labor: "👷", Sub: "🔧", Equipment: "🚜", "Permit/Fee": "📋", Other: "📦" };
+
+// Derive the ESTIMATED internal cost of a budget line from its source
+// estimate (matching section by name) — the customer never has this data.
+function budgetLineIntel(b) {
+  const out = { estCost: null, kind: "normal", actual: 0 };
+  for (const c of costs) if (c.budgetId === b.id) out.actual = r2(out.actual + (Number(c.amount) || 0));
+  if (!b.estId) return out;
+  const desc = String(b.desc || "");
+  if (/^Sales tax\b/.test(desc)) { out.kind = "tax"; out.estCost = 0; return out; }
+  if (/^Discount\b/.test(desc)) { out.kind = "discount"; out.estCost = 0; return out; }
+  const est = estimates.find((x) => x.id === b.estId);
+  if (!est || est.totals) return out; // customer copies have no cost data
+  const c = calcEstimate(est);
+  for (const s of (est.sections || [])) {
+    const label = (s.name || "") + " — ";
+    if (desc.indexOf(label) === 0) { out.estCost = c.costBySection[s.id] || 0; return out; }
+  }
+  return out;
+}
+
+function renderPL() {
+  const host = $("pl-card");
+  if (!isAdmin()) { host.classList.add("hidden"); return; }
+  host.classList.remove("hidden");
+  let contract = 0, estCost = 0, actual = 0, estKnown = false;
+  for (const b of budget) {
+    const it = budgetLineIntel(b);
+    if (it.kind === "tax") continue; // pass-through, not profit
+    contract = r2(contract + (Number(b.amount) || 0));
+    if (it.estCost !== null) { estCost = r2(estCost + it.estCost); estKnown = true; }
+    actual = r2(actual + it.actual);
+  }
+  // costs not linked to any budget line still count against the job
+  for (const c of costs) {
+    if (!c.budgetId || !budget.some((b) => b.id === c.budgetId)) actual = r2(actual + (Number(c.amount) || 0));
+  }
+  const estProfit = estKnown ? r2(contract - estCost) : null;
+  const profitNow = r2(contract - actual);
+  const variance = estKnown ? r2(estCost - actual) : null;
+  const cell = (label, val, cls) =>
+    "<div class='pl-cell" + (cls ? " " + cls : "") + "'><span>" + label + "</span><b>" + val + "</b></div>";
+  host.innerHTML =
+    "<div class='pl-title'>Job Performance — admin only</div><div class='pl-grid'>" +
+    cell("Contract (excl. tax)", fmtMoney(contract)) +
+    cell("Estimated cost", estKnown ? fmtMoney(estCost) : "—") +
+    cell("Estimated profit", estProfit !== null ? fmtMoney(estProfit) : "—") +
+    cell("Actual costs to date", fmtMoney(actual)) +
+    cell("Profit if costs stop today", fmtMoney(profitNow), profitNow >= 0 ? "good" : "bad") +
+    cell("Cost variance vs estimate", variance !== null ? (variance >= 0 ? "▲ " : "▼ ") + fmtMoney(Math.abs(variance)) + (variance >= 0 ? " under" : " over") : "—",
+         variance === null ? "" : variance >= 0 ? "good" : "bad") +
+    "</div>";
+}
+
+function renderCostsPanel() {
+  const sec = $("costs-section");
+  const show = activeTab === "Materials" && isAdmin();
+  sec.classList.toggle("hidden", !show);
+  if (!show) return;
+  const list = $("costs-list");
+  list.innerHTML = "";
+  const sorted = costs.slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  $("costs-empty").classList.toggle("hidden", sorted.length > 0);
+  let total = 0;
+  for (const c of sorted) total = r2(total + (Number(c.amount) || 0));
+  $("costs-total").textContent = sorted.length ? "Total logged: " + fmtMoney(total) : "";
+  for (const c of sorted) {
+    const row = document.createElement("div");
+    row.className = "cost-row";
+    const left = document.createElement("div");
+    left.className = "cost-left";
+    const line1 = document.createElement("div");
+    line1.className = "cost-desc";
+    line1.textContent = (COST_ICON[c.cat] || "📦") + " " + c.desc;
+    left.appendChild(line1);
+    const bLine = budget.find((b) => b.id === c.budgetId);
+    const line2 = document.createElement("div");
+    line2.className = "cost-meta";
+    line2.textContent = [
+      c.date ? fmtDateLong(c.date) : null,
+      c.cat,
+      c.vendor || null,
+      bLine ? "→ " + bLine.desc : "→ unassigned"
+    ].filter(Boolean).join("  ·  ");
+    left.appendChild(line2);
+    row.appendChild(left);
+    const amt = document.createElement("div");
+    amt.className = "cost-amt";
+    amt.textContent = fmtMoney(c.amount);
+    row.appendChild(amt);
+    if (c.receiptId) {
+      const rc = document.createElement("button");
+      rc.className = "btn-ghost cost-receipt";
+      rc.textContent = "🧾";
+      rc.title = "View receipt";
+      rc.addEventListener("click", (e2) => {
+        e2.stopPropagation();
+        lightboxList = [{ id: c.receiptId, name: c.desc + " receipt", mimeType: /\.pdf$/i.test(c.receiptName || "") ? "application/pdf" : "image/jpeg" }];
+        lightboxIndex = 0;
+        openLightbox(lightboxList[0]);
+      });
+      row.appendChild(rc);
+    }
+    row.addEventListener("click", () => openCostModal(c.id));
+    list.appendChild(row);
+  }
+}
+
+function openCostModal(id) {
+  editingCostId = id || null;
+  const c = id ? costs.find((x) => x.id === id) : null;
+  $("cost-modal-title").textContent = c ? "Edit Cost" : "Log a Cost";
+  $("cost-date").value = c ? c.date : ymd(new Date());
+  $("cost-desc").value = c ? c.desc : "";
+  const catSel = $("cost-cat");
+  catSel.innerHTML = "";
+  for (const k of COST_CATS) {
+    const o = document.createElement("option");
+    o.value = k;
+    o.textContent = COST_ICON[k] + " " + k;
+    catSel.appendChild(o);
+  }
+  catSel.value = c ? c.cat : "Material";
+  $("cost-vendor").value = c ? (c.vendor || "") : "";
+  $("cost-amount").value = c ? c.amount : "";
+  const bSel = $("cost-budget");
+  bSel.innerHTML = "";
+  const none = document.createElement("option");
+  none.value = "";
+  none.textContent = "— not assigned to a budget line —";
+  bSel.appendChild(none);
+  for (const b of budget) {
+    const o = document.createElement("option");
+    o.value = b.id;
+    o.textContent = b.desc + "  (" + fmtMoney(b.amount) + ")";
+    bSel.appendChild(o);
+  }
+  bSel.value = c ? (c.budgetId || "") : "";
+  $("cost-receipt").value = "";
+  $("cost-receipt-hint").textContent = c && c.receiptId ? "Receipt attached ✓ (choose a file to replace)" : "";
+  $("cost-delete").classList.toggle("hidden", !c);
+  $("cost-modal").classList.remove("hidden");
+}
+
+async function saveCost() {
+  const desc = $("cost-desc").value.trim();
+  const amount = parseFloat($("cost-amount").value) || 0;
+  if (!desc || !(amount > 0)) { $("cost-receipt-hint").textContent = "Enter a description and amount."; return; }
+  const btn = $("cost-save");
+  btn.disabled = true;
+  let receiptId = null, receiptName = null;
+  const file = ($("cost-receipt").files || [])[0];
+  if (file) {
+    $("cost-receipt-hint").textContent = "Uploading receipt…";
+    try {
+      const up = await uploadOne(file, { destArea: "office", destFolderName: "Job Costs", notify: [] });
+      if (up.ok) { receiptId = up.fileId; receiptName = up.fileName; }
+    } catch (e) { console.warn("receipt upload failed", e); }
+  }
+  const data = {
+    date: $("cost-date").value,
+    desc,
+    cat: $("cost-cat").value,
+    vendor: $("cost-vendor").value.trim(),
+    amount,
+    budgetId: $("cost-budget").value || null
+  };
+  if (editingCostId) {
+    const i = costs.findIndex((x) => x.id === editingCostId);
+    if (i >= 0) {
+      costs[i] = { ...costs[i], ...data };
+      if (receiptId) { costs[i].receiptId = receiptId; costs[i].receiptName = receiptName; }
+    }
+  } else {
+    const rec = { id: "c" + Date.now(), ...data };
+    if (receiptId) { rec.receiptId = receiptId; rec.receiptName = receiptName; }
+    costs.push(rec);
+  }
+  await saveCosts();
+  btn.disabled = false;
+  closeModal("cost-modal");
+  render();
+}
+
+async function deleteCost() {
+  costs = costs.filter((x) => x.id !== editingCostId);
+  await saveCosts();
+  closeModal("cost-modal");
+  render();
+}
+
 function renderBudget() {
   const admin = isAdmin();
   $("add-budget-btn").classList.toggle("hidden", !admin);
@@ -1630,6 +1830,24 @@ function renderBudget() {
         hid.className = "budget-hidden-tag";
         hid.textContent = "hidden from customer";
         left.appendChild(hid);
+      }
+      const it = budgetLineIntel(b);
+      if (it.kind === "normal" && (it.estCost !== null || it.actual > 0)) {
+        const intel = document.createElement("div");
+        intel.className = "budget-intel";
+        const amt2 = Number(b.amount) || 0;
+        const parts = [];
+        if (it.estCost !== null) parts.push("Est. cost " + fmtMoney(it.estCost));
+        parts.push("Actual " + fmtMoney(it.actual));
+        if (it.estCost !== null) {
+          const v = r2(it.estCost - it.actual);
+          parts.push((v >= 0 ? "▲ " : "▼ ") + fmtMoney(Math.abs(v)) + (v >= 0 ? " under est" : " over est"));
+        }
+        parts.push("Margin now " + fmtMoney(r2(amt2 - it.actual)));
+        intel.textContent = parts.join("  ·  ");
+        const v2 = it.estCost !== null ? r2(it.estCost - it.actual) : 0;
+        intel.classList.add(v2 >= 0 ? "good" : "bad");
+        left.appendChild(intel);
       }
       row.addEventListener("click", () => openBudgetModal(b.id));
     } else {
@@ -2173,8 +2391,12 @@ function calcEstimate(e) {
   const depositAmt = dep ? (e.depositType === "$" ? r2(dep) : r2(total * dep / 100)) : 0;
   const margin = r2(subtotal - discountAmt - cost);
   const bySection = {};
-  for (const L of lines) bySection[L.secId] = r2((bySection[L.secId] || 0) + L.customer);
-  return { lines, subtotal, discountAmt, tax, total, depositAmt, margin, cost, bySection };
+  const costBySection = {};
+  for (const L of lines) {
+    bySection[L.secId] = r2((bySection[L.secId] || 0) + L.customer);
+    costBySection[L.secId] = r2((costBySection[L.secId] || 0) + L.base);
+  }
+  return { lines, subtotal, discountAmt, tax, total, depositAmt, margin, cost, bySection, costBySection };
 }
 
 const EST_STATUS_LABEL = { draft: "Draft", sent: "Awaiting response", approved: "Approved", declined: "Declined" };
@@ -4094,7 +4316,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLightbox(); });
 
   // Click outside modal closes it
-  for (const id of ["task-modal", "budget-modal", "log-modal", "sub-modal", "task-view-modal", "est-modal", "est-view-modal", "est-preview-modal"]) {
+  for (const id of ["task-modal", "budget-modal", "log-modal", "sub-modal", "task-view-modal", "est-modal", "est-view-modal", "est-preview-modal", "cost-modal"]) {
     $(id).addEventListener("click", (e) => { if (e.target.id === id) closeModal(id); });
   }
 
@@ -4102,6 +4324,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   $("inv-submit").addEventListener("click", submitInvoice);
   $("bid-submit").addEventListener("click", submitBid);
+  $("add-cost-btn").addEventListener("click", () => openCostModal(null));
+  $("cost-save").addEventListener("click", saveCost);
+  $("cost-cancel").addEventListener("click", () => closeModal("cost-modal"));
+  $("cost-delete").addEventListener("click", deleteCost);
 
   $("add-est-btn").addEventListener("click", () => openEstModal(null));
   $("est-add-section").addEventListener("click", () => {

@@ -6,7 +6,7 @@
   <title>URR Project Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=80" />
+  <link rel="stylesheet" href="styles.css?v=81" />
 </head>
 <body>
 
@@ -113,6 +113,7 @@
       </div>
 
       <!-- ===== Budget ===== -->
+      <div id="pl-card" class="pl-card hidden"></div>
       <div id="budget-section" class="hidden">
         <div class="section-toolbar">
           <div class="budget-summary">
@@ -188,6 +189,17 @@
         </div>
         <div id="est-list" class="logs-list"></div>
         <div id="est-empty" class="status-msg hidden">No estimates yet.</div>
+      </div>
+
+      <!-- ===== Job costs (Materials tab, ADMIN ONLY) ===== -->
+      <div id="costs-section" class="hidden">
+        <div class="section-toolbar">
+          <div class="section-title">Job Costs <span class="lbl-hint">— admin only, never visible to customer or subs</span></div>
+          <button id="add-cost-btn" class="add-task-btn">+ Log Cost</button>
+        </div>
+        <div id="costs-total" class="costs-total"></div>
+        <div id="costs-list" class="logs-list"></div>
+        <div id="costs-empty" class="status-msg hidden">No costs logged yet. Log material, labor, and sub costs here to track profit against your estimate.</div>
       </div>
 
       <div id="loading" class="status-msg">Loading project files…</div>
@@ -446,6 +458,34 @@
       </div>
     </div>
 
+    <!-- ===== Cost modal (admin) ===== -->
+    <div id="cost-modal" class="modal-overlay hidden">
+      <div class="modal">
+        <h2 id="cost-modal-title">Log a Cost</h2>
+        <label>Date</label>
+        <input type="date" id="cost-date" />
+        <label>Description</label>
+        <input type="text" id="cost-desc" placeholder="e.g. Dumpster rental — Republic Services" />
+        <label>Category</label>
+        <select id="cost-cat"></select>
+        <label>Vendor / paid to (optional)</label>
+        <input type="text" id="cost-vendor" placeholder="e.g. Republic Services, Jose's crew" />
+        <label>Amount ($)</label>
+        <input type="number" id="cost-amount" min="0" step="0.01" placeholder="0.00" />
+        <label>Apply to budget line</label>
+        <select id="cost-budget"></select>
+        <label>Receipt (optional — photo or PDF)</label>
+        <input type="file" id="cost-receipt" accept="application/pdf,image/*" />
+        <div id="cost-receipt-hint" class="photos-hint"></div>
+        <div class="modal-actions">
+          <button id="cost-delete" class="btn-danger hidden">Delete</button>
+          <span class="spacer"></span>
+          <button id="cost-cancel" class="btn-ghost">Cancel</button>
+          <button id="cost-save" class="btn-primary">Save</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ===== Photo lightbox ===== -->
     <div id="lightbox" class="lightbox hidden">
       <button id="lightbox-close" class="lightbox-close">&times;</button>
@@ -472,6 +512,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=80"></script>
+  <script src="app.js?v=81"></script>
 </body>
 </html>
