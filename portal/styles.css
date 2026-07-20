@@ -968,3 +968,12 @@ body {
   display: inline-flex;
   align-items: center;
 }
+
+/* ===== Lightbox download button (v68) ===== */
+.lightbox-dl {
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  margin-right: 10px;
+}
+.lightbox-dl:disabled { opacity: .6; cursor: default; }

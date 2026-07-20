@@ -1992,14 +1992,54 @@ function showLightboxAt(i) {
   counter.textContent = (lightboxIndex + 1) + " of " + lightboxList.length;
 }
 
+let lightboxBlobUrl = null;
+let lightboxToken = 0;
+
+function isPdf(f) {
+  return /pdf/i.test(f.mimeType || "") || /\.pdf$/i.test(f.name || "");
+}
+
+function driveMediaUrl(id) {
+  return "https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(id) +
+         "?alt=media&key=" + encodeURIComponent(SESSION.apiKey || "");
+}
+
+function freeLightboxBlob() {
+  if (lightboxBlobUrl) { try { URL.revokeObjectURL(lightboxBlobUrl); } catch (e) {} lightboxBlobUrl = null; }
+}
+
+async function fetchDriveBlob(f) {
+  const res = await fetch(driveMediaUrl(f.id));
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  return res.blob();
+}
+
 function openLightbox(f) {
   const img = $("lightbox-img");
   const frame = $("lightbox-frame");
+  const token = ++lightboxToken;
+  freeLightboxBlob();
+
   if (isImage(f)) {
     img.src = thumbUrl(f, 1600);
     img.classList.remove("hidden");
     frame.classList.add("hidden");
     frame.src = "";
+  } else if (isPdf(f) && !isAdmin()) {
+    // Non-admins: render the PDF natively in the browser — no Drive UI,
+    // no popout. Falls back to the Drive preview only if the fetch fails.
+    img.classList.add("hidden");
+    img.src = "";
+    frame.classList.remove("hidden");
+    frame.src = "about:blank";
+    fetchDriveBlob(f).then((blob) => {
+      if (token !== lightboxToken) return;
+      lightboxBlobUrl = URL.createObjectURL(blob.type === "application/pdf" ? blob : new Blob([blob], { type: "application/pdf" }));
+      frame.src = lightboxBlobUrl + "#toolbar=1";
+    }).catch(() => {
+      if (token !== lightboxToken) return;
+      frame.src = "https://drive.google.com/file/d/" + encodeURIComponent(f.id) + "/preview";
+    });
   } else {
     frame.src = "https://drive.google.com/file/d/" + encodeURIComponent(f.id) + "/preview";
     frame.classList.remove("hidden");
@@ -2016,11 +2056,40 @@ function openLightbox(f) {
       openBtn.classList.add("hidden");
     }
   }
+  const dlBtn = $("lightbox-download");
+  if (dlBtn) {
+    dlBtn.classList.remove("hidden");
+    dlBtn.onclick = (e) => { e.stopPropagation(); downloadLightboxFile(f, dlBtn); };
+  }
   $("lightbox").classList.remove("hidden");
+}
+
+async function downloadLightboxFile(f, btn) {
+  const orig = btn.textContent;
+  btn.textContent = "Downloading…";
+  btn.disabled = true;
+  try {
+    const blob = await fetchDriveBlob(f);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = f.name || "download";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  } catch (e) {
+    // Fallback: Drive's direct-download endpoint (skips the Drive viewer)
+    window.open("https://drive.google.com/uc?export=download&id=" + encodeURIComponent(f.id), "_blank", "noopener");
+  }
+  btn.textContent = orig;
+  btn.disabled = false;
 }
 function closeLightbox() {
   lightboxList = [];
   lightboxIndex = -1;
+  lightboxToken++;
+  freeLightboxBlob();
   $("lightbox").classList.add("hidden");
   $("lightbox-img").src = "";
   $("lightbox-frame").src = "";
