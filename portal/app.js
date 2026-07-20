@@ -627,6 +627,8 @@ function buildTabs() {
     b.textContent = t;
     b.addEventListener("click", () => {
       activeTab = t;
+      selectMode = false;
+      selectedIds = new Set();
       nav.querySelectorAll(".tab").forEach((x) => x.classList.remove("active"));
       b.classList.add("active");
       render();
@@ -905,6 +907,10 @@ function render() {
 
   const files = visibleFiles().sort((a, b) => (b.modifiedTime || "").localeCompare(a.modifiedTime || ""));
 
+  // Multi-select / ZIP bar
+  const selBar = buildSelectBar(list, files.length);
+  if (selBar) list.appendChild(selBar);
+
   // ---------- Folder explorer ----------
   const path = navPathByTab[activeTab] || "";
 
@@ -1062,8 +1068,22 @@ function fileCard(f) {
 
   a.addEventListener("click", (e) => {
     e.preventDefault();
+    if (selectMode) {
+      if (selectedIds.has(f.id)) selectedIds.delete(f.id);
+      else selectedIds.add(f.id);
+      render();
+      return;
+    }
     openLightboxGallery(f);
   });
+  if (selectMode) {
+    a.classList.add("selectable");
+    if (selectedIds.has(f.id)) a.classList.add("selected");
+    const chk = document.createElement("div");
+    chk.className = "file-check" + (selectedIds.has(f.id) ? " on" : "");
+    chk.textContent = selectedIds.has(f.id) ? "✓" : "";
+    a.appendChild(chk);
+  }
   if (isAdmin()) {
     const del = document.createElement("button");
     del.className = "file-del";
@@ -2013,11 +2033,182 @@ async function fetchFileBlob(f) {
   return new Blob([bytes], { type: out.mimeType || "application/octet-stream" });
 }
 
+// ---------- Lazy script loading (pdf.js, JSZip) ----------
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    if (document.querySelector('script[src="' + src + '"]')) return res();
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = res;
+    s.onerror = () => rej(new Error("script load failed"));
+    document.head.appendChild(s);
+  });
+}
+
+const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+const PDFJS_WORKER_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+const JSZIP_URL = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+
+async function ensurePdfJs() {
+  await loadScript(PDFJS_URL);
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+  return window.pdfjsLib;
+}
+
+// ---------- Multi-select + ZIP download ----------
+let selectMode = false;
+let selectedIds = new Set();
+let zipBusy = false;
+
+function toggleSelectMode(on) {
+  selectMode = on;
+  selectedIds = new Set();
+  render();
+}
+
+function safeName(s) { return String(s || "").replace(/[\\/:*?"<>|]+/g, "-").trim() || "file"; }
+
+async function downloadSelectedZip(btn) {
+  if (zipBusy || selectedIds.size === 0) return;
+  zipBusy = true;
+  const files = allFiles.filter((f) => selectedIds.has(f.id));
+  const orig = btn.textContent;
+  try {
+    btn.disabled = true;
+    btn.textContent = "Preparing…";
+    await loadScript(JSZIP_URL);
+    const zip = new window.JSZip();
+    const used = {};
+    let n = 0;
+    for (const f of files) {
+      n++;
+      btn.textContent = "Adding " + n + " of " + files.length + "…";
+      const blob = await fetchFileBlob(f);
+      let name = safeName(f.name);
+      if (used[name.toLowerCase()]) {
+        const dot = name.lastIndexOf(".");
+        const stem = dot > 0 ? name.slice(0, dot) : name;
+        const ext = dot > 0 ? name.slice(dot) : "";
+        name = stem + " (" + used[name.toLowerCase()] + ")" + ext;
+      }
+      used[safeName(f.name).toLowerCase()] = (used[safeName(f.name).toLowerCase()] || 0) + 1;
+      zip.file(name, blob);
+    }
+    btn.textContent = "Zipping…";
+    const out = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(out);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = safeName(currentProject.name) + " - " + safeName(activeTab) + ".zip";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    zipBusy = false;
+    toggleSelectMode(false);
+    return;
+  } catch (e) {
+    console.warn("zip failed", e);
+    btn.textContent = "✗ Failed — try again";
+    setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 3000);
+  }
+  zipBusy = false;
+}
+
+function buildSelectBar(list, fileCount) {
+  const bar = document.createElement("div");
+  bar.className = "select-bar";
+  if (!selectMode) {
+    if (fileCount === 0) return null;
+    const b = document.createElement("button");
+    b.className = "btn-ghost select-toggle";
+    b.textContent = "☑ Select files";
+    b.addEventListener("click", () => toggleSelectMode(true));
+    bar.appendChild(b);
+    return bar;
+  }
+  const dl = document.createElement("button");
+  dl.className = "btn-primary select-dl";
+  dl.textContent = selectedIds.size === 0
+    ? "Tap files to select"
+    : "⬇ Download " + selectedIds.size + " as ZIP";
+  dl.disabled = selectedIds.size === 0;
+  dl.addEventListener("click", () => downloadSelectedZip(dl));
+  bar.appendChild(dl);
+  const cancel = document.createElement("button");
+  cancel.className = "btn-ghost";
+  cancel.textContent = "Cancel";
+  cancel.addEventListener("click", () => toggleSelectMode(false));
+  bar.appendChild(cancel);
+  return bar;
+}
+
+// ---------- In-portal PDF viewer (our UI only — no browser/Drive toolbar) ----------
+let lbPdfDoc = null;
+let lbPdfZoom = 1;
+
+async function showPdfInLightbox(f, token) {
+  const box = $("lightbox-pdf");
+  const pages = $("lightbox-pdf-pages");
+  const zoomBar = $("lightbox-pdf-zoom");
+  box.classList.remove("hidden");
+  zoomBar.classList.add("hidden");
+  pages.innerHTML = '<div class="pdf-loading">Loading document…</div>';
+  const pdfjs = await ensurePdfJs();
+  const blob = await fetchFileBlob(f);
+  if (token !== lightboxToken) return;
+  const buf = await blob.arrayBuffer();
+  if (token !== lightboxToken) return;
+  const doc = await pdfjs.getDocument({ data: buf }).promise;
+  if (token !== lightboxToken) { doc.destroy(); return; }
+  lbPdfDoc = doc;
+  lbPdfZoom = 1;
+  await renderPdfPages(token);
+  if (token === lightboxToken) zoomBar.classList.remove("hidden");
+}
+
+async function renderPdfPages(token) {
+  const doc = lbPdfDoc;
+  if (!doc) return;
+  const pages = $("lightbox-pdf-pages");
+  const box = $("lightbox-pdf");
+  const scrollFrac = box.scrollHeight > 0 ? box.scrollTop / box.scrollHeight : 0;
+  pages.innerHTML = "";
+  $("pdf-zoom-pct").textContent = Math.round(lbPdfZoom * 100) + "%";
+  const availW = Math.min(box.clientWidth - 24, 1400);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  for (let n = 1; n <= doc.numPages; n++) {
+    if (token !== lightboxToken || doc !== lbPdfDoc) return;
+    const page = await doc.getPage(n);
+    if (token !== lightboxToken || doc !== lbPdfDoc) return;
+    const base = page.getViewport({ scale: 1 });
+    const scale = (availW / base.width) * lbPdfZoom;
+    const vp = page.getViewport({ scale: scale * dpr });
+    const canvas = document.createElement("canvas");
+    canvas.className = "pdf-page";
+    canvas.width = vp.width;
+    canvas.height = vp.height;
+    canvas.style.width = (vp.width / dpr) + "px";
+    canvas.style.height = (vp.height / dpr) + "px";
+    pages.appendChild(canvas);
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+  }
+  box.scrollTop = scrollFrac * box.scrollHeight;
+}
+
+function closePdfViewer() {
+  if (lbPdfDoc) { try { lbPdfDoc.destroy(); } catch (e) {} lbPdfDoc = null; }
+  $("lightbox-pdf-pages").innerHTML = "";
+  $("lightbox-pdf").classList.add("hidden");
+  $("lightbox-pdf-zoom").classList.add("hidden");
+}
+
 function openLightbox(f) {
   const img = $("lightbox-img");
   const frame = $("lightbox-frame");
   const token = ++lightboxToken;
   freeLightboxBlob();
+  closePdfViewer();
 
   if (isImage(f)) {
     img.src = thumbUrl(f, 1600);
@@ -2025,19 +2216,25 @@ function openLightbox(f) {
     frame.classList.add("hidden");
     frame.src = "";
   } else if (isPdf(f)) {
-    // Everyone: render the PDF natively in the browser — no Drive UI,
-    // no popout. Falls back to the Drive preview only if the fetch fails.
+    // Our own pdf.js viewer — no browser toolbar, no Drive UI, no popout,
+    // works the same on desktop and mobile. Fallbacks: blob iframe, then
+    // Drive preview, only if rendering fails.
     img.classList.add("hidden");
     img.src = "";
-    frame.classList.remove("hidden");
-    frame.src = "about:blank";
-    fetchFileBlob(f).then((blob) => {
+    frame.classList.add("hidden");
+    frame.src = "";
+    showPdfInLightbox(f, token).catch(() => {
       if (token !== lightboxToken) return;
-      lightboxBlobUrl = URL.createObjectURL(blob.type === "application/pdf" ? blob : new Blob([blob], { type: "application/pdf" }));
-      frame.src = lightboxBlobUrl + "#toolbar=1";
-    }).catch(() => {
-      if (token !== lightboxToken) return;
-      frame.src = "https://drive.google.com/file/d/" + encodeURIComponent(f.id) + "/preview";
+      closePdfViewer();
+      frame.classList.remove("hidden");
+      fetchFileBlob(f).then((blob) => {
+        if (token !== lightboxToken) return;
+        lightboxBlobUrl = URL.createObjectURL(blob.type === "application/pdf" ? blob : new Blob([blob], { type: "application/pdf" }));
+        frame.src = lightboxBlobUrl + "#toolbar=0";
+      }).catch(() => {
+        if (token !== lightboxToken) return;
+        frame.src = "https://drive.google.com/file/d/" + encodeURIComponent(f.id) + "/preview";
+      });
     });
   } else {
     frame.src = "https://drive.google.com/file/d/" + encodeURIComponent(f.id) + "/preview";
@@ -2090,6 +2287,7 @@ function closeLightbox() {
   lightboxIndex = -1;
   lightboxToken++;
   freeLightboxBlob();
+  closePdfViewer();
   $("lightbox").classList.add("hidden");
   $("lightbox-img").src = "";
   $("lightbox-frame").src = "";
@@ -2184,6 +2382,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("code-input").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
 
   $("inv-submit").addEventListener("click", submitInvoice);
+
+  $("pdf-zoom-in").addEventListener("click", () => {
+    lbPdfZoom = Math.min(lbPdfZoom * 1.25, 4);
+    renderPdfPages(lightboxToken);
+  });
+  $("pdf-zoom-out").addEventListener("click", () => {
+    lbPdfZoom = Math.max(lbPdfZoom / 1.25, 0.5);
+    renderPdfPages(lightboxToken);
+  });
 
   // Restore session for this browser tab
   try {

@@ -6,7 +6,7 @@
   <title>URR Project Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=69" />
+  <link rel="stylesheet" href="styles.css?v=70" />
 </head>
 <body>
 
@@ -307,6 +307,14 @@
       <div id="lightbox-counter" class="lightbox-counter hidden"></div>
       <img id="lightbox-img" alt="" class="hidden" />
       <iframe id="lightbox-frame" class="hidden" allow="autoplay"></iframe>
+      <div id="lightbox-pdf" class="hidden">
+        <div id="lightbox-pdf-zoom" class="pdf-zoom-bar hidden">
+          <button id="pdf-zoom-out" title="Zoom out">−</button>
+          <span id="pdf-zoom-pct">100%</span>
+          <button id="pdf-zoom-in" title="Zoom in">+</button>
+        </div>
+        <div id="lightbox-pdf-pages"></div>
+      </div>
       <div id="lightbox-name" class="lightbox-name"></div>
       <button id="lightbox-download" class="lightbox-open lightbox-dl">⬇ Download</button>
       <a id="lightbox-open" class="lightbox-open" target="_blank" rel="noopener">Open full ↗</a>
@@ -317,6 +325,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=69"></script>
+  <script src="app.js?v=70"></script>
 </body>
 </html>
