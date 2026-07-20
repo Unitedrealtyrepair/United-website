@@ -1247,3 +1247,12 @@ body {
   .doc-billto { text-align: left; }
   .est-cust-grid { grid-template-columns: 1fr; }
 }
+
+/* ===== v77: customer invoices, budget visibility, sub grants ===== */
+.ci-title { margin: 4px 0 10px; }
+.budget-hidden-tag { display: inline-block; font-size: 10.5px; font-weight: 700; color: #8a5a00; background: #fff4dd; border-radius: 5px; padding: 2px 7px; margin-top: 4px; }
+.doc-pay span, .doc-pay b { color: #1c7c3c !important; }
+.doc-balance b { color: #c8102e !important; }
+.doc-balance span { color: #c8102e !important; }
+.grant-row { border-top: 1px dashed #dde3ec; margin-top: 4px; padding-top: 8px; }
+.grant-chip.on { background: #0f2440; border-color: #0f2440; color: #fff; }

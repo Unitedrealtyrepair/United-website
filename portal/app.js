@@ -121,6 +121,8 @@ let folderPerms = {};   // { subfolderId: [emails allowed to view] }
 let invoices = [];      // [{id, t, sub, number, amount, notes, fileId, fileName, status}] — memory only, never cached
 let estimates = [];     // [{id, number, title, date, status, taxRate, sections:[{id,name,items:[...]}], ...}]
 let termsLibrary = [];  // [{id, name, body, default}] — admin-only contract templates
+let custInvoices = [];  // customer invoices — memory only
+let folderGrants = {};  // { folderId: [sub emails granted access] } — admin-only
 let editingEstId = null;
 let estDraft = null;    // working copy while the builder modal is open
 let photoFolders = [];  // [{id, name, isSubUploads}]
@@ -149,6 +151,8 @@ function applyRemote(remote) {
   invoices = remote[pkey("Invoices")] || []; // server pre-filters per role; never cached to localStorage
   estimates = remote[pkey("Estimates")] || []; // server pre-filters per role; memory only
   if (remote["urrTermsLibrary"]) termsLibrary = remote["urrTermsLibrary"];
+  custInvoices = remote[pkey("CustInvoices")] || [];
+  if (remote[pkey("FolderGrants")]) folderGrants = remote[pkey("FolderGrants")];
   if (remote["urrSubs"]) subs = remote["urrSubs"];
   cacheSet(pkey("Schedule"), schedule);
   cacheSet(pkey("Budget"), budget);
@@ -164,6 +168,8 @@ async function loadState(initialData) {
   folderPerms = cacheGet(pkey("FolderPerms")) || {};
   invoices = [];
   estimates = [];
+  custInvoices = [];
+  folderGrants = {};
   subs = cacheGet("urrSubs") || [];
   if (initialData) { applyRemote(initialData); setSyncStatus("synced"); return; }
   try {
@@ -202,6 +208,7 @@ async function saveSubs()     { cacheSet("urrSubs", subs);            pushCollec
 async function saveFolderPerms() { cacheSet(pkey("FolderPerms"), folderPerms); pushCollection(pkey("FolderPerms"), folderPerms); }
 async function saveEstimates()   { pushCollection(pkey("Estimates"), estimates); }
 async function saveTermsLibrary() { pushCollection("urrTermsLibrary", termsLibrary); }
+async function saveFolderGrants() { pushCollection(pkey("FolderGrants"), folderGrants); }
 
 // ---------- Categorization ----------
 const RULES = [
@@ -802,7 +809,7 @@ function render() {
     "budget-section":   activeTab === "Budget",
     "logs-section":     activeTab === "Daily Logs",
     "subs-section":     activeTab === "Subs",
-    "invoices-section": activeTab === "Invoices" && (isAdmin() || currentUser.role === "sub"),
+    "invoices-section": activeTab === "Invoices",
     "estimates-section": activeTab === "Estimates" && (isAdmin() || currentUser.role === "customer")
   };
   for (const [id, show] of Object.entries(sections)) {
@@ -823,7 +830,7 @@ function render() {
   if (activeTab === "Budget") renderBudget();
   if (activeTab === "Daily Logs") renderLogs();
   if (activeTab === "Subs") renderSubs();
-  if (activeTab === "Invoices" && (isAdmin() || currentUser.role === "sub")) renderInvoices();
+  if (activeTab === "Invoices") renderInvoices();
   if (activeTab === "Estimates" && (isAdmin() || currentUser.role === "customer")) renderEstimates();
 
   // File grid only on file tabs
@@ -1017,6 +1024,35 @@ function render() {
         perms.appendChild(chip);
       }
       list.appendChild(perms);
+
+      // GRANTS: share this folder (from any area) with specific SUBS —
+      // e.g. give a glass bidder the PLANS folder on this project.
+      const projSubs = projectMembers().filter((m) => m.role === "sub");
+      if (projSubs.length && fo.source !== "crew") {
+        const grants = document.createElement("div");
+        grants.className = "album-perms crumb-perms grant-row";
+        const glbl = document.createElement("span");
+        glbl.className = "album-perms-label";
+        const granted = folderGrants[fo.id] || [];
+        glbl.textContent = granted.length === 0 ? "Share this folder with a sub:" : "Shared with subs:";
+        grants.appendChild(glbl);
+        for (const u of projSubs) {
+          const on = granted.includes(u.email);
+          const chip = document.createElement("button");
+          chip.className = "perm-chip grant-chip" + (on ? " on" : "");
+          chip.textContent = (on ? "✓ " : "") + u.email;
+          chip.addEventListener("click", async () => {
+            let list3 = folderGrants[fo.id] || [];
+            list3 = on ? list3.filter((x) => x !== u.email) : list3.concat([u.email]);
+            if (list3.length === 0) delete folderGrants[fo.id];
+            else folderGrants[fo.id] = list3;
+            await saveFolderGrants();
+            render();
+          });
+          grants.appendChild(chip);
+        }
+        list.appendChild(grants);
+      }
     }
   }
 
@@ -1565,7 +1601,22 @@ function renderBudget() {
     amounts.appendChild(paidEl);
     row.appendChild(amounts);
 
-    if (admin) row.addEventListener("click", () => openBudgetModal(b.id));
+    if (admin) {
+      if (b.hidden) {
+        const hid = document.createElement("span");
+        hid.className = "budget-hidden-tag";
+        hid.textContent = "hidden from customer";
+        left.appendChild(hid);
+      }
+      row.addEventListener("click", () => openBudgetModal(b.id));
+    } else {
+      row.addEventListener("click", () => {
+        alert(b.desc + "\n\nCategory: " + (b.cat || "—") +
+          "\nAmount: " + fmtMoney(b.amount) +
+          "\nPaid: " + fmtMoney(b.paid) +
+          "\nRemaining: " + fmtMoney((Number(b.amount) || 0) - (Number(b.paid) || 0)));
+      });
+    }
     list.appendChild(row);
   }
 }
@@ -1588,6 +1639,7 @@ function openBudgetModal(id) {
   $("budget-modal-title").textContent = b ? "Edit Line Item" : "Add Line Item";
   $("budget-desc").value = b ? b.desc : "";
   $("budget-cat").value = b ? b.cat : BUDGET_CATEGORIES[0];
+  $("budget-visible").checked = b ? !b.hidden : true;
   $("budget-amount").value = b ? b.amount : "";
   $("budget-paid").value = b ? b.paid : "";
   $("budget-delete").classList.toggle("hidden", !b);
@@ -1600,6 +1652,7 @@ async function saveBudgetItem() {
   const data = {
     desc,
     cat: $("budget-cat").value,
+    hidden: !$("budget-visible").checked,
     amount: Number($("budget-amount").value) || 0,
     paid: Number($("budget-paid").value) || 0
   };
@@ -1793,13 +1846,143 @@ async function deleteLog() {
 }
 
 // ---------- Invoices (sub → admin office only) ----------
+const CI_STATUS = (inv) => {
+  const paid = (inv.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const total = inv.totals ? Number(inv.totals.total) || 0 : 0;
+  if (total > 0 && paid >= total) return { label: "Paid", cls: "complete", paid, total };
+  if (paid > 0) return { label: "Partial — " + fmtMoney(total - paid) + " due", cls: "in-progress", paid, total };
+  return { label: inv.visible ? "Awaiting payment" : "Hidden from customer", cls: inv.visible ? "in-progress" : "scheduled", paid, total };
+};
+
+function renderCustInvoices(list) {
+  const wrap = document.createElement("div");
+  const title = document.createElement("div");
+  title.className = "section-title ci-title";
+  title.textContent = isAdmin() ? "Customer Invoices" : "Your Invoices";
+  wrap.appendChild(title);
+  const sorted = custInvoices.slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  if (sorted.length === 0) {
+    const em = document.createElement("div");
+    em.className = "status-msg";
+    em.textContent = isAdmin()
+      ? "No customer invoices yet — approving an estimate creates the first one automatically (hidden until you make it visible)."
+      : "No invoices yet.";
+    wrap.appendChild(em);
+  }
+  for (const inv of sorted) {
+    const st = CI_STATUS(inv);
+    const card = document.createElement("div");
+    card.className = "log-card inv-card";
+    const head = document.createElement("div");
+    head.className = "log-head";
+    const t = document.createElement("div");
+    t.className = "log-date";
+    t.textContent = (inv.number || "Invoice") + (inv.title ? " — " + inv.title : "");
+    head.appendChild(t);
+    const badge = document.createElement("span");
+    badge.className = "status-badge " + st.cls;
+    badge.textContent = st.label;
+    head.appendChild(badge);
+    card.appendChild(head);
+    const meta = document.createElement("div");
+    meta.className = "log-meta";
+    meta.textContent = [
+      inv.date ? fmtDateLong(inv.date) : null,
+      fmtMoney(st.total),
+      st.paid ? fmtMoney(st.paid) + " paid" : null
+    ].filter(Boolean).join("  ·  ");
+    card.appendChild(meta);
+
+    if (isAdmin()) {
+      const row = document.createElement("div");
+      row.className = "inv-actions";
+      const pv = document.createElement("button");
+      pv.className = "btn-ghost inv-btn";
+      pv.textContent = "👁 Preview / PDF";
+      pv.addEventListener("click", (e2) => { e2.stopPropagation(); openCustInvoicePreview(inv.id); });
+      row.appendChild(pv);
+      const vis = document.createElement("button");
+      vis.className = (inv.visible ? "btn-ghost" : "btn-primary") + " inv-btn";
+      vis.textContent = inv.visible ? "🙈 Hide from customer" : "👤 Make visible to customer";
+      vis.addEventListener("click", (e2) => { e2.stopPropagation(); custInvoiceAction(inv, { visible: !inv.visible }); });
+      row.appendChild(vis);
+      const pay = document.createElement("button");
+      pay.className = "btn-primary inv-btn";
+      pay.textContent = "＋ Log payment";
+      pay.addEventListener("click", (e2) => { e2.stopPropagation(); logInvoicePayment(inv); });
+      row.appendChild(pay);
+      const del = document.createElement("button");
+      del.className = "btn-danger inv-btn";
+      del.textContent = "Delete";
+      del.addEventListener("click", (e2) => {
+        e2.stopPropagation();
+        if (confirm("Delete " + (inv.number || "this invoice") + "? Budget lines are not affected.")) custInvoiceAction(inv, { remove: true });
+      });
+      row.appendChild(del);
+      card.appendChild(row);
+    } else {
+      card.addEventListener("click", () => openCustInvoiceView(inv.id));
+    }
+    list.appendChild(wrap);
+    wrap.appendChild(card);
+  }
+  if (sorted.length === 0) list.appendChild(wrap);
+}
+
+async function custInvoiceAction(inv, payload) {
+  try {
+    const out = await api({ action: "custInvoiceUpdate", email: SESSION.email, code: SESSION.code, project: currentProject.name, invId: inv.id, ...payload });
+    if (out.ok && out.invoices) { custInvoices = out.invoices; render(); }
+  } catch (e) { console.warn("cust invoice update failed", e); }
+}
+
+async function logInvoicePayment(inv) {
+  const st = CI_STATUS(inv);
+  const amtStr = prompt("Payment amount (balance: " + fmtMoney(st.total - st.paid) + "):");
+  if (amtStr === null) return;
+  const amount = parseFloat(amtStr);
+  if (!(amount > 0)) { alert("Enter a dollar amount."); return; }
+  const method = prompt("Payment method (check #, card, cash, Zelle...):") || "";
+  try {
+    const out = await api({ action: "custInvoicePayment", email: SESSION.email, code: SESSION.code, project: currentProject.name, invId: inv.id, amount, method, date: ymd(new Date()) });
+    if (!out.ok) throw new Error(out.error || "failed");
+    custInvoices = out.invoices;
+    loadState().then(render); // budget paid amounts updated server-side
+  } catch (e) { alert("Couldn't log payment: " + e.message); }
+}
+
+function openCustInvoicePreview(id) {
+  const inv = custInvoices.find((x) => x.id === id);
+  if (!inv) return;
+  previewEstId = null;
+  previewInvId = id;
+  renderEstimateDoc(inv, $("est-preview-doc"), "INVOICE");
+  $("est-preview-modal").classList.remove("hidden");
+}
+
+function openCustInvoiceView(id) {
+  const inv = custInvoices.find((x) => x.id === id);
+  if (!inv) return;
+  viewingEstId = null;
+  renderEstimateDoc(inv, $("ev-doc"), "INVOICE");
+  $("ev-sign-row").classList.add("hidden");
+  $("ev-approve").classList.add("hidden");
+  $("ev-decline").classList.add("hidden");
+  $("est-view-modal").classList.remove("hidden");
+}
+
+let previewInvId = null;
+
 function renderInvoices() {
   const isSub = currentUser.role === "sub";
+  const isCust = currentUser.role === "customer";
   $("inv-form").classList.toggle("hidden", !isSub);
-  $("inv-title").textContent = isSub ? "Submit an Invoice" : "Invoices Submitted by Subs";
+  $("inv-title").textContent = isSub ? "Submit an Invoice" : isCust ? "" : "Invoices Submitted by Subs";
 
   const list = $("inv-list");
   list.innerHTML = "";
+  if (!isSub) renderCustInvoices(list);
+  if (isCust) { $("inv-empty").classList.add("hidden"); return; }
   const sorted = invoices.slice().sort((a, b) => (b.t || "").localeCompare(a.t || ""));
   $("inv-empty").classList.toggle("hidden", sorted.length > 0);
   $("inv-empty").textContent = isSub
@@ -2523,8 +2706,10 @@ function normalizeEstDoc(e) {
   };
 }
 
-function renderEstimateDoc(e, host) {
+function renderEstimateDoc(e, host, kind) {
   const n = normalizeEstDoc(e);
+  n.kind = kind || "ESTIMATE";
+  n.payments = e.payments || [];
   host.innerHTML = "";
 
   // ---- Branded header: logo + contractor left, meta + customer right ----
@@ -2546,14 +2731,14 @@ function renderEstimateDoc(e, host) {
 
   const right = document.createElement("div");
   right.className = "doc-meta";
-  const kind = document.createElement("div");
-  kind.className = "doc-kind";
-  kind.textContent = "ESTIMATE";
-  right.appendChild(kind);
+  const kindEl = document.createElement("div");
+  kindEl.className = "doc-kind";
+  kindEl.textContent = n.kind;
+  right.appendChild(kindEl);
   const meta = document.createElement("div");
   meta.className = "doc-meta-grid";
   const metaRows = [
-    ["Estimate #", n.number],
+    [n.kind === "INVOICE" ? "Invoice #" : "Estimate #", n.number],
     ["Date", n.date ? fmtDateLong(n.date) : ""],
     ["Expires", n.expires ? fmtDateLong(n.expires) : ""],
     ["Service address", n.serviceAddress]
@@ -2629,6 +2814,14 @@ function renderEstimateDoc(e, host) {
   if (n.totals.tax) sumsHtml += "<div><span>Tax</span><b>" + fmtMoney(n.totals.tax) + "</b></div>";
   sumsHtml += "<div class='est-grand'><span>Total</span><b>" + fmtMoney(n.totals.total) + "</b></div>";
   if (n.totals.depositAmt) sumsHtml += "<div><span>Deposit due</span><b>" + fmtMoney(n.totals.depositAmt) + "</b></div>";
+  if (n.payments.length) {
+    let paidSum = 0;
+    for (const p of n.payments) {
+      paidSum = r2(paidSum + (Number(p.amount) || 0));
+      sumsHtml += "<div class='doc-pay'><span>Payment " + (p.date ? fmtDateLong(p.date) : "") + (p.method ? " · " + escapeHtml(p.method) : "") + "</span><b>−" + fmtMoney(p.amount) + "</b></div>";
+    }
+    sumsHtml += "<div class='est-grand doc-balance'><span>Balance due</span><b>" + fmtMoney(r2(n.totals.total - paidSum)) + "</b></div>";
+  }
   sums.innerHTML = sumsHtml;
   host.appendChild(sums);
 
@@ -2696,6 +2889,7 @@ function openEstPreview(id) {
   const e = estimates.find((x) => x.id === id);
   if (!e) return;
   previewEstId = id;
+  previewInvId = null;
   renderEstimateDoc(e, $("est-preview-doc"));
   $("est-preview-modal").classList.remove("hidden");
 }
@@ -2725,14 +2919,16 @@ async function fileIdToDataUrl(fileId) {
 }
 
 async function downloadEstPdf() {
-  const e = estimates.find((x) => x.id === previewEstId);
+  const isInv = !previewEstId && previewInvId;
+  const e = isInv ? custInvoices.find((x) => x.id === previewInvId)
+                  : estimates.find((x) => x.id === previewEstId);
   if (!e) return;
   const btn = $("est-pdf-btn");
   btn.disabled = true;
   btn.textContent = "Building PDF…";
   try {
     await loadScript(JSPDF_URL);
-    await generateEstimatePdf(e, (msg) => { btn.textContent = msg; });
+    await generateEstimatePdf(e, (msg) => { btn.textContent = msg; }, isInv ? "INVOICE" : "ESTIMATE");
     btn.textContent = "✓ Downloaded";
   } catch (err) {
     console.warn("pdf failed", err);
@@ -2741,8 +2937,10 @@ async function downloadEstPdf() {
   setTimeout(() => { btn.textContent = "⬇ Download PDF"; btn.disabled = false; }, 2500);
 }
 
-async function generateEstimatePdf(e, progress) {
+async function generateEstimatePdf(e, progress, kind) {
   const n = normalizeEstDoc(e);
+  n.kind = kind || "ESTIMATE";
+  n.payments = e.payments || [];
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "mm", format: "letter" });
   const W = 215.9, H = 279.4, M = 14, FOOT = 14;
@@ -2778,11 +2976,11 @@ async function generateEstimatePdf(e, progress) {
   const coBottom = cy + (coLines.length - 1) * 4.4;
 
   doc.setFont("helvetica", "bold").setFontSize(24).setTextColor(...RED);
-  doc.text("ESTIMATE", W - M, y + 8, { align: "right" });
+  doc.text(n.kind, W - M, y + 8, { align: "right" });
   let my = y + 16;
   doc.setFontSize(9.5);
   const metaRows = [
-    ["Estimate #", n.number],
+    [n.kind === "INVOICE" ? "Invoice #" : "Estimate #", n.number],
     ["Date", n.date ? fmtDateLong(n.date) : ""],
     ["Expires", n.expires ? fmtDateLong(n.expires) : ""],
     ["Service address", n.serviceAddress]
@@ -2936,6 +3134,14 @@ async function generateEstimatePdf(e, progress) {
   if (n.totals.tax) trow("Tax", money(n.totals.tax));
   trow("Total", money(n.totals.total), { bold: true, big: true });
   if (n.totals.depositAmt) trow("Deposit due", money(n.totals.depositAmt), { color: RED });
+  if (n.payments.length) {
+    let paidSum = 0;
+    for (const p of n.payments) {
+      paidSum = r2(paidSum + (Number(p.amount) || 0));
+      trow("Payment " + (p.date || "") + (p.method ? " · " + p.method : ""), "-" + money(p.amount));
+    }
+    trow("Balance due", money(r2(n.totals.total - paidSum)), { bold: true, big: true, color: RED });
+  }
   y += 2;
 
   // ---- Payment schedule ----
@@ -3035,7 +3241,7 @@ async function generateEstimatePdf(e, progress) {
     doc.text("Page " + p + " of " + pages, W - M, fy, { align: "right" });
   }
 
-  const name = safeName((n.number || "Estimate") + (n.serviceAddress ? " - " + n.serviceAddress : "")) + ".pdf";
+  const name = safeName((n.number || n.kind) + (n.serviceAddress ? " - " + n.serviceAddress : "")) + ".pdf";
   doc.save(name);
 }
 
@@ -3821,7 +4027,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("est-preview-close").addEventListener("click", () => closeModal("est-preview-modal"));
   $("est-preview-edit").addEventListener("click", () => {
     closeModal("est-preview-modal");
-    openEstModal(previewEstId);
+    if (previewEstId) openEstModal(previewEstId);
   });
   $("est-save").addEventListener("click", saveEstimate);
   $("est-cancel").addEventListener("click", () => { estDraft = null; closeModal("est-modal"); });
