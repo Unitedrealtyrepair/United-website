@@ -111,6 +111,9 @@ let logs = [];       // [{id, date, weather, crew, notes, internal}]
 let subs = [];       // global: [{id, name, company, trade, phone, email, notes}]
 let folderPerms = {};   // { subfolderId: [emails allowed to view] }
 let invoices = [];      // [{id, t, sub, number, amount, notes, fileId, fileName, status}] — memory only, never cached
+let estimates = [];     // [{id, number, title, date, status, taxRate, sections:[{id,name,items:[...]}], ...}]
+let editingEstId = null;
+let estDraft = null;    // working copy while the builder modal is open
 let photoFolders = [];  // [{id, name, isSubUploads}]
 let subUploadsFolderId = null;
 let calMonth = new Date();
@@ -135,6 +138,7 @@ function applyRemote(remote) {
   if (remote[pkey("Logs")]) logs = remote[pkey("Logs")];
   if (remote[pkey("FolderPerms")]) folderPerms = remote[pkey("FolderPerms")];
   invoices = remote[pkey("Invoices")] || []; // server pre-filters per role; never cached to localStorage
+  estimates = remote[pkey("Estimates")] || []; // server pre-filters per role; memory only
   if (remote["urrSubs"]) subs = remote["urrSubs"];
   cacheSet(pkey("Schedule"), schedule);
   cacheSet(pkey("Budget"), budget);
@@ -149,6 +153,7 @@ async function loadState(initialData) {
   logs = cacheGet(pkey("Logs")) || [];
   folderPerms = cacheGet(pkey("FolderPerms")) || {};
   invoices = [];
+  estimates = [];
   subs = cacheGet("urrSubs") || [];
   if (initialData) { applyRemote(initialData); setSyncStatus("synced"); return; }
   try {
@@ -185,6 +190,7 @@ async function saveBudget()   { cacheSet(pkey("Budget"), budget);     pushCollec
 async function saveLogs()     { cacheSet(pkey("Logs"), logs); pushCollection(pkey("Logs"), logs, pendingNotify.log); pendingNotify.log = []; }
 async function saveSubs()     { cacheSet("urrSubs", subs);            pushCollection("urrSubs", subs); }
 async function saveFolderPerms() { cacheSet(pkey("FolderPerms"), folderPerms); pushCollection(pkey("FolderPerms"), folderPerms); }
+async function saveEstimates()   { pushCollection(pkey("Estimates"), estimates); }
 
 // ---------- Categorization ----------
 const RULES = [
@@ -785,14 +791,17 @@ function render() {
     "budget-section":   activeTab === "Budget",
     "logs-section":     activeTab === "Daily Logs",
     "subs-section":     activeTab === "Subs",
-    "invoices-section": activeTab === "Invoices" && (isAdmin() || currentUser.role === "sub")
+    "invoices-section": activeTab === "Invoices" && (isAdmin() || currentUser.role === "sub"),
+    "estimates-section": activeTab === "Estimates" && (isAdmin() || currentUser.role === "customer")
   };
   for (const [id, show] of Object.entries(sections)) {
     $(id).classList.toggle("hidden", !show);
   }
 
   // Admin keeps the invoice FILE view under the submitted-invoice panel
-  const isFileTab = !Object.values(sections).some(Boolean) || (activeTab === "Invoices" && isAdmin());
+  const isFileTab = !Object.values(sections).some(Boolean)
+    || (activeTab === "Invoices" && isAdmin())
+    || (activeTab === "Estimates" && (isAdmin() || currentUser.role === "customer"));
 
   if (activeTab === "Overview") renderOverview();
   if (activeTab === "Schedule") {
@@ -804,6 +813,7 @@ function render() {
   if (activeTab === "Daily Logs") renderLogs();
   if (activeTab === "Subs") renderSubs();
   if (activeTab === "Invoices" && (isAdmin() || currentUser.role === "sub")) renderInvoices();
+  if (activeTab === "Estimates" && (isAdmin() || currentUser.role === "customer")) renderEstimates();
 
   // File grid only on file tabs
   const list = $("file-list");
@@ -1894,6 +1904,660 @@ async function submitInvoice() {
   btn.disabled = false;
 }
 
+
+// ---------- Estimates (built in-portal; markup hidden from customer) ----------
+function r2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+
+function calcEstimate(e) {
+  const lines = [];
+  let markedSubtotal = 0, cost = 0;
+  for (const s of (e.sections || [])) {
+    for (const it of (s.items || [])) {
+      const qty = Number(it.qty) || 0;
+      const rate = Number(it.rate) || 0;
+      const base = r2(qty * rate);
+      const m = Number(it.markup) || 0;
+      let marked = base;
+      if (it.markupType === "$") marked = base + m;
+      else marked = base * (1 + m / 100);
+      marked = r2(marked);
+      lines.push({ secId: s.id, item: it, base, marked });
+      markedSubtotal = r2(markedSubtotal + marked);
+      cost = r2(cost + base);
+    }
+  }
+  const g = Number(e.globalMarkup) || 0;
+  const gType = e.globalMarkupType === "$" ? "$" : "%";
+  let target = markedSubtotal;
+  if (g) target = gType === "$" ? r2(markedSubtotal + g) : r2(markedSubtotal * (1 + g / 100));
+  let running = 0, lastIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const L = lines[i];
+    let cust = L.marked;
+    if (g && markedSubtotal > 0) {
+      cust = gType === "$" ? L.marked + g * (L.marked / markedSubtotal) : L.marked * (1 + g / 100);
+    }
+    L.customer = r2(cust);
+    running = r2(running + L.customer);
+    if (L.customer > 0) lastIdx = i;
+  }
+  if (lines.length && lastIdx >= 0 && running !== target) {
+    lines[lastIdx].customer = r2(lines[lastIdx].customer + (target - running));
+  }
+  const subtotal = target;
+  const d = Number(e.discount) || 0;
+  const discountAmt = d ? (e.discountType === "$" ? r2(d) : r2(subtotal * d / 100)) : 0;
+  let taxable = 0;
+  for (const L of lines) if (L.item.taxable !== false) taxable = r2(taxable + L.customer);
+  const taxBase = subtotal > 0 ? r2(taxable - discountAmt * (taxable / subtotal)) : 0;
+  const tax = r2(taxBase * ((Number(e.taxRate) || 0) / 100));
+  const total = r2(subtotal - discountAmt + tax);
+  const dep = Number(e.deposit) || 0;
+  const depositAmt = dep ? (e.depositType === "$" ? r2(dep) : r2(total * dep / 100)) : 0;
+  const margin = r2(subtotal - discountAmt - cost);
+  const bySection = {};
+  for (const L of lines) bySection[L.secId] = r2((bySection[L.secId] || 0) + L.customer);
+  return { lines, subtotal, discountAmt, tax, total, depositAmt, margin, cost, bySection };
+}
+
+const EST_STATUS_LABEL = { draft: "Draft", sent: "Awaiting response", approved: "Approved", declined: "Declined" };
+const EST_STATUS_CLASS = { draft: "scheduled", sent: "in-progress", approved: "complete", declined: "declined" };
+
+function nextEstNumber() {
+  let max = 0;
+  for (const e of estimates) {
+    const m = /(\d+)$/.exec(e.number || "");
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return "EST-" + String(max + 1).padStart(3, "0");
+}
+
+// Totals helper that works for BOTH shapes: admin raw estimates and the
+// server-transformed customer copies (which carry a totals object).
+function estDisplayTotals(e) {
+  if (e.totals) return { subtotal: e.totals.subtotal, discountAmt: e.totals.discount, tax: e.totals.tax, total: e.totals.total, depositAmt: e.totals.deposit, margin: 0 };
+  return calcEstimate(e);
+}
+
+function renderEstimates() {
+  $("add-est-btn").classList.toggle("hidden", !isAdmin());
+  $("est-title-bar").textContent = isAdmin() ? "Estimates" : "Your Estimates";
+  const list = $("est-list");
+  list.innerHTML = "";
+  const sorted = estimates.slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  $("est-empty").classList.toggle("hidden", sorted.length > 0);
+  $("est-empty").textContent = isAdmin()
+    ? "No estimates yet. Build one with + New Estimate — drafts stay invisible to the customer until you mark them Sent."
+    : "No estimates yet.";
+
+  for (const e of sorted) {
+    const t = estDisplayTotals(e);
+    const card = document.createElement("div");
+    card.className = "log-card est-card";
+    const head = document.createElement("div");
+    head.className = "log-head";
+    const title = document.createElement("div");
+    title.className = "log-date";
+    title.textContent = (e.number ? e.number + " — " : "") + (e.title || "Estimate");
+    head.appendChild(title);
+    const badge = document.createElement("span");
+    badge.className = "status-badge " + (EST_STATUS_CLASS[e.status] || "scheduled");
+    badge.textContent = EST_STATUS_LABEL[e.status] || e.status;
+    head.appendChild(badge);
+    card.appendChild(head);
+    const meta = document.createElement("div");
+    meta.className = "log-meta";
+    meta.textContent = [
+      e.date ? fmtDateLong(e.date) : null,
+      fmtMoney(t.total),
+      e.signedName ? "Signed: " + e.signedName : null
+    ].filter(Boolean).join("  ·  ");
+    card.appendChild(meta);
+    if (isAdmin() && t.margin) {
+      const mg = document.createElement("div");
+      mg.className = "est-margin-line";
+      mg.textContent = "Your margin: " + fmtMoney(t.margin) + " (never shown to customer)";
+      card.appendChild(mg);
+    }
+    card.addEventListener("click", () => {
+      if (isAdmin()) openEstModal(e.id);
+      else openEstView(e.id);
+    });
+    list.appendChild(card);
+  }
+}
+
+// ----- Admin builder -----
+function blankEstimate() {
+  return {
+    id: "e" + Date.now(),
+    number: nextEstNumber(),
+    title: "",
+    date: ymd(new Date()),
+    expires: "",
+    status: "draft",
+    taxRate: 0,
+    discount: 0, discountType: "%",
+    globalMarkup: 0, globalMarkupType: "%",
+    deposit: 0, depositType: "%",
+    schedule: [],
+    photos: [],
+    attachments: [],
+    terms: cacheGet("urrEstimateTermsLocal") || "",
+    customerNotes: "",
+    internalNotes: "",
+    sections: [{ id: "s" + Date.now(), name: "General", items: [blankItem()] }]
+  };
+}
+function blankItem() {
+  return { id: "i" + Date.now() + Math.floor(Math.random() * 1000), desc: "", notes: "", photos: [], qty: 1, rate: 0, markupType: "%", markup: 0, taxable: true };
+}
+
+function openEstModal(id) {
+  editingEstId = id || null;
+  const e = id ? estimates.find((x) => x.id === id) : null;
+  estDraft = e ? JSON.parse(JSON.stringify(e)) : blankEstimate();
+  if (!estDraft.schedule) estDraft.schedule = [];
+  if (!estDraft.photos) estDraft.photos = [];
+  if (!estDraft.attachments) estDraft.attachments = [];
+  $("est-modal-title").textContent = e ? "Edit Estimate" : "New Estimate";
+  $("est-number").value = estDraft.number || "";
+  $("est-date").value = estDraft.date || ymd(new Date());
+  $("est-expires").value = estDraft.expires || "";
+  $("est-status").value = estDraft.status || "draft";
+  $("est-name").value = estDraft.title || "";
+  $("est-taxrate").value = estDraft.taxRate || 0;
+  $("est-disc-type").value = estDraft.discountType || "%";
+  $("est-disc-val").value = estDraft.discount || 0;
+  $("est-gm-type").value = estDraft.globalMarkupType || "%";
+  $("est-gm-val").value = estDraft.globalMarkup || 0;
+  $("est-dep-type").value = estDraft.depositType || "%";
+  $("est-dep-val").value = estDraft.deposit || 0;
+  $("est-terms").value = estDraft.terms || "";
+  $("est-cust-notes").value = estDraft.customerNotes || "";
+  $("est-int-notes").value = estDraft.internalNotes || "";
+  $("est-delete").classList.toggle("hidden", !e);
+  renderEstSections();
+  renderEstSchedule();
+  renderEstAttachRows();
+  $("est-modal").classList.remove("hidden");
+}
+
+async function uploadEstFile(file) {
+  const out = await uploadOne(file, { destArea: "office", destFolderName: "Estimate Files", notify: [] });
+  if (!out.ok) throw new Error(out.error || "upload failed");
+  return { id: out.fileId, name: out.fileName };
+}
+
+function estThumb(p, size) {
+  const img = document.createElement("img");
+  img.className = "est-thumb";
+  img.alt = p.name || "";
+  img.src = "https://drive.google.com/thumbnail?id=" + encodeURIComponent(p.id) + "&sz=w" + (size || 120);
+  return img;
+}
+
+function renderEstSections() {
+  const host = $("est-sections");
+  host.innerHTML = "";
+  for (const s of estDraft.sections) {
+    const box = document.createElement("div");
+    box.className = "est-section";
+
+    const head = document.createElement("div");
+    head.className = "est-sec-head";
+    const nameIn = document.createElement("input");
+    nameIn.type = "text";
+    nameIn.className = "est-sec-name";
+    nameIn.placeholder = "Section name (e.g. Demolition, Plumbing)";
+    nameIn.value = s.name || "";
+    nameIn.addEventListener("input", () => { s.name = nameIn.value; });
+    head.appendChild(nameIn);
+    const secTotal = document.createElement("span");
+    secTotal.className = "est-sec-total";
+    head.appendChild(secTotal);
+    const delSec = document.createElement("button");
+    delSec.className = "est-x";
+    delSec.textContent = "✕";
+    delSec.title = "Remove section";
+    delSec.addEventListener("click", () => {
+      estDraft.sections = estDraft.sections.filter((x) => x.id !== s.id);
+      if (estDraft.sections.length === 0) estDraft.sections.push({ id: "s" + Date.now(), name: "General", items: [blankItem()] });
+      renderEstSections();
+    });
+    head.appendChild(delSec);
+    box.appendChild(head);
+
+    const grid = document.createElement("div");
+    grid.className = "est-items";
+    const cols = document.createElement("div");
+    cols.className = "est-row est-cols";
+    cols.innerHTML = "<span>Description</span><span>Qty</span><span>Rate</span><span>Markup</span><span>Tax</span><span>Total</span><span></span>";
+    grid.appendChild(cols);
+
+    const refreshTotals = () => {
+      const c = calcEstimate(estDraft);
+      secTotal.textContent = fmtMoney(c.bySection[s.id] || 0);
+      updateEstSummary(c);
+      grid.querySelectorAll(".est-line-total").forEach((el) => {
+        const it = s.items.find((x) => x.id === el.dataset.item);
+        if (!it) return;
+        const L = c.lines.find((x) => x.item.id === it.id);
+        el.textContent = fmtMoney(L ? L.customer : 0);
+      });
+    };
+
+    s.items.forEach((it) => {
+      const row = document.createElement("div");
+      row.className = "est-row";
+      const desc = document.createElement("input");
+      desc.type = "text"; desc.placeholder = "Work / material description";
+      desc.value = it.desc || "";
+      desc.addEventListener("input", () => { it.desc = desc.value; });
+      const qty = document.createElement("input");
+      qty.type = "number"; qty.min = "0"; qty.step = "0.01"; qty.value = it.qty;
+      qty.addEventListener("input", () => { it.qty = qty.value; refreshTotals(); });
+      const rate = document.createElement("input");
+      rate.type = "number"; rate.min = "0"; rate.step = "0.01"; rate.value = it.rate;
+      rate.addEventListener("input", () => { it.rate = rate.value; refreshTotals(); });
+      const mwrap = document.createElement("div");
+      mwrap.className = "est-markup";
+      const msel = document.createElement("select");
+      ["%", "$"].forEach((v) => { const o = document.createElement("option"); o.value = v; o.textContent = v; msel.appendChild(o); });
+      msel.value = it.markupType || "%";
+      msel.addEventListener("change", () => { it.markupType = msel.value; refreshTotals(); });
+      const mval = document.createElement("input");
+      mval.type = "number"; mval.step = "0.01"; mval.value = it.markup || 0;
+      mval.addEventListener("input", () => { it.markup = mval.value; refreshTotals(); });
+      mwrap.appendChild(msel);
+      mwrap.appendChild(mval);
+      const taxChk = document.createElement("input");
+      taxChk.type = "checkbox";
+      taxChk.className = "est-taxchk";
+      taxChk.checked = it.taxable !== false;
+      taxChk.title = "Taxable";
+      taxChk.addEventListener("change", () => { it.taxable = taxChk.checked; refreshTotals(); });
+      const tot = document.createElement("span");
+      tot.className = "est-line-total";
+      tot.dataset.item = it.id;
+      const del = document.createElement("button");
+      del.className = "est-x";
+      del.textContent = "✕";
+      del.addEventListener("click", () => {
+        s.items = s.items.filter((x) => x.id !== it.id);
+        if (s.items.length === 0) s.items.push(blankItem());
+        renderEstSections();
+      });
+      row.appendChild(desc); row.appendChild(qty); row.appendChild(rate);
+      row.appendChild(mwrap); row.appendChild(taxChk); row.appendChild(tot); row.appendChild(del);
+      grid.appendChild(row);
+
+      // Second row: item notes + photos
+      const extra = document.createElement("div");
+      extra.className = "est-row-extra";
+      const notes = document.createElement("input");
+      notes.type = "text";
+      notes.className = "est-item-notes";
+      notes.placeholder = "Notes for this line (customer sees these)";
+      notes.value = it.notes || "";
+      notes.addEventListener("input", () => { it.notes = notes.value; });
+      extra.appendChild(notes);
+      const strip = document.createElement("div");
+      strip.className = "est-thumb-strip";
+      (it.photos || []).forEach((p) => {
+        const w = document.createElement("span");
+        w.className = "est-thumb-wrap";
+        w.appendChild(estThumb(p));
+        const x = document.createElement("button");
+        x.className = "est-thumb-x";
+        x.textContent = "✕";
+        x.addEventListener("click", () => { it.photos = it.photos.filter((q) => q.id !== p.id); renderEstSections(); });
+        w.appendChild(x);
+        strip.appendChild(w);
+      });
+      if ((it.photos || []).length < 4) {
+        const pin = document.createElement("input");
+        pin.type = "file"; pin.accept = "image/*"; pin.multiple = true; pin.style.display = "none";
+        const pbtn = document.createElement("button");
+        pbtn.className = "btn-ghost est-photo-add";
+        pbtn.textContent = "📷 " + ((it.photos || []).length ? "" : "Add photos");
+        pbtn.addEventListener("click", () => pin.click());
+        pin.addEventListener("change", async () => {
+          const files = Array.from(pin.files || []).slice(0, 4 - (it.photos || []).length);
+          pbtn.disabled = true;
+          for (const file of files) {
+            pbtn.textContent = "Uploading…";
+            try { it.photos = (it.photos || []).concat([await uploadEstFile(file)]); }
+            catch (e2) { console.warn("item photo failed", e2); }
+          }
+          renderEstSections();
+        });
+        strip.appendChild(pbtn);
+        strip.appendChild(pin);
+      }
+      extra.appendChild(strip);
+      grid.appendChild(extra);
+    });
+
+    const addItem = document.createElement("button");
+    addItem.className = "btn-ghost est-add-item";
+    addItem.textContent = "+ Line item";
+    addItem.addEventListener("click", () => { s.items.push(blankItem()); renderEstSections(); });
+
+    box.appendChild(grid);
+    box.appendChild(addItem);
+    host.appendChild(box);
+  }
+  const c = calcEstimate(estDraft);
+  host.querySelectorAll(".est-section").forEach((box, i) => {
+    const s = estDraft.sections[i];
+    box.querySelector(".est-sec-total").textContent = fmtMoney(c.bySection[s.id] || 0);
+    box.querySelectorAll(".est-line-total").forEach((el) => {
+      const L = c.lines.find((x) => x.item.id === el.dataset.item);
+      el.textContent = fmtMoney(L ? L.customer : 0);
+    });
+  });
+  updateEstSummary(c);
+}
+
+function renderEstSchedule() {
+  const host = $("est-schedule");
+  host.innerHTML = "";
+  (estDraft.schedule || []).forEach((r) => {
+    const row = document.createElement("div");
+    row.className = "est-sched-row";
+    const desc = document.createElement("input");
+    desc.type = "text"; desc.placeholder = "e.g. Due at rough-in complete";
+    desc.value = r.desc || "";
+    desc.addEventListener("input", () => { r.desc = desc.value; });
+    const amt = document.createElement("input");
+    amt.type = "number"; amt.step = "0.01"; amt.min = "0"; amt.placeholder = "0.00";
+    amt.value = r.amount || 0;
+    amt.addEventListener("input", () => { r.amount = amt.value; });
+    const x = document.createElement("button");
+    x.className = "est-x";
+    x.textContent = "✕";
+    x.addEventListener("click", () => { estDraft.schedule = estDraft.schedule.filter((q) => q !== r); renderEstSchedule(); });
+    row.appendChild(desc); row.appendChild(amt); row.appendChild(x);
+    host.appendChild(row);
+  });
+}
+
+function renderEstAttachRows() {
+  const ph = $("est-photos-strip");
+  ph.innerHTML = "";
+  (estDraft.photos || []).forEach((p) => {
+    const w = document.createElement("span");
+    w.className = "est-thumb-wrap";
+    w.appendChild(estThumb(p));
+    const x = document.createElement("button");
+    x.className = "est-thumb-x";
+    x.textContent = "✕";
+    x.addEventListener("click", () => { estDraft.photos = estDraft.photos.filter((q) => q.id !== p.id); renderEstAttachRows(); });
+    w.appendChild(x);
+    ph.appendChild(w);
+  });
+  const at = $("est-attach-list");
+  at.innerHTML = "";
+  (estDraft.attachments || []).forEach((a) => {
+    const row = document.createElement("div");
+    row.className = "sub-doc-row";
+    const nm = document.createElement("span");
+    nm.className = "est-attach-name";
+    nm.textContent = "📎 " + a.name;
+    row.appendChild(nm);
+    const x = document.createElement("button");
+    x.className = "sub-doc-del";
+    x.textContent = "🗑";
+    x.addEventListener("click", () => { estDraft.attachments = estDraft.attachments.filter((q) => q.id !== a.id); renderEstAttachRows(); });
+    row.appendChild(x);
+    at.appendChild(row);
+  });
+}
+
+function updateEstSummary(c) {
+  if (!estDraft) return;
+  estDraft.taxRate = $("est-taxrate").value;
+  estDraft.discount = $("est-disc-val").value;
+  estDraft.discountType = $("est-disc-type").value;
+  estDraft.globalMarkup = $("est-gm-val").value;
+  estDraft.globalMarkupType = $("est-gm-type").value;
+  estDraft.deposit = $("est-dep-val").value;
+  estDraft.depositType = $("est-dep-type").value;
+  const t = c || calcEstimate(estDraft);
+  $("est-subtotal").textContent = fmtMoney(t.subtotal);
+  $("est-disc-amt").textContent = "−" + fmtMoney(t.discountAmt);
+  $("est-tax-amt").textContent = fmtMoney(t.tax);
+  $("est-grand").textContent = fmtMoney(t.total);
+  $("est-dep-amt").textContent = fmtMoney(t.depositAmt);
+  $("est-margin").textContent = fmtMoney(t.margin);
+}
+
+async function saveEstimate() {
+  estDraft.number = $("est-number").value.trim();
+  estDraft.date = $("est-date").value;
+  estDraft.expires = $("est-expires").value;
+  estDraft.status = $("est-status").value;
+  estDraft.title = $("est-name").value.trim();
+  estDraft.taxRate = parseFloat($("est-taxrate").value) || 0;
+  estDraft.discount = parseFloat($("est-disc-val").value) || 0;
+  estDraft.discountType = $("est-disc-type").value;
+  estDraft.globalMarkup = parseFloat($("est-gm-val").value) || 0;
+  estDraft.globalMarkupType = $("est-gm-type").value;
+  estDraft.deposit = parseFloat($("est-dep-val").value) || 0;
+  estDraft.depositType = $("est-dep-type").value;
+  estDraft.terms = $("est-terms").value;
+  estDraft.customerNotes = $("est-cust-notes").value.trim();
+  estDraft.internalNotes = $("est-int-notes").value.trim();
+  estDraft.schedule = (estDraft.schedule || []).filter((r) => (r.desc || "").trim() || Number(r.amount) > 0)
+    .map((r) => ({ desc: r.desc, amount: Number(r.amount) || 0 }));
+  for (const s of estDraft.sections) {
+    s.items = s.items.filter((it) => (it.desc || "").trim() !== "" || Number(it.rate) > 0);
+    for (const it of s.items) {
+      it.qty = Number(it.qty) || 0;
+      it.rate = Number(it.rate) || 0;
+      it.markup = Number(it.markup) || 0;
+    }
+  }
+  estDraft.sections = estDraft.sections.filter((s) => s.items.length > 0);
+  if (editingEstId) {
+    const i = estimates.findIndex((x) => x.id === editingEstId);
+    if (i >= 0) estimates[i] = estDraft;
+  } else {
+    estimates.push(estDraft);
+  }
+  await saveEstimates();
+  estDraft = null;
+  closeModal("est-modal");
+  render();
+}
+
+async function deleteEstimate() {
+  if (!editingEstId) return;
+  if (!confirm("Delete this estimate?")) return;
+  estimates = estimates.filter((x) => x.id !== editingEstId);
+  await saveEstimates();
+  estDraft = null;
+  closeModal("est-modal");
+  render();
+}
+
+// ----- Customer view (also used by admin as a preview) -----
+let viewingEstId = null;
+const estBlobCache = {};
+
+async function estBlobUrl(fileId) {
+  if (estBlobCache[fileId]) return estBlobCache[fileId];
+  const blob = await fetchFileBlobFast({ id: fileId });
+  const url = URL.createObjectURL(blob);
+  estBlobCache[fileId] = url;
+  return url;
+}
+
+function evPhotoStrip(photos, host) {
+  for (const p of photos) {
+    const img = document.createElement("img");
+    img.className = "est-thumb ev-thumb";
+    img.alt = p.name || "";
+    host.appendChild(img);
+    estBlobUrl(p.id).then((u) => { img.src = u; }).catch(() => img.remove());
+    img.addEventListener("click", () => {
+      lightboxList = [{ id: p.id, name: p.name || "Photo", mimeType: "image/jpeg" }];
+      lightboxIndex = 0;
+      openLightbox(lightboxList[0]);
+    });
+  }
+}
+
+function openEstView(id) {
+  const e = estimates.find((x) => x.id === id);
+  if (!e) return;
+  viewingEstId = id;
+  const t = estDisplayTotals(e);
+  $("ev-title").textContent = (e.number ? e.number + " — " : "") + (e.title || "Estimate");
+  $("ev-meta").textContent = [
+    e.date ? fmtDateLong(e.date) : null,
+    e.expires ? "Valid through " + fmtDateLong(e.expires) : null,
+    e.status !== "sent" ? (EST_STATUS_LABEL[e.status] || e.status) + (e.signedName ? " — signed by " + e.signedName : "") : null
+  ].filter(Boolean).join("  ·  ");
+  const body = $("ev-body");
+  body.innerHTML = "";
+
+  if ((e.photos || []).length) {
+    const strip = document.createElement("div");
+    strip.className = "est-thumb-strip ev-strip";
+    evPhotoStrip(e.photos, strip);
+    body.appendChild(strip);
+  }
+
+  for (const s of (e.sections || [])) {
+    const sec = document.createElement("div");
+    sec.className = "ev-section";
+    const h = document.createElement("div");
+    h.className = "ev-sec-name";
+    h.textContent = s.name || "";
+    sec.appendChild(h);
+    const cols = document.createElement("div");
+    cols.className = "ev-row ev-cols";
+    cols.innerHTML = "<span>Description</span><span>Qty</span><span>Rate</span><span>Amount</span>";
+    sec.appendChild(cols);
+    for (const it of (s.items || [])) {
+      let unit, total;
+      if (e.totals) { unit = it.rate; total = it.total; }
+      else {
+        const c = calcEstimate(e);
+        const L = c.lines.find((x) => x.item.id === it.id);
+        total = L ? L.customer : 0;
+        unit = (Number(it.qty) || 0) > 0 ? r2(total / Number(it.qty)) : total;
+      }
+      const row = document.createElement("div");
+      row.className = "ev-row";
+      row.innerHTML = "<span>" + escapeHtml(it.desc || "") +
+        (it.notes ? "<div class='ev-item-notes'>" + escapeHtml(it.notes) + "</div>" : "") +
+        "</span><span>" + (Number(it.qty) || 0) +
+        "</span><span>" + fmtMoney(unit) + "</span><span>" + fmtMoney(total) + "</span>";
+      sec.appendChild(row);
+      if ((it.photos || []).length) {
+        const strip = document.createElement("div");
+        strip.className = "est-thumb-strip ev-strip";
+        evPhotoStrip(it.photos, strip);
+        sec.appendChild(strip);
+      }
+    }
+    body.appendChild(sec);
+  }
+
+  $("ev-subtotal").textContent = fmtMoney(t.subtotal);
+  const discRow = $("ev-disc-row");
+  discRow.classList.toggle("hidden", !t.discountAmt);
+  $("ev-disc").textContent = "−" + fmtMoney(t.discountAmt);
+  $("ev-tax").textContent = fmtMoney(t.tax);
+  $("ev-grand").textContent = fmtMoney(t.total);
+  const depRow = $("ev-dep-row");
+  depRow.classList.toggle("hidden", !t.depositAmt);
+  $("ev-dep").textContent = fmtMoney(t.depositAmt);
+
+  const sched = $("ev-schedule");
+  sched.innerHTML = "";
+  if ((e.schedule || []).length) {
+    const h = document.createElement("div");
+    h.className = "ev-sec-name";
+    h.textContent = "Payment Schedule";
+    sched.appendChild(h);
+    for (const r of e.schedule) {
+      const row = document.createElement("div");
+      row.className = "ev-row ev-sched";
+      row.innerHTML = "<span>" + escapeHtml(r.desc || "") + "</span><span></span><span></span><span>" + fmtMoney(r.amount) + "</span>";
+      sched.appendChild(row);
+    }
+  }
+
+  const att = $("ev-attachments");
+  att.innerHTML = "";
+  if ((e.attachments || []).length) {
+    const h = document.createElement("div");
+    h.className = "ev-sec-name";
+    h.textContent = "Attachments";
+    att.appendChild(h);
+    for (const a of e.attachments) {
+      const row = document.createElement("button");
+      row.className = "sub-doc-name ev-attach";
+      row.textContent = "📎 " + a.name;
+      row.addEventListener("click", () => {
+        lightboxList = [{ id: a.id, name: a.name, mimeType: /\.pdf$/i.test(a.name) ? "application/pdf" : "" }];
+        lightboxIndex = 0;
+        openLightbox(lightboxList[0]);
+      });
+      att.appendChild(row);
+    }
+  }
+
+  const hasNotes = !!(e.customerNotes && e.customerNotes.trim());
+  $("ev-notes-row").classList.toggle("hidden", !hasNotes);
+  $("ev-notes").textContent = e.customerNotes || "";
+
+  const hasTerms = !!(e.terms && e.terms.trim());
+  $("ev-terms-row").classList.toggle("hidden", !hasTerms);
+  $("ev-terms").textContent = e.terms || "";
+
+  const open = e.status === "sent" && !isAdmin();
+  $("ev-sign-row").classList.toggle("hidden", !open);
+  $("ev-sign-name").value = "";
+  $("ev-agree").checked = false;
+  $("ev-approve").classList.toggle("hidden", !open);
+  $("ev-decline").classList.toggle("hidden", !open);
+  $("est-view-modal").classList.remove("hidden");
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+async function respondEstimate(response) {
+  const btn = response === "approved" ? $("ev-approve") : $("ev-decline");
+  let signature = "";
+  if (response === "approved") {
+    signature = $("ev-sign-name").value.trim();
+    if (!signature) { alert("Please type your full name to sign."); return; }
+    if (!$("ev-agree").checked) { alert("Please check the box to agree to the terms."); return; }
+  } else {
+    if (!confirm("Decline this estimate?")) return;
+  }
+  btn.disabled = true;
+  try {
+    const out = await api({ action: "estimateRespond", email: SESSION.email, code: SESSION.code, project: currentProject.name, estId: viewingEstId, response, signature });
+    if (!out.ok) throw new Error(out.error || "failed");
+    const i = estimates.findIndex((x) => x.id === viewingEstId);
+    if (i >= 0) estimates[i] = out.estimate;
+    closeModal("est-view-modal");
+    // approval creates budget lines server-side — pull fresh data
+    loadState().then(render);
+  } catch (e) {
+    alert("Couldn't submit: " + e.message);
+  }
+  btn.disabled = false;
+}
+
 // ---------- Subs ----------
 let subFilesData = null;   // admin-only: [{id, name, files:[...]}]
 let subFilesLoading = false;
@@ -2542,13 +3206,56 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLightbox(); });
 
   // Click outside modal closes it
-  for (const id of ["task-modal", "budget-modal", "log-modal", "sub-modal", "task-view-modal"]) {
+  for (const id of ["task-modal", "budget-modal", "log-modal", "sub-modal", "task-view-modal", "est-modal", "est-view-modal"]) {
     $(id).addEventListener("click", (e) => { if (e.target.id === id) closeModal(id); });
   }
 
   $("code-input").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
 
   $("inv-submit").addEventListener("click", submitInvoice);
+
+  $("add-est-btn").addEventListener("click", () => openEstModal(null));
+  $("est-add-section").addEventListener("click", () => {
+    estDraft.sections.push({ id: "s" + Date.now(), name: "", items: [blankItem()] });
+    renderEstSections();
+  });
+  ["est-taxrate", "est-gm-val", "est-disc-val", "est-dep-val"].forEach((id) =>
+    $(id).addEventListener("input", () => updateEstSummary()));
+  ["est-gm-type", "est-disc-type", "est-dep-type"].forEach((id) =>
+    $(id).addEventListener("change", () => updateEstSummary()));
+  $("est-add-sched").addEventListener("click", () => {
+    estDraft.schedule.push({ desc: "", amount: 0 });
+    renderEstSchedule();
+  });
+  $("est-add-photos").addEventListener("click", () => $("est-photos-input").click());
+  $("est-photos-input").addEventListener("change", async () => {
+    const files = Array.from($("est-photos-input").files || []).slice(0, 20 - (estDraft.photos || []).length);
+    for (const file of files) {
+      try { estDraft.photos.push(await uploadEstFile(file)); } catch (e) { console.warn(e); }
+    }
+    $("est-photos-input").value = "";
+    renderEstAttachRows();
+  });
+  $("est-add-attach").addEventListener("click", () => $("est-attach-input").click());
+  $("est-attach-input").addEventListener("change", async () => {
+    const files = Array.from($("est-attach-input").files || []).slice(0, 10 - (estDraft.attachments || []).length);
+    for (const file of files) {
+      try { estDraft.attachments.push(await uploadEstFile(file)); } catch (e) { console.warn(e); }
+    }
+    $("est-attach-input").value = "";
+    renderEstAttachRows();
+  });
+  $("est-terms-default").addEventListener("click", () => {
+    cacheSet("urrEstimateTermsLocal", $("est-terms").value);
+    $("est-terms-default").textContent = "✓ Saved as default";
+    setTimeout(() => { $("est-terms-default").textContent = "Save as my default terms"; }, 2000);
+  });
+  $("est-save").addEventListener("click", saveEstimate);
+  $("est-cancel").addEventListener("click", () => { estDraft = null; closeModal("est-modal"); });
+  $("est-delete").addEventListener("click", deleteEstimate);
+  $("ev-close").addEventListener("click", () => closeModal("est-view-modal"));
+  $("ev-approve").addEventListener("click", () => respondEstimate("approved"));
+  $("ev-decline").addEventListener("click", () => respondEstimate("declined"));
 
   $("pdf-zoom-in").addEventListener("click", () => {
     lbPdfZoom = Math.min(lbPdfZoom * 1.25, 4);

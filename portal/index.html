@@ -6,7 +6,7 @@
   <title>URR Project Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=73" />
+  <link rel="stylesheet" href="styles.css?v=74" />
 </head>
 <body>
 
@@ -168,6 +168,16 @@
         <div id="inv-empty" class="status-msg hidden">No invoices yet.</div>
       </div>
 
+      <!-- ===== Estimates (built in portal) ===== -->
+      <div id="estimates-section" class="hidden">
+        <div class="section-toolbar">
+          <div class="section-title" id="est-title-bar">Estimates</div>
+          <button id="add-est-btn" class="add-task-btn hidden">+ New Estimate</button>
+        </div>
+        <div id="est-list" class="logs-list"></div>
+        <div id="est-empty" class="status-msg hidden">No estimates yet.</div>
+      </div>
+
       <div id="loading" class="status-msg">Loading project files…</div>
       <div id="api-error" class="status-msg error hidden"></div>
       <div id="file-list" class="file-grid"></div>
@@ -299,6 +309,118 @@
       </div>
     </div>
 
+    <!-- ===== Estimate builder modal (admin) ===== -->
+    <div id="est-modal" class="modal-overlay hidden">
+      <div class="modal modal-wide">
+        <h2 id="est-modal-title">New Estimate</h2>
+        <div class="est-head-grid">
+          <div><label>Estimate #</label><input type="text" id="est-number" /></div>
+          <div><label>Date</label><input type="date" id="est-date" /></div>
+          <div><label>Expires</label><input type="date" id="est-expires" /></div>
+          <div><label>Status</label>
+            <select id="est-status">
+              <option value="draft">Draft — customer can't see</option>
+              <option value="sent">Sent — visible to customer</option>
+              <option value="approved">Approved</option>
+              <option value="declined">Declined</option>
+            </select>
+          </div>
+        </div>
+        <label>Title</label>
+        <input type="text" id="est-name" placeholder="e.g. Kitchen &amp; Bath Remodel — 2515 Bannock" />
+        <div id="est-sections"></div>
+        <button id="est-add-section" class="btn-ghost est-add-sec">+ Add Section</button>
+
+        <div class="est-adjust-grid">
+          <div><label>Global markup <span class="lbl-hint">hidden</span></label>
+            <div class="est-pair"><select id="est-gm-type"><option value="%">%</option><option value="$">$</option></select><input type="number" id="est-gm-val" step="0.01" value="0" /></div>
+          </div>
+          <div><label>Discount <span class="lbl-hint">shown</span></label>
+            <div class="est-pair"><select id="est-disc-type"><option value="%">%</option><option value="$">$</option></select><input type="number" id="est-disc-val" step="0.01" value="0" /></div>
+          </div>
+          <div><label>Tax %</label><input type="number" id="est-taxrate" min="0" step="0.01" value="0" /></div>
+          <div><label>Deposit request</label>
+            <div class="est-pair"><select id="est-dep-type"><option value="%">%</option><option value="$">$</option></select><input type="number" id="est-dep-val" step="0.01" value="0" /></div>
+          </div>
+        </div>
+
+        <div class="est-sums">
+          <div><span>Subtotal</span><b id="est-subtotal">$0</b></div>
+          <div><span>Discount</span><b id="est-disc-amt">−$0</b></div>
+          <div><span>Tax</span><b id="est-tax-amt">$0</b></div>
+          <div class="est-grand"><span>Total</span><b id="est-grand">$0</b></div>
+          <div><span>Deposit due</span><b id="est-dep-amt">$0</b></div>
+          <div class="est-margin"><span>Your margin — never shown to customer</span><b id="est-margin">$0</b></div>
+        </div>
+
+        <label>Payment schedule <span class="lbl-hint">— shown to customer</span></label>
+        <div id="est-schedule"></div>
+        <button id="est-add-sched" class="btn-ghost est-add-item">+ Payment milestone</button>
+
+        <label>Photos <span class="lbl-hint">— shown on the estimate (max 20)</span></label>
+        <div id="est-photos-strip" class="est-thumb-strip"></div>
+        <button id="est-add-photos" class="btn-ghost est-add-item">📷 Add photos</button>
+        <input type="file" id="est-photos-input" accept="image/*" multiple class="hidden" />
+
+        <label>Attachments <span class="lbl-hint">— files packaged with the estimate (max 10)</span></label>
+        <div id="est-attach-list"></div>
+        <button id="est-add-attach" class="btn-ghost est-add-item">📎 Add attachment</button>
+        <input type="file" id="est-attach-input" multiple class="hidden" />
+
+        <label>Contract / Terms <span class="lbl-hint">— customer must agree before approving</span></label>
+        <textarea id="est-terms" rows="5" placeholder="Paste your terms / Idaho Code 45-525 disclosure here"></textarea>
+        <button id="est-terms-default" class="btn-ghost est-add-item">Save as my default terms</button>
+
+        <label>Notes to customer <span class="lbl-hint">— shown on the estimate</span></label>
+        <input type="text" id="est-cust-notes" placeholder="e.g. valid for 30 days, 50% deposit to schedule" />
+        <label>Internal notes <span class="lbl-hint">— only you see this</span></label>
+        <input type="text" id="est-int-notes" placeholder="e.g. material quote from supplier expires 8/1" />
+        <div class="modal-actions">
+          <button id="est-delete" class="btn-danger hidden">Delete</button>
+          <span class="spacer"></span>
+          <button id="est-cancel" class="btn-ghost">Cancel</button>
+          <button id="est-save" class="btn-primary">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Estimate view modal (customer + admin preview) ===== -->
+    <div id="est-view-modal" class="modal-overlay hidden">
+      <div class="modal modal-wide">
+        <h2 id="ev-title">Estimate</h2>
+        <div class="tv-row" id="ev-meta"></div>
+        <div id="ev-body"></div>
+        <div class="est-sums ev-sums">
+          <div><span>Subtotal</span><b id="ev-subtotal">$0</b></div>
+          <div id="ev-disc-row" class="hidden"><span>Discount</span><b id="ev-disc">−$0</b></div>
+          <div><span>Tax</span><b id="ev-tax">$0</b></div>
+          <div class="est-grand"><span>Total</span><b id="ev-grand">$0</b></div>
+          <div id="ev-dep-row" class="hidden"><span>Deposit due</span><b id="ev-dep">$0</b></div>
+        </div>
+        <div id="ev-schedule"></div>
+        <div id="ev-attachments"></div>
+        <div class="tv-row tv-note hidden" id="ev-notes-row">
+          <div class="tv-note-label">Notes from United Realty Repair</div>
+          <div id="ev-notes"></div>
+        </div>
+        <div class="tv-row tv-note hidden" id="ev-terms-row">
+          <div class="tv-note-label">Contract Terms</div>
+          <div id="ev-terms" class="ev-terms-text"></div>
+        </div>
+        <div id="ev-sign-row" class="ev-sign hidden">
+          <label class="checkbox-row"><input type="checkbox" id="ev-agree" /> I have read and agree to the terms above</label>
+          <label>Sign by typing your full legal name</label>
+          <input type="text" id="ev-sign-name" placeholder="Your full name" />
+        </div>
+        <div class="modal-actions" id="ev-actions">
+          <button id="ev-decline" class="btn-danger hidden">Decline</button>
+          <span class="spacer"></span>
+          <button id="ev-close" class="btn-ghost">Close</button>
+          <button id="ev-approve" class="btn-primary hidden">✓ Approve &amp; Sign</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ===== Photo lightbox ===== -->
     <div id="lightbox" class="lightbox hidden">
       <button id="lightbox-close" class="lightbox-close">&times;</button>
@@ -325,6 +447,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=73"></script>
+  <script src="app.js?v=74"></script>
 </body>
 </html>
