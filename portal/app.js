@@ -3040,6 +3040,13 @@ function nextDrawLabel() {
   return "Draw " + ((estDraft.schedule || []).length + 1 + (hasDeposit ? 1 : 0));
 }
 
+function refreshSchedAmounts(total) {
+  const spans = document.querySelectorAll("#est-schedule .est-sched-amt");
+  (estDraft.schedule || []).forEach((r, i) => {
+    if (spans[i]) spans[i].textContent = fmtMoney(schedAmount(r, total));
+  });
+}
+
 function renderEstSchedule() {
   const host = $("est-schedule");
   host.innerHTML = "";
@@ -3059,7 +3066,7 @@ function renderEstSchedule() {
     const val = document.createElement("input");
     val.type = "number"; val.step = "0.01"; val.min = "0"; val.placeholder = "0.00";
     val.value = r.value || 0;
-    val.addEventListener("input", () => { r.value = val.value; amtSpan.textContent = fmtMoney(schedAmount(r, total)); });
+    val.addEventListener("input", () => { r.value = val.value; amtSpan.textContent = fmtMoney(schedAmount(r, calcEstimate(estDraft).total)); });
     const amtSpan = document.createElement("span");
     amtSpan.className = "est-sched-amt";
     amtSpan.textContent = fmtMoney(schedAmount(r, total));
@@ -3120,6 +3127,7 @@ function updateEstSummary(c) {
   $("est-grand").textContent = fmtMoney(t.total);
   $("est-dep-amt").textContent = fmtMoney(t.depositAmt);
   $("est-margin").textContent = fmtMoney(t.margin);
+  refreshSchedAmounts(t.total);
 }
 
 async function saveEstimate() {
