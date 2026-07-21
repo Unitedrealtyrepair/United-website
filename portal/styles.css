@@ -1287,3 +1287,21 @@ body {
 .ev-sec-total b { color: #0f2440; }
 .est-display-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 10px 0 4px; background: #f7f9fc; border: 1px dashed #dde3ec; border-radius: 8px; padding: 8px 12px; }
 .est-disp-chk { font-size: 13px; font-weight: 600; color: #40506a; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+
+/* ===== v83: drag-to-reorder ===== */
+.est-row { grid-template-columns: 1fr 64px 88px 130px 34px 90px 24px 26px; }
+.est-cols span:nth-child(7), .est-cols span:nth-child(8) { min-width: 0; }
+.drag-cell { display: inline-flex; align-items: center; justify-content: center; }
+.drag-handle { cursor: grab; color: #8a96a8; font-size: 17px; font-weight: 700; padding: 2px 5px; border-radius: 5px; user-select: none; line-height: 1; }
+.drag-handle:hover { background: #eef3fa; color: #0f2440; }
+.drag-handle:active { cursor: grabbing; }
+.sec-handle .drag-handle { font-size: 19px; }
+.drag-arrows { display: none; flex-direction: column; gap: 1px; }
+.drag-arrows button { background: #eef3fa; border: none; border-radius: 4px; font-size: 9px; padding: 2px 5px; cursor: pointer; color: #40506a; line-height: 1; }
+.drop-above { box-shadow: 0 -3px 0 0 #c8102e; }
+.drop-below { box-shadow: 0 3px 0 0 #c8102e; }
+@media (max-width: 720px), (pointer: coarse) {
+  .drag-handle { display: none; }
+  .drag-arrows { display: inline-flex; }
+  .est-row { grid-template-columns: 1fr 52px 72px 108px 28px 76px 26px 22px; }
+}

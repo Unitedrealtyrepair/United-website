@@ -2724,12 +2724,137 @@ function estThumb(p, size) {
   return img;
 }
 
+// ----- Reordering (drag ≡ on desktop, ▲▼ on touch) -----
+let estDrag = null; // {type:'item'|'section', secId, itemId}
+
+function moveItem(secId, itemId, dir) {
+  const sIdx = estDraft.sections.findIndex((s) => s.id === secId);
+  const s = estDraft.sections[sIdx];
+  const i = s.items.findIndex((x) => x.id === itemId);
+  const j = i + dir;
+  if (j >= 0 && j < s.items.length) {
+    [s.items[i], s.items[j]] = [s.items[j], s.items[i]];
+  } else {
+    // crossing a section boundary moves the item to the adjacent section
+    const t = estDraft.sections[sIdx + dir];
+    if (!t) return;
+    const [it] = s.items.splice(i, 1);
+    if (dir < 0) t.items.push(it);
+    else t.items.unshift(it);
+    if (s.items.length === 0) s.items.push(blankItem());
+  }
+  renderEstSections();
+}
+
+function moveSection(secId, dir) {
+  const i = estDraft.sections.findIndex((s) => s.id === secId);
+  const j = i + dir;
+  if (j < 0 || j >= estDraft.sections.length) return;
+  [estDraft.sections[i], estDraft.sections[j]] = [estDraft.sections[j], estDraft.sections[i]];
+  renderEstSections();
+}
+
+function dropItemAt(targetSecId, targetIndex) {
+  if (!estDrag || estDrag.type !== "item") return;
+  const from = estDraft.sections.find((s) => s.id === estDrag.secId);
+  const to = estDraft.sections.find((s) => s.id === targetSecId);
+  if (!from || !to) return;
+  const i = from.items.findIndex((x) => x.id === estDrag.itemId);
+  if (i === -1) return;
+  const [it] = from.items.splice(i, 1);
+  let idx = targetIndex;
+  if (from === to && i < idx) idx--; // account for removal shift
+  idx = Math.max(0, Math.min(idx, to.items.length));
+  to.items.splice(idx, 0, it);
+  if (from.items.length === 0) from.items.push(blankItem());
+  renderEstSections();
+}
+
+function dropSectionAt(targetIndex) {
+  if (!estDrag || estDrag.type !== "section") return;
+  const i = estDraft.sections.findIndex((s) => s.id === estDrag.secId);
+  if (i === -1) return;
+  const [s] = estDraft.sections.splice(i, 1);
+  let idx = targetIndex;
+  if (i < idx) idx--;
+  idx = Math.max(0, Math.min(idx, estDraft.sections.length));
+  estDraft.sections.splice(idx, 0, s);
+  renderEstSections();
+}
+
+function makeHandle(cls, startDrag, upFn, downFn) {
+  const wrap = document.createElement("span");
+  wrap.className = "drag-cell " + cls;
+  const grip = document.createElement("span");
+  grip.className = "drag-handle";
+  grip.textContent = "≡";
+  grip.title = "Drag to reorder";
+  grip.draggable = true;
+  grip.addEventListener("dragstart", (e2) => { startDrag(); e2.dataTransfer.effectAllowed = "move"; try { e2.dataTransfer.setData("text/plain", "x"); } catch (err) {} });
+  grip.addEventListener("dragend", () => { estDrag = null; clearDropMarks(); });
+  wrap.appendChild(grip);
+  const arrows = document.createElement("span");
+  arrows.className = "drag-arrows";
+  const up = document.createElement("button");
+  up.textContent = "▲";
+  up.addEventListener("click", (e2) => { e2.stopPropagation(); upFn(); });
+  const down = document.createElement("button");
+  down.textContent = "▼";
+  down.addEventListener("click", (e2) => { e2.stopPropagation(); downFn(); });
+  arrows.appendChild(up);
+  arrows.appendChild(down);
+  wrap.appendChild(arrows);
+  return wrap;
+}
+
+function clearDropMarks() {
+  document.querySelectorAll(".drop-above, .drop-below").forEach((el) => el.classList.remove("drop-above", "drop-below"));
+}
+
+function wireItemDropTarget(el, secId, indexOf) {
+  el.addEventListener("dragover", (e2) => {
+    if (!estDrag || estDrag.type !== "item") return;
+    e2.preventDefault();
+    e2.dataTransfer.dropEffect = "move";
+    clearDropMarks();
+    const r = el.getBoundingClientRect();
+    const below = e2.clientY > r.top + r.height / 2;
+    el.classList.add(below ? "drop-below" : "drop-above");
+  });
+  el.addEventListener("dragleave", () => el.classList.remove("drop-above", "drop-below"));
+  el.addEventListener("drop", (e2) => {
+    if (!estDrag || estDrag.type !== "item") return;
+    e2.preventDefault();
+    const r = el.getBoundingClientRect();
+    const below = e2.clientY > r.top + r.height / 2;
+    clearDropMarks();
+    dropItemAt(secId, indexOf() + (below ? 1 : 0));
+  });
+}
+
 function renderEstSections() {
   const host = $("est-sections");
   host.innerHTML = "";
-  for (const s of estDraft.sections) {
+  estDraft.sections.forEach((s, sIndex) => {
     const box = document.createElement("div");
     box.className = "est-section";
+    // section-level drop target (for reordering whole sections)
+    box.addEventListener("dragover", (e2) => {
+      if (!estDrag || estDrag.type !== "section") return;
+      e2.preventDefault();
+      clearDropMarks();
+      const r = box.getBoundingClientRect();
+      box.classList.add(e2.clientY > r.top + r.height / 2 ? "drop-below" : "drop-above");
+    });
+    box.addEventListener("dragleave", () => box.classList.remove("drop-above", "drop-below"));
+    box.addEventListener("drop", (e2) => {
+      if (!estDrag || estDrag.type !== "section") return;
+      e2.preventDefault();
+      const r = box.getBoundingClientRect();
+      const below = e2.clientY > r.top + r.height / 2;
+      clearDropMarks();
+      dropSectionAt(sIndex + (below ? 1 : 0));
+    });
 
     const head = document.createElement("div");
     head.className = "est-sec-head";
@@ -2743,6 +2868,10 @@ function renderEstSections() {
     const secTotal = document.createElement("span");
     secTotal.className = "est-sec-total";
     head.appendChild(secTotal);
+    head.appendChild(makeHandle("sec-handle",
+      () => { estDrag = { type: "section", secId: s.id }; },
+      () => moveSection(s.id, -1),
+      () => moveSection(s.id, 1)));
     const delSec = document.createElement("button");
     delSec.className = "est-x";
     delSec.textContent = "✕";
@@ -2759,7 +2888,7 @@ function renderEstSections() {
     grid.className = "est-items";
     const cols = document.createElement("div");
     cols.className = "est-row est-cols";
-    cols.innerHTML = "<span>Description</span><span>Qty</span><span>Rate</span><span>Markup</span><span>Tax</span><span>Total</span><span></span>";
+    cols.innerHTML = "<span>Description</span><span>Qty</span><span>Rate</span><span>Markup</span><span>Tax</span><span>Total</span><span></span><span></span>";
     grid.appendChild(cols);
 
     const refreshTotals = () => {
@@ -2774,9 +2903,10 @@ function renderEstSections() {
       });
     };
 
-    s.items.forEach((it) => {
+    s.items.forEach((it, itemIndex) => {
       const row = document.createElement("div");
       row.className = "est-row";
+      wireItemDropTarget(row, s.id, () => s.items.findIndex((x) => x.id === it.id));
       const desc = document.createElement("textarea");
       desc.rows = 1;
       desc.className = "est-grow";
@@ -2820,12 +2950,18 @@ function renderEstSections() {
         renderEstSections();
       });
       row.appendChild(desc); row.appendChild(qty); row.appendChild(rate);
-      row.appendChild(mwrap); row.appendChild(taxChk); row.appendChild(tot); row.appendChild(del);
+      row.appendChild(mwrap); row.appendChild(taxChk); row.appendChild(tot);
+      row.appendChild(makeHandle("item-handle",
+        () => { estDrag = { type: "item", secId: s.id, itemId: it.id }; },
+        () => moveItem(s.id, it.id, -1),
+        () => moveItem(s.id, it.id, 1)));
+      row.appendChild(del);
       grid.appendChild(row);
 
       // Second row: item notes + photos
       const extra = document.createElement("div");
       extra.className = "est-row-extra";
+      wireItemDropTarget(extra, s.id, () => s.items.findIndex((x) => x.id === it.id));
       const notes = document.createElement("textarea");
       notes.rows = 1;
       notes.className = "est-item-notes est-grow";
@@ -2880,7 +3016,7 @@ function renderEstSections() {
     box.appendChild(grid);
     box.appendChild(addItem);
     host.appendChild(box);
-  }
+  });
   const c = calcEstimate(estDraft);
   host.querySelectorAll(".est-section").forEach((box, i) => {
     const s = estDraft.sections[i];
