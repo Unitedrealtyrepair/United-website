@@ -2912,6 +2912,54 @@ function makeHandle(cls, startDrag, upFn, downFn) {
   grip.draggable = true;
   grip.addEventListener("dragstart", (e2) => { startDrag(); e2.dataTransfer.effectAllowed = "move"; try { e2.dataTransfer.setData("text/plain", "x"); } catch (err) {} });
   grip.addEventListener("dragend", () => { estDrag = null; clearDropMarks(); });
+  // Touch drag for iOS (native HTML5 drag doesn't fire on touch)
+  grip.addEventListener("touchstart", (e2) => {
+    e2.preventDefault();
+    startDrag();
+    document.body.classList.add("dragging-item");
+  }, { passive: false });
+  grip.addEventListener("touchmove", (e2) => {
+    e2.preventDefault();
+    const t = e2.touches[0];
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    clearDropMarks();
+    if (!el) return;
+    if (estDrag && estDrag.type === "item") {
+      const row = el.closest(".est-item-row");
+      if (row) {
+        const r = row.getBoundingClientRect();
+        row.classList.add(t.clientY > r.top + r.height / 2 ? "drop-below" : "drop-above");
+      }
+    } else if (estDrag && estDrag.type === "section") {
+      const box = el.closest(".est-section");
+      if (box) {
+        const r = box.getBoundingClientRect();
+        box.classList.add(t.clientY > r.top + r.height / 2 ? "drop-below" : "drop-above");
+      }
+    }
+  }, { passive: false });
+  grip.addEventListener("touchend", (e2) => {
+    document.body.classList.remove("dragging-item");
+    const t = e2.changedTouches[0];
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    clearDropMarks();
+    if (el && estDrag) {
+      if (estDrag.type === "item") {
+        const row = el.closest(".est-item-row");
+        if (row && row._dropInfo) {
+          const r = row.getBoundingClientRect();
+          row._dropInfo(t.clientY > r.top + r.height / 2 ? 1 : 0);
+        }
+      } else if (estDrag.type === "section") {
+        const box = el.closest(".est-section");
+        if (box && box._dropSection) {
+          const r = box.getBoundingClientRect();
+          box._dropSection(t.clientY > r.top + r.height / 2 ? 1 : 0);
+        }
+      }
+    }
+    estDrag = null;
+  });
   wrap.appendChild(grip);
   const arrows = document.createElement("span");
   arrows.className = "drag-arrows";
@@ -2932,6 +2980,7 @@ function clearDropMarks() {
 }
 
 function wireItemDropTarget(el, secId, indexOf) {
+  el._dropInfo = (below) => dropItemAt(secId, indexOf() + below);
   el.addEventListener("dragover", (e2) => {
     if (!estDrag || estDrag.type !== "item") return;
     e2.preventDefault();
@@ -2967,6 +3016,7 @@ function renderEstSections() {
       box.classList.add(e2.clientY > r.top + r.height / 2 ? "drop-below" : "drop-above");
     });
     box.addEventListener("dragleave", () => box.classList.remove("drop-above", "drop-below"));
+    box._dropSection = (below) => dropSectionAt(sIndex + below);
     box.addEventListener("drop", (e2) => {
       if (!estDrag || estDrag.type !== "section") return;
       e2.preventDefault();

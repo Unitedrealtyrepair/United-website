@@ -1409,91 +1409,99 @@ body {
 @media (max-width: 720px) {
   .est-colhead { display: none !important; }
   .est-items { display: block; }
+  body.dragging-item { overflow: hidden; }
 
-  /* Whole builder runs tighter on mobile */
   .modal-wide { width: 97vw; max-height: 95vh; padding: 12px 10px; }
-  .est-section { padding: 8px 8px; margin: 8px 0; }
+  .est-section { padding: 8px; margin: 8px 0; }
   .modal h2 { font-size: 17px; }
-  .modal label { font-size: 11.5px; margin: 7px 0 3px; }
+  .modal label { font-size: 11.5px; margin: 6px 0 3px; }
   .modal input, .modal select, .modal textarea { font-size: 13px; }
 
-  /* Section header: name on its own line, total + reorder + delete compact */
-  .est-sec-head { display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px; align-items: center; }
+  /* Section header: name on its own line; total + drag handle on next */
+  .est-sec-head { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; }
   .est-sec-name { grid-column: 1 / -1; font-size: 14px; font-weight: 700; padding: 8px 10px; }
   .est-sec-total { font-size: 15px; }
-  .sec-handle .drag-arrows { display: inline-flex !important; flex-direction: row; gap: 4px; }
-  .sec-handle .drag-arrows button { width: 34px; height: 26px; font-size: 12px; background: #eef3fa; border: 1px solid #dde3ec; border-radius: 6px; }
 
-  /* LINE ITEM: one tight card. Description on top, then a single row
-     of Qty / Rate / Markup / Tax, then total. */
+  /* Line item card — TIGHT. Description on top, then Qty Rate Markup Tax,
+     then total. Drag handle (=) floats far right, spanning the card. */
   .est-item-row {
     display: grid !important;
-    grid-template-columns: 1fr 1fr 96px 38px !important;
-    gap: 5px !important;
+    grid-template-columns: 56px 68px 92px 34px 1fr 24px !important;
+    grid-template-areas:
+      "desc desc desc desc desc grip"
+      "qty rate markup tax . grip"
+      "total total total total total grip" !important;
+    gap: 5px 5px !important;
     background: #fff;
     border: 1px solid #e4e9f1;
     border-radius: 9px;
-    padding: 7px !important;
+    padding: 7px 7px !important;
     margin: 0 0 7px !important;
     position: relative;
     align-items: end;
   }
-  /* reorder arrows: tiny, top-right, above the fields */
-  .est-item-row > .drag-cell {
-    grid-column: 1 / -1; order: -2;
-    display: flex; justify-content: flex-end; gap: 4px; margin: 0 24px 0 0; min-height: 0;
-  }
-  .est-item-row .drag-arrows { display: inline-flex !important; flex-direction: row; gap: 4px; }
-  .est-item-row .drag-arrows button { width: 30px; height: 22px; font-size: 10px; background: #f2f6fc; border: 1px solid #dde3ec; border-radius: 6px; color: #40506a; padding: 0; }
-  .est-item-row > button.est-x { position: absolute; top: 6px; right: 6px; font-size: 17px; padding: 0 6px; color: #c8102e; z-index: 2; }
+  .est-item-row > textarea[data-lbl] { grid-area: desc; min-height: 30px; padding: 6px 9px !important; font-size: 13px; line-height: 1.2; }
+  .est-item-row > input[data-lbl]:nth-of-type(1) { grid-area: qty; }
+  .est-item-row > input[data-lbl]:nth-of-type(2) { grid-area: rate; }
+  .est-item-row > .est-markup { grid-area: markup; }
+  .est-item-row .est-tax-wrap { grid-area: tax; }
+  .est-item-row .est-line-total { grid-area: total; }
+  .est-item-row > .drag-cell { grid-area: grip; }
 
-  /* description spans full width on top */
-  .est-item-row > textarea[data-lbl] {
-    grid-column: 1 / -1; order: -1;
-    min-height: 30px; padding: 6px 9px !important; font-size: 13px; line-height: 1.25;
-  }
-  /* the four inputs sit in one row */
+  /* Compact number fields with tiny top labels */
   .est-item-row > input[data-lbl],
   .est-item-row > .est-markup {
     position: relative;
-    padding: 13px 3px 3px !important;
-    height: auto; min-height: 0; font-size: 13px; box-sizing: border-box;
-    text-align: center; line-height: 1.05;
+    padding: 12px 2px 3px !important;
+    min-height: 0; height: auto; box-sizing: border-box;
+    font-size: 13px; text-align: center; line-height: 1;
   }
   .est-item-row > *[data-lbl]::before {
     content: attr(data-lbl);
-    position: absolute; top: 3px; left: 0; right: 0;
-    text-align: center;
-    font-size: 8px; font-weight: 800; letter-spacing: .3px;
+    position: absolute; top: 2px; left: 0; right: 0; text-align: center;
+    font-size: 8px; font-weight: 800; letter-spacing: .2px;
     text-transform: uppercase; color: #a0acc0; pointer-events: none;
   }
   .est-item-row .est-markup {
-    display: flex; gap: 2px; align-items: center; justify-content: space-between;
+    display: flex; gap: 1px; align-items: center; justify-content: center;
     border: 1.5px solid #dde3ec; border-radius: 7px;
-    padding: 14px 3px 3px !important;
   }
-  .est-item-row .est-markup select { width: 34px; flex: none; border: none !important; background: #f2f6fc; border-radius: 4px; padding: 3px 0 !important; font-size: 11px; }
-  .est-item-row .est-markup input { border: none !important; flex: 1; width: auto; min-width: 0; padding: 3px 0 !important; font-size: 12px; text-align: center; }
+  .est-item-row .est-markup select { width: 28px; flex: none; border: none !important; background: #f2f6fc; border-radius: 4px; padding: 2px 0 !important; font-size: 11px; }
+  .est-item-row .est-markup input { border: none !important; flex: 1; width: auto; min-width: 0; padding: 2px 0 !important; font-size: 12px; text-align: center; }
 
-  /* Tax checkbox: 4th column, labeled, centered */
+  /* Tax checkbox, labeled, centered */
   .est-item-row .est-tax-wrap {
     position: relative; flex-direction: column; gap: 0;
-    align-items: center; justify-content: flex-end;
-    font-size: 0; padding-top: 13px;
+    align-items: center; justify-content: flex-end; font-size: 0; padding-top: 12px;
   }
   .est-item-row .est-tax-wrap::before {
-    content: "Tax"; position: absolute; top: 3px; left: 0; right: 0; text-align: center;
+    content: "Tax"; position: absolute; top: 2px; left: 0; right: 0; text-align: center;
     font-size: 8px; font-weight: 800; text-transform: uppercase; color: #a0acc0;
   }
   .est-item-row .est-tax-lbl { display: none; }
-  .est-item-row .est-taxchk { width: 20px; height: 20px; margin: 0; }
+  .est-item-row .est-taxchk { width: 19px; height: 19px; margin: 0; }
 
-  /* total: full-width row under the inputs */
+  /* Total */
   .est-item-row .est-line-total {
-    grid-column: 1 / -1;
     font-size: 14px; font-weight: 800; text-align: right;
-    border-top: 1px solid #f0f3f8; padding-top: 4px; margin-top: 0;
+    border-top: 1px solid #f0f3f8; padding-top: 4px; margin-top: 1px;
   }
+
+  /* Drag handle: big tap target down the right side, arrows hidden */
+  .est-item-row > .drag-cell, .est-sec-head .drag-cell {
+    display: flex; align-items: center; justify-content: center;
+    margin: 0;
+  }
+  .est-item-row .drag-handle, .est-sec-head .drag-handle {
+    display: inline-flex !important; align-items: center; justify-content: center;
+    width: 30px; min-height: 44px; font-size: 22px; color: #8a96a8;
+    background: #f7f9fc; border: 1px solid #e4e9f1; border-radius: 7px;
+    touch-action: none; cursor: grab;
+  }
+  .est-item-row .drag-arrows, .est-sec-head .drag-arrows { display: none !important; }
+
+  .drop-above { box-shadow: 0 -3px 0 0 #c8102e !important; }
+  .drop-below { box-shadow: 0 3px 0 0 #c8102e !important; }
 
   .est-row-extra { flex-direction: column; align-items: stretch; gap: 6px; margin: 0 0 10px; padding: 0; }
   .est-item-notes { width: 100%; box-sizing: border-box; font-size: 12px; padding: 6px 9px; }
