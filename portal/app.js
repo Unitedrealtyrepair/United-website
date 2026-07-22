@@ -237,7 +237,7 @@ function categorize(file) {
   if (/(^|\/\s*)scans?(\s*\/|$)/.test(album) || /floor[\s\-_]?plan/.test(album)) {
     return { tab: "Scans", internal: isInternal };
   }
-  if (/floor[\s\-_]?plan|cubicasa|\bscan\b/.test(n)) {
+  if (/cubicasa|\bscan\b/.test(n) && !/scanned/.test(n)) {
     return { tab: "Scans", internal: isInternal };
   }
   for (const r of RULES) {
@@ -1673,7 +1673,11 @@ function renderScansPanel() {
   const show = activeTab === "Scans" && isAdmin();
   sec.classList.toggle("hidden", !show);
   if (!show) return;
-  const n = allFiles.filter((f) => categorize(f).tab === "Scans").length;
+  const n = allFiles.filter((f) => {
+    if (f.tab !== "Scans") return false;
+    const a = String(f.albumName || "").toLowerCase();
+    return /(^|\/\s*)scans?(\s*\/|$)/.test(a) || /floor[\s\-_]?plan/.test(a);
+  }).length;
   $("scan-count").textContent = n ? n + (n === 1 ? " scan file" : " scan files") + " on this property" : "";
 }
 
