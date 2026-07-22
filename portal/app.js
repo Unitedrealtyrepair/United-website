@@ -1633,7 +1633,7 @@ function isIOS() {
 function launchCubiCasa(btn) {
   if (!isIOS()) { window.open(CUBICASA_WEB, "_blank", "noopener"); return; }
   const orig = btn.textContent;
-  btn.textContent = "Opening CubiCasa…";
+  btn.textContent = "Opening scanner…";
   let left = false;
   const onHide = () => { left = true; };
   document.addEventListener("visibilitychange", onHide, { once: true });
