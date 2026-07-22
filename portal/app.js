@@ -386,9 +386,25 @@ function renderPresenceBadge() {
     d.textContent = "No customers or subs yet";
     pop.appendChild(d);
   }
-  for (const m of roster) {
+  // Online first, then idle, then offline — each group alphabetical
+  const rank = { online: 0, idle: 1, offline: 2 };
+  const rows = roster.map((m) => {
     const rec = presenceRecFor(m.email);
-    const st = presenceStatus(rec ? rec.t : null);
+    return { m, rec, st: presenceStatus(rec ? rec.t : null) };
+  }).sort((a, b) => {
+    const r = (rank[a.st.cls] ?? 3) - (rank[b.st.cls] ?? 3);
+    return r !== 0 ? r : a.m.email.toLowerCase().localeCompare(b.m.email.toLowerCase());
+  });
+
+  let lastGroup = null;
+  for (const { m, rec, st } of rows) {
+    if (st.cls !== lastGroup) {
+      lastGroup = st.cls;
+      const h = document.createElement("div");
+      h.className = "presence-group";
+      h.textContent = st.cls === "online" ? "Online now" : st.cls === "idle" ? "Recently active" : "Offline";
+      pop.appendChild(h);
+    }
     const row = document.createElement("div");
     row.className = "presence-row";
     const dot = document.createElement("span");
@@ -398,15 +414,30 @@ function renderPresenceBadge() {
     info.className = "presence-info";
     const who = document.createElement("div");
     who.className = "presence-who";
-    who.textContent = m.email + " · " + m.role;
+    // name portion only, full address on hover — keeps rows to one line
+    const at = m.email.indexOf("@");
+    who.textContent = at > 0 ? m.email.slice(0, at) : m.email;
+    who.title = m.email;
+    const tag = document.createElement("span");
+    tag.className = "presence-role " + (m.role === "sub" ? "sub" : "cust");
+    tag.textContent = m.role === "sub" ? "SUB" : "CUSTOMER";
+    who.appendChild(tag);
     const meta = document.createElement("div");
     meta.className = "presence-meta";
-    meta.textContent = st.label + (rec && rec.project && st.cls !== "offline" ? " · " + rec.project : "");
+    const proj = rec && rec.project && st.cls !== "offline" ? shortProject(rec.project) : "";
+    meta.textContent = st.cls === "online" ? (proj || "In the portal") : st.label + (proj ? " · " + proj : "");
     info.appendChild(who);
     info.appendChild(meta);
     row.appendChild(info);
     pop.appendChild(row);
   }
+}
+
+// "2426 State St Boise ID 83702" -> "2426 State St"
+function shortProject(name) {
+  const s = String(name || "").trim();
+  const m = s.match(/^(.*?)(?:\s+Boise\b|\s+ID\b|,)/i);
+  return (m ? m[1] : s).trim();
 }
 
 function lastSeenActivityKey() {

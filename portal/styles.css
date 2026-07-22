@@ -1305,3 +1305,57 @@ body {
   .drag-arrows { display: inline-flex; }
   .est-row { grid-template-columns: 1fr 52px 72px 108px 28px 76px 26px 22px; }
 }
+
+/* ===== v85: cleaner presence popup ===== */
+.presence-pop { min-width: 300px; padding: 4px 0 6px; }
+.presence-group {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+  color: #8a96a8;
+  background: #f7f9fc;
+  padding: 6px 14px;
+  border-bottom: 1px solid #eef2f7;
+  position: sticky;
+  top: 0;
+}
+.presence-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #f2f5f9;
+}
+.presence-row:last-child { border-bottom: none; }
+.presence-info { min-width: 0; flex: 1; }
+.presence-who {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f2440;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.presence-role {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .4px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  flex: none;
+}
+.presence-role.sub { background: #eaf1fb; color: #21456f; }
+.presence-role.cust { background: #fdeef1; color: #a3122c; }
+.presence-meta {
+  font-size: 11.5px;
+  color: #8a96a8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.presence-dot { flex: none; }
