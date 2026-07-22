@@ -1396,86 +1396,84 @@ body {
 .scan-upload { font-size: 13.5px; padding: 9px 16px; white-space: nowrap; }
 @media (max-width: 720px) { .scan-btn-col { width: 100%; } .scan-btn-col button { width: 100%; } }
 
-/* ===== v95: clean mobile estimate builder ===== */
+/* ===== v96: estimate builder header + clean mobile cards ===== */
+/* Desktop column header (formerly .est-cols) */
+.est-colhead {
+  display: grid;
+  grid-template-columns: 1fr 64px 88px 130px 34px 90px 24px 26px;
+  gap: 6px;
+  font-size: 11px; font-weight: 700; color: #8a96a8;
+  text-transform: uppercase; letter-spacing: .3px;
+  padding: 0 2px 4px;
+}
+
 @media (max-width: 720px) {
-  /* Kill the desktop column-header row entirely */
-  .modal .est-cols { display: none !important; }
+  /* Hide the column header outright — item cards are self-labeling */
+  .est-colhead { display: none !important; }
 
   .est-items { display: block; }
 
-  /* Each line item = a clean card, fields labeled, no cramped columns */
-  .modal .est-row {
+  .est-item-row {
     display: grid !important;
     grid-template-columns: 1fr 1fr !important;
-    gap: 12px 12px;
+    gap: 12px;
     background: #fff;
     border: 1px solid #e4e9f1;
     border-radius: 12px;
-    padding: 40px 14px 14px;
-    margin: 0 0 12px;
+    padding: 44px 14px 14px !important;
+    margin: 0 0 12px !important;
     position: relative;
     align-items: end;
   }
-  /* Description spans both columns, on top */
-  .modal .est-row > textarea:first-child {
+  .est-item-row > textarea[data-lbl] {
     grid-column: 1 / -1;
-    order: -3;
-    min-height: 44px;
+    order: -1;
+    min-height: 46px;
+    padding-top: 22px !important;
   }
-  /* Field label chips above each control */
-  .modal .est-row > input[data-lbl],
-  .modal .est-row > .est-markup {
+  .est-item-row > input[data-lbl],
+  .est-item-row > .est-markup {
     position: relative;
     padding-top: 22px !important;
     min-height: 46px;
+    box-sizing: border-box;
   }
-  .modal .est-row > *[data-lbl]::before {
+  .est-item-row > *[data-lbl] { position: relative; }
+  .est-item-row > *[data-lbl]::before {
     content: attr(data-lbl);
-    position: absolute;
-    top: 6px; left: 10px;
+    position: absolute; top: 6px; left: 11px;
     font-size: 10px; font-weight: 800; letter-spacing: .5px;
-    text-transform: uppercase; color: #8a96a8;
+    text-transform: uppercase; color: #8a96a8; pointer-events: none;
   }
-  .modal .est-markup {
+  .est-item-row .est-markup {
     display: flex; gap: 6px; align-items: center;
     border: 1.5px solid #dde3ec; border-radius: 8px;
-    padding: 22px 8px 6px !important;
+    padding: 22px 8px 8px !important;
   }
-  .modal .est-markup select { width: 52px; border: none !important; background: #f2f6fc; border-radius: 6px; }
-  .modal .est-markup input { border: none !important; flex: 1; padding: 4px !important; }
+  .est-item-row .est-markup select { width: 54px; border: none !important; background: #f2f6fc; border-radius: 6px; padding: 6px 4px !important; }
+  .est-item-row .est-markup input { border: none !important; flex: 1; padding: 6px 4px !important; min-width: 0; }
 
-  /* Taxable: full-width labeled toggle row */
-  .modal .est-tax-wrap {
+  .est-item-row .est-tax-wrap {
     grid-column: 1 / -1;
     display: flex; align-items: center; gap: 10px;
     font-size: 14px; font-weight: 600; color: #40506a;
-    padding: 4px 2px;
   }
-  .modal .est-taxchk { width: 22px; height: 22px; flex: none; }
+  .est-item-row .est-taxchk { width: 22px; height: 22px; flex: none; }
 
-  /* Line total: full-width, prominent, right-aligned */
-  .modal .est-line-total {
+  .est-item-row .est-line-total {
     grid-column: 1 / -1;
     font-size: 20px; font-weight: 800; text-align: right;
-    border-top: 1px solid #eef2f7; padding-top: 8px;
+    border-top: 1px solid #eef2f7; padding-top: 10px;
   }
 
-  /* Drag + delete float top-right of the card, out of the flow */
-  .modal .est-row > .drag-cell {
-    position: absolute; top: 8px; right: 42px; margin: 0;
-  }
-  .modal .est-row > button.est-x {
-    position: absolute; top: 6px; right: 8px; font-size: 20px; padding: 4px 8px;
-  }
+  .est-item-row > .drag-cell { position: absolute; top: 8px; right: 44px; margin: 0; }
+  .est-item-row > button.est-x { position: absolute; top: 6px; right: 8px; font-size: 20px; padding: 4px 8px; }
 
-  /* Item notes + photos below the card, stacked */
   .est-row-extra { flex-direction: column; align-items: stretch; gap: 10px; margin: 2px 0 14px; padding: 0; }
   .est-item-notes { width: 100%; box-sizing: border-box; }
 
-  /* Header / adjustment / schedule fields stack full width */
   .est-head-grid, .est-cust-grid { grid-template-columns: 1fr; }
   .est-adjust-grid { grid-template-columns: 1fr 1fr; }
-  .est-display-row { gap: 10px 14px; }
   .est-sched-row { grid-template-columns: 1fr 54px 92px; gap: 8px; align-items: end; }
   .est-sched-row .est-sched-amt { grid-column: 1 / -1; text-align: right; font-size: 15px; }
 

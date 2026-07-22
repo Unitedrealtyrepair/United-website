@@ -3007,7 +3007,7 @@ function renderEstSections() {
     const grid = document.createElement("div");
     grid.className = "est-items";
     const cols = document.createElement("div");
-    cols.className = "est-row est-cols";
+    cols.className = "est-colhead";
     cols.innerHTML = "<span>Description</span><span>Qty</span><span>Rate</span><span>Markup</span><span>Tax</span><span>Total</span><span></span><span></span>";
     grid.appendChild(cols);
 
@@ -3025,11 +3025,12 @@ function renderEstSections() {
 
     s.items.forEach((it, itemIndex) => {
       const row = document.createElement("div");
-      row.className = "est-row";
+      row.className = "est-row est-item-row";
       wireItemDropTarget(row, s.id, () => s.items.findIndex((x) => x.id === it.id));
       const desc = document.createElement("textarea");
       desc.rows = 1;
       desc.className = "est-grow";
+      desc.dataset.lbl = "Description";
       desc.placeholder = "Work / material description (Enter = new line)";
       desc.value = it.desc || "";
       const growDesc = () => { desc.style.height = "auto"; desc.style.height = desc.scrollHeight + "px"; };
