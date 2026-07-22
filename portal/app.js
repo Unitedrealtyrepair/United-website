@@ -20,7 +20,7 @@ const COMPANY = {
 };
 
 const ROLE_ACCESS = {
-  admin:    ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Invoices", "Change Orders", "Estimates", "Materials", "Subs"],
+  admin:    ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Scans", "Invoices", "Change Orders", "Estimates", "Materials", "Subs"],
   customer: ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Invoices", "Change Orders", "Estimates"],
   sub:      ["Schedule", "Daily Logs", "Documents", "Photos", "Invoices", "Estimates", "Materials"]
 };
@@ -883,6 +883,7 @@ function render() {
   }
   if (activeTab === "Budget") { renderBudget(); renderPL(); }
   renderCostsPanel();
+  renderScansPanel();
   if (activeTab === "Daily Logs") renderLogs();
   if (activeTab === "Subs") renderSubs();
   if (activeTab === "Invoices") renderInvoices();
@@ -1619,6 +1620,47 @@ async function deleteTask() {
 }
 
 // ---------- Budget ----------
+// ---------- Scans (CubiCasa exports, admin) ----------
+const SHORTCUT_NAME = "URR Scan";
+const CUBICASA_APPSTORE = "https://apps.apple.com/us/app/cubicasa-2d-3d-floor-plans/id1439879192";
+const CUBICASA_WEB = "https://www.cubi.casa";
+
+function isIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+         (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+function launchCubiCasa(btn) {
+  if (!isIOS()) { window.open(CUBICASA_WEB, "_blank", "noopener"); return; }
+  const orig = btn.textContent;
+  btn.textContent = "Opening CubiCasa…";
+  let left = false;
+  const onHide = () => { left = true; };
+  document.addEventListener("visibilitychange", onHide, { once: true });
+  // Shortcuts is the only reliable launcher — CubiCasa publishes no URL scheme
+  window.location.href = "shortcuts://run-shortcut?name=" + encodeURIComponent(SHORTCUT_NAME);
+  setTimeout(() => {
+    document.removeEventListener("visibilitychange", onHide);
+    btn.textContent = orig;
+    if (!left && !document.hidden) {
+      $("scan-help").classList.remove("hidden");
+    }
+  }, 2000);
+}
+
+function scanFiles() {
+  const path = navPathByTab["Scans"] || "";
+  return allFiles.filter((f) => (f.albumName || "") === path && /scan/i.test(f.albumName || "Scans"));
+}
+
+function renderScansPanel() {
+  const sec = $("scans-section");
+  const show = activeTab === "Scans" && isAdmin();
+  sec.classList.toggle("hidden", !show);
+  if (!show) return;
+  $("scan-count").textContent = "";
+}
+
 // ---------- Job costing (ADMIN ONLY) ----------
 const COST_CATS = ["Material", "Labor", "Sub", "Equipment", "Permit/Fee", "Other"];
 const COST_ICON = { Material: "🧱", Labor: "👷", Sub: "🔧", Equipment: "🚜", "Permit/Fee": "📋", Other: "📦" };
@@ -4562,6 +4604,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   $("inv-submit").addEventListener("click", submitInvoice);
   $("bid-submit").addEventListener("click", submitBid);
+  $("scan-launch-btn").addEventListener("click", (e) => launchCubiCasa(e.currentTarget));
+  $("scan-store-link").href = CUBICASA_APPSTORE;
   $("add-cost-btn").addEventListener("click", () => openCostModal(null));
   $("cost-save").addEventListener("click", saveCost);
   $("cost-cancel").addEventListener("click", () => closeModal("cost-modal"));

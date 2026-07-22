@@ -6,7 +6,7 @@
   <title>URR Project Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=85" />
+  <link rel="stylesheet" href="styles.css?v=86" />
 </head>
 <body>
 
@@ -189,6 +189,27 @@
         </div>
         <div id="est-list" class="logs-list"></div>
         <div id="est-empty" class="status-msg hidden">No estimates yet.</div>
+      </div>
+
+      <!-- ===== Scans (CubiCasa, ADMIN ONLY) ===== -->
+      <div id="scans-section" class="hidden">
+        <div class="scan-launcher">
+          <div class="scan-launch-left">
+            <div class="scan-title">Floor Plan Scans</div>
+            <div class="scan-sub">Walk the property with CubiCasa, then upload the exported plan below. Scans upload to this property's Scans folder and can be shared with subs like any other folder.</div>
+          </div>
+          <button id="scan-launch-btn" class="btn-primary scan-launch">📐 Start a CubiCasa Scan</button>
+        </div>
+        <div id="scan-help" class="scan-help hidden">
+          <b>Nothing opened?</b> CubiCasa doesn't allow direct launching, so this button runs an iPhone Shortcut. One-time setup:
+          <ol>
+            <li>Open the <b>Shortcuts</b> app → tap <b>+</b></li>
+            <li><b>Add Action</b> → search <b>Open App</b> → choose <b>CubiCasa</b></li>
+            <li>Rename the shortcut to exactly <b>URR Scan</b> → <b>Done</b></li>
+          </ol>
+          Don't have the app? <a id="scan-store-link" target="_blank" rel="noopener">Get CubiCasa on the App Store ↗</a>
+        </div>
+        <div id="scan-count" class="costs-total"></div>
       </div>
 
       <!-- ===== Job costs (Materials tab, ADMIN ONLY) ===== -->
@@ -519,6 +540,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=85"></script>
+  <script src="app.js?v=86"></script>
 </body>
 </html>
