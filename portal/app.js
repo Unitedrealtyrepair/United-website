@@ -1262,7 +1262,11 @@ function fileCard(f) {
     // Fall back to fetching the bytes through our own backend.
     img.addEventListener("error", function onErr() {
       img.removeEventListener("error", onErr);
-      estBlobUrl(f.id).then((u) => { img.src = u; }).catch(() => {});
+      estBlobUrl(f.id)
+        .then((u) => { img.src = u; })
+        .catch(() => estBlobUrl(f.id).then((u) => { img.src = u; }).catch(() => {
+          img.style.display = "none";
+        }));
     });
     img.onerror = () => {
       img.remove();
@@ -3310,12 +3314,25 @@ async function deleteEstimate() {
 let viewingEstId = null;
 const estBlobCache = {};
 
+const estBlobPending = {};
+let estBlobChain = Promise.resolve();
+
 async function estBlobUrl(fileId) {
   if (estBlobCache[fileId]) return estBlobCache[fileId];
-  const blob = await fetchFileBlobFast({ id: fileId });
-  const url = URL.createObjectURL(blob);
-  estBlobCache[fileId] = url;
-  return url;
+  if (estBlobPending[fileId]) return estBlobPending[fileId];
+  // Queue: Apps Script serves one request at a time per user, so firing a
+  // grid full of thumbnails in parallel makes them all time out.
+  const p = estBlobChain.then(async () => {
+    if (estBlobCache[fileId]) return estBlobCache[fileId];
+    const blob = await fetchFileBlobFast({ id: fileId });
+    const url = URL.createObjectURL(blob);
+    estBlobCache[fileId] = url;
+    return url;
+  });
+  estBlobChain = p.catch(() => {});
+  estBlobPending[fileId] = p;
+  p.finally(() => { delete estBlobPending[fileId]; });
+  return p;
 }
 
 function evPhotoStrip(photos, host) {
