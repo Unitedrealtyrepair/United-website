@@ -231,6 +231,15 @@ const RULES = [
 function categorize(file) {
   const n = file.name.toLowerCase();
   const isInternal = /internal/.test(n);
+  // Folder wins over filename: everything inside a "Scans" folder is a scan,
+  // whatever CubiCasa named the export.
+  const album = String(file.albumName || "").toLowerCase();
+  if (/(^|\/\s*)scans?(\s*\/|$)/.test(album) || /floor[\s\-_]?plan/.test(album)) {
+    return { tab: "Scans", internal: isInternal };
+  }
+  if (/floor[\s\-_]?plan|cubicasa|\bscan\b/.test(n)) {
+    return { tab: "Scans", internal: isInternal };
+  }
   for (const r of RULES) {
     if (r.match(n)) return { tab: r.tab, internal: isInternal };
   }
@@ -1658,7 +1667,25 @@ function renderScansPanel() {
   const show = activeTab === "Scans" && isAdmin();
   sec.classList.toggle("hidden", !show);
   if (!show) return;
-  $("scan-count").textContent = "";
+  const n = allFiles.filter((f) => categorize(f).tab === "Scans").length;
+  $("scan-count").textContent = n ? n + (n === 1 ? " scan file" : " scan files") + " on this property" : "";
+}
+
+async function uploadScanFiles(files, btn) {
+  const orig = btn.textContent;
+  btn.disabled = true;
+  let done = 0, failed = 0;
+  for (const file of files) {
+    done++;
+    btn.textContent = "Uploading " + done + " of " + files.length + "…";
+    try {
+      const out = await uploadOne(file, { destArea: "office", destFolderName: "Scans", notify: [] });
+      if (!out.ok) failed++;
+    } catch (e) { failed++; console.warn("scan upload failed", e); }
+  }
+  btn.textContent = failed ? "✗ " + failed + " failed" : "✓ Uploaded";
+  setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2500);
+  loadFiles();
 }
 
 // ---------- Job costing (ADMIN ONLY) ----------
@@ -4605,6 +4632,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("inv-submit").addEventListener("click", submitInvoice);
   $("bid-submit").addEventListener("click", submitBid);
   $("scan-launch-btn").addEventListener("click", (e) => launchCubiCasa(e.currentTarget));
+  $("scan-upload-btn").addEventListener("click", () => $("scan-upload-input").click());
+  $("scan-upload-input").addEventListener("change", () => {
+    const files = Array.from($("scan-upload-input").files || []);
+    if (files.length) uploadScanFiles(files, $("scan-upload-btn"));
+    $("scan-upload-input").value = "";
+  });
   $("scan-store-link").href = CUBICASA_APPSTORE;
   $("add-cost-btn").addEventListener("click", () => openCostModal(null));
   $("cost-save").addEventListener("click", saveCost);

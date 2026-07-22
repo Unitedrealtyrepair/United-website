@@ -1390,3 +1390,8 @@ body {
 .scan-help ol { margin: 6px 0 6px 18px; padding: 0; }
 .scan-help li { margin-bottom: 3px; }
 .scan-help a { color: #c8102e; font-weight: 700; }
+
+/* ===== v89: scan upload ===== */
+.scan-btn-col { display: flex; flex-direction: column; gap: 8px; }
+.scan-upload { font-size: 13.5px; padding: 9px 16px; white-space: nowrap; }
+@media (max-width: 720px) { .scan-btn-col { width: 100%; } .scan-btn-col button { width: 100%; } }
