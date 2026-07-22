@@ -815,6 +815,12 @@ function ingestListing(out) {
   allFiles = (out.files || []).map((f) => {
     const office = f.source === "office";
     if (f.albumId) {
+      // A Scans folder wins over everything — including images, since
+      // CubiCasa exports floor plans as PNG/JPG.
+      const albumLc = String(f.albumName || "").toLowerCase();
+      if (/(^|\/\s*)scans?(\s*\/|$)/.test(albumLc) || /floor[\s\-_]?plan/.test(albumLc)) {
+        return { ...f, tab: "Scans", internal: office };
+      }
       // Images in a subfolder = photo album entry.
       // Documents in a subfolder = sorted into their normal tab.
       if (isImage(f)) return { ...f, tab: "Photos", internal: office };
@@ -822,7 +828,7 @@ function ingestListing(out) {
       // even if its filename says "receipt".
       const folderCat = categorize({ name: f.albumName || "", mimeType: "" });
       const fileCat = categorize(f);
-      const byFolder = /invoice|change[\s\-_]?order|estimate|proposal|bid|schedule|timeline|material|receipt|supply|permit|inspection|plan|contract|warranty|scope|spec/.test((f.albumName || "").toLowerCase());
+      const byFolder = /invoice|change[\s\-_]?order|estimate|proposal|bid|schedule|timeline|material|receipt|supply|permit|inspection|plan|contract|warranty|scope|spec|scan/.test((f.albumName || "").toLowerCase());
       const c = byFolder ? folderCat : fileCat;
       return { ...f, tab: c.tab, internal: fileCat.internal || office };
     }
