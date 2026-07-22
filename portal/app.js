@@ -1258,6 +1258,12 @@ function fileCard(f) {
     img.src = thumbUrl(f, 400);
     img.alt = f.name;
     img.loading = "lazy";
+    // Office-area files aren't public, so the Drive image CDN 404s on them.
+    // Fall back to fetching the bytes through our own backend.
+    img.addEventListener("error", function onErr() {
+      img.removeEventListener("error", onErr);
+      estBlobUrl(f.id).then((u) => { img.src = u; }).catch(() => {});
+    });
     img.onerror = () => {
       img.remove();
       const ic = document.createElement("div");
@@ -4473,6 +4479,10 @@ function openLightbox(f) {
     img.classList.remove("hidden");
     frame.classList.add("hidden");
     frame.src = "";
+    img.onerror = () => {
+      img.onerror = null;
+      estBlobUrl(f.id).then((u) => { if (token === lightboxToken) img.src = u; }).catch(() => {});
+    };
   } else if (isPdf(f)) {
     // Our own pdf.js viewer — no browser toolbar, no Drive UI, no popout,
     // works the same on desktop and mobile. Fallbacks: blob iframe, then
