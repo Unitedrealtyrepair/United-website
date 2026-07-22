@@ -3036,13 +3036,16 @@ function renderEstSections() {
       desc.addEventListener("input", () => { it.desc = desc.value; growDesc(); });
       setTimeout(growDesc, 0);
       const qty = document.createElement("input");
+      qty.dataset.lbl = "Qty";
       qty.type = "number"; qty.min = "0"; qty.step = "0.01"; qty.value = it.qty;
       qty.addEventListener("input", () => { it.qty = qty.value; refreshTotals(); });
       const rate = document.createElement("input");
+      rate.dataset.lbl = "Rate";
       rate.type = "number"; rate.min = "0"; rate.step = "0.01"; rate.value = it.rate;
       rate.addEventListener("input", () => { it.rate = rate.value; refreshTotals(); });
       const mwrap = document.createElement("div");
       mwrap.className = "est-markup";
+      mwrap.dataset.lbl = "Markup";
       const msel = document.createElement("select");
       ["%", "$"].forEach((v) => { const o = document.createElement("option"); o.value = v; o.textContent = v; msel.appendChild(o); });
       msel.value = it.markupType || "%";
@@ -3052,6 +3055,8 @@ function renderEstSections() {
       mval.addEventListener("input", () => { it.markup = mval.value; refreshTotals(); });
       mwrap.appendChild(msel);
       mwrap.appendChild(mval);
+      const taxWrap = document.createElement("label");
+      taxWrap.className = "est-tax-wrap";
       const taxChk = document.createElement("input");
       taxChk.type = "checkbox";
       taxChk.className = "est-taxchk";
@@ -3069,8 +3074,13 @@ function renderEstSections() {
         if (s.items.length === 0) s.items.push(blankItem());
         renderEstSections();
       });
+      taxWrap.appendChild(taxChk);
+      const taxTxt = document.createElement("span");
+      taxTxt.className = "est-tax-lbl";
+      taxTxt.textContent = "Taxable";
+      taxWrap.appendChild(taxTxt);
       row.appendChild(desc); row.appendChild(qty); row.appendChild(rate);
-      row.appendChild(mwrap); row.appendChild(taxChk); row.appendChild(tot);
+      row.appendChild(mwrap); row.appendChild(taxWrap); row.appendChild(tot);
       row.appendChild(makeHandle("item-handle",
         () => { estDrag = { type: "item", secId: s.id, itemId: it.id }; },
         () => moveItem(s.id, it.id, -1),
