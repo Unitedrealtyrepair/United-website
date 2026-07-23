@@ -1151,6 +1151,8 @@ body {
 .est-cols { font-size: 11px; font-weight: 700; color: #8a96a8; text-transform: uppercase; letter-spacing: .3px; }
 .est-cols span:nth-child(5) { text-align: center; }
 .est-row input, .est-row select { padding: 7px 8px; border: 1.5px solid #dde3ec; border-radius: 7px; font-family: inherit; font-size: 13.5px; width: 100%; box-sizing: border-box; }
+.est-field { display: block; width: 100%; }
+.est-field > input { padding: 7px 8px; border: 1.5px solid #dde3ec; border-radius: 7px; font-family: inherit; font-size: 13.5px; width: 100%; box-sizing: border-box; }
 .est-markup { display: flex; gap: 4px; }
 .est-markup select { width: 48px; flex: none; }
 .est-taxchk { justify-self: center; width: 16px; height: 16px; }
@@ -1397,7 +1399,7 @@ body {
 .scan-upload { font-size: 13.5px; padding: 9px 16px; white-space: nowrap; }
 @media (max-width: 720px) { .scan-btn-col { width: 100%; } .scan-btn-col button { width: 100%; } }
 
-/* ===== v98: dense single-row mobile estimate builder ===== */
+/* ===== v109: labeled numeric fields (wrapper divs) ===== */
 .est-colhead {
   display: grid;
   grid-template-columns: 1fr 64px 88px 130px 34px 90px 24px 26px;
@@ -1479,8 +1481,8 @@ body {
     position: relative; z-index: 20; background: #fff;
     box-shadow: 0 4px 18px rgba(15,36,64,.22);
   }
-  .est-item-row > input[data-lbl="Item Cost"] { grid-area: cost; }
-  .est-item-row > input[data-lbl="Qty"] { grid-area: qty; }
+  .est-item-row > .est-field[data-lbl="Item Cost"] { grid-area: cost; }
+  .est-item-row > .est-field[data-lbl="Qty"] { grid-area: qty; }
   .est-item-row > .est-markup { grid-area: mark; }
   .est-item-row .est-tax-wrap { grid-area: tax; }
   .est-item-row .est-line-total { grid-area: total; }
@@ -1488,13 +1490,22 @@ body {
   .est-item-row > .est-thumb-strip { grid-area: photos; margin: 0; }
 
   /* Item Cost / Qty / Item Markup — identical, left aligned */
-  .est-item-row > input[data-lbl],
+  .est-item-row > .est-field,
   .est-item-row > .est-markup {
     position: relative; padding: 12px 1px 2px !important;
     min-height: 0; height: auto; box-sizing: border-box;
     font-size: 14px; text-align: center; line-height: 1; width: 100%;
+    border: 1.5px solid #dde3ec; border-radius: 6px; background: #fff;
   }
-  .est-item-row > input[data-lbl]::before,
+  .est-item-row > .est-field > input {
+    border: none !important; background: none; width: 100%;
+    padding: 0 !important; font-size: 14px; text-align: center;
+    font-family: inherit; box-sizing: border-box;
+  }
+  .est-item-row > .est-field > input:focus { outline: none; }
+  .est-item-row > .est-field:focus-within,
+  .est-item-row > .est-markup:focus-within { border-color: #0f2440; }
+  .est-item-row > .est-field::before,
   .est-item-row > .est-markup::before {
     content: attr(data-lbl);
     position: absolute; top: 1px; left: 0; right: 0; text-align: center;

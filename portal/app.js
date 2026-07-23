@@ -3100,14 +3100,23 @@ function renderEstSections() {
       desc.addEventListener("focus", () => { desc.classList.add("expanded"); growDesc(); });
       desc.addEventListener("blur", () => { desc.classList.remove("expanded"); growDesc(); });
       setTimeout(growDesc, 0);
-      const qty = document.createElement("input");
+      // NOTE: ::before does not render on <input>, so each numeric field is
+      // wrapped in a div that carries the label.
+      const qtyIn = document.createElement("input");
+      qtyIn.type = "number"; qtyIn.min = "0"; qtyIn.step = "0.01"; qtyIn.value = it.qty;
+      qtyIn.addEventListener("input", () => { it.qty = qtyIn.value; refreshTotals(); });
+      const qty = document.createElement("div");
+      qty.className = "est-field";
       qty.dataset.lbl = "Qty";
-      qty.type = "number"; qty.min = "0"; qty.step = "0.01"; qty.value = it.qty;
-      qty.addEventListener("input", () => { it.qty = qty.value; refreshTotals(); });
-      const rate = document.createElement("input");
+      qty.appendChild(qtyIn);
+
+      const rateIn = document.createElement("input");
+      rateIn.type = "number"; rateIn.min = "0"; rateIn.step = "0.01"; rateIn.value = it.rate;
+      rateIn.addEventListener("input", () => { it.rate = rateIn.value; refreshTotals(); });
+      const rate = document.createElement("div");
+      rate.className = "est-field";
       rate.dataset.lbl = "Item Cost";
-      rate.type = "number"; rate.min = "0"; rate.step = "0.01"; rate.value = it.rate;
-      rate.addEventListener("input", () => { it.rate = rate.value; refreshTotals(); });
+      rate.appendChild(rateIn);
       const mwrap = document.createElement("div");
       mwrap.className = "est-markup";
       mwrap.dataset.lbl = "Item Markup";
