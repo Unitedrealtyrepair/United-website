@@ -3037,6 +3037,7 @@ function renderEstSections() {
     head.appendChild(nameIn);
     const secTotal = document.createElement("span");
     secTotal.className = "est-sec-total";
+    secTotal.dataset.lbl = "Section Total";
     head.appendChild(secTotal);
     head.appendChild(makeHandle("sec-handle",
       () => { estDrag = { type: "section", secId: s.id }; },
@@ -3085,6 +3086,8 @@ function renderEstSections() {
       desc.value = it.desc || "";
       const growDesc = () => { desc.style.height = "auto"; desc.style.height = desc.scrollHeight + "px"; };
       desc.addEventListener("input", () => { it.desc = desc.value; growDesc(); });
+      desc.addEventListener("focus", () => { desc.classList.add("expanded"); growDesc(); });
+      desc.addEventListener("blur", () => { desc.classList.remove("expanded"); growDesc(); });
       setTimeout(growDesc, 0);
       const qty = document.createElement("input");
       qty.dataset.lbl = "Qty";
@@ -3116,6 +3119,7 @@ function renderEstSections() {
       taxChk.addEventListener("change", () => { it.taxable = taxChk.checked; refreshTotals(); });
       const tot = document.createElement("span");
       tot.className = "est-line-total";
+      tot.dataset.lbl = "Item Total";
       tot.dataset.item = it.id;
       const del = document.createElement("button");
       del.className = "est-x";
@@ -3132,12 +3136,16 @@ function renderEstSections() {
       taxWrap.appendChild(taxTxt);
       row.appendChild(desc); row.appendChild(qty); row.appendChild(rate);
       row.appendChild(mwrap); row.appendChild(taxWrap); row.appendChild(tot);
-      row.appendChild(makeHandle("item-handle",
+      row.appendChild(del);
+      // Handle lives OUTSIDE the card frame, to its right
+      const wrap = document.createElement("div");
+      wrap.className = "est-item-wrap";
+      wrap.appendChild(row);
+      wrap.appendChild(makeHandle("item-handle",
         () => { estDrag = { type: "item", secId: s.id, itemId: it.id }; },
         () => moveItem(s.id, it.id, -1),
         () => moveItem(s.id, it.id, 1)));
-      row.appendChild(del);
-      grid.appendChild(row);
+      grid.appendChild(wrap);
 
       // Second row: item notes + photos
       const extra = document.createElement("div");
@@ -3150,6 +3158,8 @@ function renderEstSections() {
       notes.value = it.notes || "";
       const growNotes = () => { notes.style.height = "auto"; notes.style.height = notes.scrollHeight + "px"; };
       notes.addEventListener("input", () => { it.notes = notes.value; growNotes(); });
+      notes.addEventListener("focus", () => { notes.classList.add("expanded"); growNotes(); });
+      notes.addEventListener("blur", () => { notes.classList.remove("expanded"); growNotes(); });
       setTimeout(growNotes, 0);
       extra.appendChild(notes);
       const strip = document.createElement("div");
