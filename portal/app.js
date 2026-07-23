@@ -3078,10 +3078,14 @@ function renderEstSections() {
       const row = document.createElement("div");
       row.className = "est-row est-item-row";
       wireItemDropTarget(row, s.id, () => s.items.findIndex((x) => x.id === it.id));
+      const num = document.createElement("span");
+      num.className = "est-item-num";
+      num.textContent = String(itemIndex + 1);
+
       const desc = document.createElement("textarea");
       desc.rows = 1;
       desc.className = "est-grow";
-      desc.dataset.lbl = "Description";
+      desc.dataset.lbl = "Item";
       desc.placeholder = "Work / material description (Enter = new line)";
       desc.value = it.desc || "";
       const growDesc = () => { desc.style.height = "auto"; desc.style.height = desc.scrollHeight + "px"; };
@@ -3134,7 +3138,9 @@ function renderEstSections() {
       taxTxt.className = "est-tax-lbl";
       taxTxt.textContent = "Taxable";
       taxWrap.appendChild(taxTxt);
-      row.appendChild(desc); row.appendChild(qty); row.appendChild(rate);
+      row.appendChild(num);
+      row.appendChild(desc);
+      row.appendChild(rate); row.appendChild(qty);
       row.appendChild(mwrap); row.appendChild(taxWrap); row.appendChild(tot);
       row.appendChild(del);
       // Handle lives OUTSIDE the card frame, to its right
@@ -3146,22 +3152,23 @@ function renderEstSections() {
         () => moveItem(s.id, it.id, -1),
         () => moveItem(s.id, it.id, 1)));
       grid.appendChild(wrap);
+      it._row = row;
 
-      // Second row: item notes + photos
+      // Description + photos go INSIDE the item card
       const extra = document.createElement("div");
       extra.className = "est-row-extra";
-      wireItemDropTarget(extra, s.id, () => s.items.findIndex((x) => x.id === it.id));
       const notes = document.createElement("textarea");
       notes.rows = 1;
       notes.className = "est-item-notes est-grow";
-      notes.placeholder = "Notes for this line — customer sees these (Enter = new line)";
+      notes.dataset.lbl = "Item Description";
+      notes.placeholder = "Item description — customer sees this (Enter = new line)";
       notes.value = it.notes || "";
       const growNotes = () => { notes.style.height = "auto"; notes.style.height = notes.scrollHeight + "px"; };
       notes.addEventListener("input", () => { it.notes = notes.value; growNotes(); });
       notes.addEventListener("focus", () => { notes.classList.add("expanded"); growNotes(); });
       notes.addEventListener("blur", () => { notes.classList.remove("expanded"); growNotes(); });
       setTimeout(growNotes, 0);
-      extra.appendChild(notes);
+      row.insertBefore(notes, rate); // description sits under the title, above fields
       const strip = document.createElement("div");
       strip.className = "est-thumb-strip";
       (it.photos || []).forEach((p) => {
@@ -3195,8 +3202,7 @@ function renderEstSections() {
         strip.appendChild(pbtn);
         strip.appendChild(pin);
       }
-      extra.appendChild(strip);
-      grid.appendChild(extra);
+      row.appendChild(strip); // photos row inside the card, below totals
     });
 
     const addItem = document.createElement("button");
