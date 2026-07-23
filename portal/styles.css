@@ -1448,7 +1448,7 @@ body {
 
   .est-item-row {
     display: grid !important;
-    grid-template-columns: 20px 58px 58px 74px 30px 1fr !important;
+    grid-template-columns: 20px 76px 40px 74px 30px 1fr !important;
     grid-template-areas:
       "num    title  title title title x"
       "desc   desc   desc  desc  desc  desc"
