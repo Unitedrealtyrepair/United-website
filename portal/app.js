@@ -3094,12 +3094,12 @@ function renderEstSections() {
       qty.type = "number"; qty.min = "0"; qty.step = "0.01"; qty.value = it.qty;
       qty.addEventListener("input", () => { it.qty = qty.value; refreshTotals(); });
       const rate = document.createElement("input");
-      rate.dataset.lbl = "Rate";
+      rate.dataset.lbl = "Item Cost";
       rate.type = "number"; rate.min = "0"; rate.step = "0.01"; rate.value = it.rate;
       rate.addEventListener("input", () => { it.rate = rate.value; refreshTotals(); });
       const mwrap = document.createElement("div");
       mwrap.className = "est-markup";
-      mwrap.dataset.lbl = "Markup";
+      mwrap.dataset.lbl = "Item Markup";
       const msel = document.createElement("select");
       ["%", "$"].forEach((v) => { const o = document.createElement("option"); o.value = v; o.textContent = v; msel.appendChild(o); });
       msel.value = it.markupType || "%";
