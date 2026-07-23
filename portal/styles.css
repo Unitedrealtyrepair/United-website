@@ -1417,49 +1417,45 @@ body {
   .modal label { font-size: 11.5px; margin: 6px 0 3px; }
   .modal input, .modal select, .modal textarea { font-size: 13px; }
 
-  /* Section header: name, then total + handle + delete tight on the right */
-  .est-sec-head { display: grid; grid-template-columns: 1fr auto 30px 24px; gap: 6px; align-items: center; }
+  /* Section header row */
+  .est-sec-head { display: grid; grid-template-columns: 1fr auto 22px 18px; gap: 8px; align-items: center; }
   .est-sec-name { grid-column: 1 / -1; font-size: 14px; font-weight: 700; padding: 8px 10px; }
   .est-sec-total { font-size: 15px; white-space: nowrap; }
 
-  /* LINE ITEM: 4 EQUAL fields + handle column pinned inside the card */
+  /* Line item: description full width with x; then a compact fields row
+     with the drag lines hugging the far right edge (no box). */
   .est-item-row {
     display: grid !important;
-    grid-template-columns: 1fr 1fr 1fr 1fr 28px !important;
+    grid-template-columns: 52px 60px 78px 32px 1fr 18px !important;
     grid-template-areas:
-      "desc desc desc desc grip"
-      "qty rate markup tax grip"
-      "total total total total grip" !important;
-    gap: 4px !important;
+      "desc  desc  desc  desc  desc  x"
+      "qty   rate  mark  tax   .     grip"
+      "total total total total total grip" !important;
+    column-gap: 5px !important; row-gap: 3px !important;
     background: #fff;
     border: 1px solid #e4e9f1;
     border-radius: 9px;
     padding: 7px 6px !important;
     margin: 0 0 6px !important;
     position: relative;
-    align-items: stretch;
+    align-items: center;
   }
-  .est-item-row > textarea[data-lbl] { grid-area: desc; min-height: 28px; padding: 6px 8px !important; font-size: 13px; line-height: 1.2; margin-bottom: 2px; }
+  .est-item-row > textarea[data-lbl] { grid-area: desc; min-height: 26px; padding: 6px 8px !important; font-size: 13px; line-height: 1.2; }
   .est-item-row > input[data-lbl]:nth-of-type(1) { grid-area: qty; }
   .est-item-row > input[data-lbl]:nth-of-type(2) { grid-area: rate; }
-  .est-item-row > .est-markup { grid-area: markup; }
+  .est-item-row > .est-markup { grid-area: mark; }
   .est-item-row .est-tax-wrap { grid-area: tax; }
   .est-item-row .est-line-total { grid-area: total; }
   .est-item-row > .drag-cell { grid-area: grip; }
-  .est-item-row > button.est-x {
-    grid-area: grip; align-self: start; justify-self: center;
-    font-size: 15px; padding: 0; color: #c8102e; height: 20px; line-height: 1; z-index: 2;
-    margin-bottom: 2px;
-  }
+  .est-item-row > button.est-x { grid-area: x; }
 
-  /* All four fields identical: compact, tiny top label */
+  /* Compact fields, tiny top labels — Qty/Rate/Markup/Tax all similar */
   .est-item-row > input[data-lbl],
   .est-item-row > .est-markup {
     position: relative;
-    padding: 13px 2px 3px !important;
+    padding: 12px 2px 3px !important;
     min-height: 0; height: auto; box-sizing: border-box;
-    font-size: 13px; text-align: center; line-height: 1;
-    width: 100%;
+    font-size: 13px; text-align: center; line-height: 1; width: 100%;
   }
   .est-item-row > *[data-lbl]::before {
     content: attr(data-lbl);
@@ -1469,54 +1465,58 @@ body {
   }
   .est-item-row .est-markup {
     display: flex; gap: 1px; align-items: center; justify-content: center;
-    border: 1.5px solid #dde3ec; border-radius: 7px;
+    border: 1.5px solid #dde3ec; border-radius: 6px;
   }
-  .est-item-row .est-markup select { width: 24px; flex: none; border: none !important; background: #f2f6fc; border-radius: 4px; padding: 2px 0 !important; font-size: 10px; }
+  .est-item-row .est-markup select { width: 22px; flex: none; border: none !important; background: #f2f6fc; border-radius: 3px; padding: 2px 0 !important; font-size: 10px; }
   .est-item-row .est-markup input { border: none !important; flex: 1; width: auto; min-width: 0; padding: 2px 0 !important; font-size: 12px; text-align: center; }
 
   .est-item-row .est-tax-wrap {
     position: relative; flex-direction: column; gap: 0;
     align-items: center; justify-content: center; font-size: 0; padding-top: 11px;
-    border: 1.5px solid #dde3ec; border-radius: 7px;
+    border: 1.5px solid #dde3ec; border-radius: 6px; min-height: 34px;
   }
   .est-item-row .est-tax-wrap::before {
     content: "Tax"; position: absolute; top: 2px; left: 0; right: 0; text-align: center;
     font-size: 8px; font-weight: 800; text-transform: uppercase; color: #a0acc0;
   }
   .est-item-row .est-tax-lbl { display: none; }
-  .est-item-row .est-taxchk { width: 18px; height: 18px; margin: 2px 0; }
+  .est-item-row .est-taxchk { width: 17px; height: 17px; margin: 0; }
 
   .est-item-row .est-line-total {
     font-size: 14px; font-weight: 800; text-align: right;
-    border-top: 1px solid #f0f3f8; padding-top: 3px; margin-top: 2px; align-self: center;
+    border-top: 1px solid #f0f3f8; padding-top: 3px; margin-top: 1px;
   }
 
-  /* Drag handle: full-height bar pinned INSIDE the card's right edge */
+  /* Delete x: tiny, top-right corner, no box */
+  .est-item-row > button.est-x {
+    align-self: center; justify-self: center;
+    font-size: 16px; padding: 0; color: #c8102e; background: none; border: none;
+    line-height: 1;
+  }
+
+  /* Drag handle: JUST the lines, no bubble, hugging the far right edge */
   .est-item-row > .drag-cell {
     display: flex; align-items: center; justify-content: center; margin: 0;
-    padding-top: 22px;
   }
   .est-item-row .drag-handle {
     display: inline-flex !important; align-items: center; justify-content: center;
-    width: 26px; min-height: 40px; height: 100%; font-size: 20px; color: #8a96a8;
-    background: #f7f9fc; border: 1px solid #e4e9f1; border-radius: 7px;
+    width: 18px; font-size: 20px; color: #b3bccb;
+    background: none !important; border: none !important; border-radius: 0;
     touch-action: none; cursor: grab;
   }
   .est-item-row .drag-arrows { display: none !important; }
 
-  /* Section handle inside header, before delete */
+  /* Section handle: lines only, no box */
   .est-sec-head .drag-cell { display: flex; align-items: center; justify-content: center; }
   .est-sec-head .drag-handle {
-    display: inline-flex !important; align-items: center; justify-content: center;
-    width: 28px; height: 30px; font-size: 18px; color: #8a96a8;
-    background: #f7f9fc; border: 1px solid #e4e9f1; border-radius: 7px; touch-action: none;
+    display: inline-flex !important; width: 20px; font-size: 18px; color: #b3bccb;
+    background: none !important; border: none !important; touch-action: none;
   }
   .est-sec-head .drag-arrows { display: none !important; }
 
   .drop-above { box-shadow: 0 -3px 0 0 #c8102e !important; }
   .drop-below { box-shadow: 0 3px 0 0 #c8102e !important; }
 
-  /* Kill the big gap: notes/photos tight under the card */
   .est-row-extra { flex-direction: column; align-items: stretch; gap: 5px; margin: 0 0 6px; padding: 0; }
   .est-item-notes { width: 100%; box-sizing: border-box; font-size: 12px; padding: 6px 9px; }
   .est-photo-add { font-size: 12px; padding: 5px 9px; align-self: flex-start; }
@@ -1526,7 +1526,7 @@ body {
   .est-adjust-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
   .est-display-row { gap: 8px 12px; padding: 8px 10px; }
   .est-disp-chk { font-size: 12px; }
-  .est-sched-row { grid-template-columns: 1fr 44px 76px 24px; gap: 6px; align-items: end; }
+  .est-sched-row { grid-template-columns: 1fr 44px 76px 20px; gap: 6px; align-items: end; }
   .est-sched-amt { font-size: 13px; }
   .est-sums > div { font-size: 13px; }
   .est-sums .est-grand { font-size: 16px; }
