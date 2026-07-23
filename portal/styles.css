@@ -1427,11 +1427,12 @@ body {
     gap: 6px; align-items: center;
   }
   .est-sec-name { font-size: 15px; font-weight: 700; padding: 7px 9px; min-width: 0; }
-  .est-sec-total { position: relative; padding-top: 11px; font-size: 15px; font-weight: 800; white-space: nowrap; text-align: right; }
-  .est-sec-total::before {
-    content: "Section Total"; position: absolute; top: 0; left: 0; right: 0; text-align: right;
-    font-size: 7.5px; font-weight: 800; text-transform: uppercase; color: #a0acc0; white-space: nowrap;
+  .est-sec-total {
+    display: flex; flex-direction: column; align-items: flex-end;
+    white-space: nowrap; text-align: right;
   }
+  .est-sec-total .est-field-lbl { text-align: right; margin-bottom: 0; }
+  .est-sec-total-val { font-size: 16px; font-weight: 800; color: #0f2440; }
   .est-sec-head > button.est-x.est-sec-del {
     font-size: 15px; padding: 4px 2px; color: #c8102e;
     background: none; border: none; margin-left: 4px;
@@ -1447,7 +1448,7 @@ body {
 
   .est-item-row {
     display: grid !important;
-    grid-template-columns: 22px 62px 62px 62px 34px 1fr !important;
+    grid-template-columns: 20px 58px 58px 74px 30px 1fr !important;
     grid-template-areas:
       "num    title  title title title x"
       "desc   desc   desc  desc  desc  desc"
@@ -1489,57 +1490,69 @@ body {
   .est-item-row > button.est-x { grid-area: x; }
   .est-item-row > .est-thumb-strip { grid-area: photos; margin: 0; }
 
-  /* Item Cost / Qty / Item Markup — identical, left aligned */
-  .est-item-row > .est-field,
-  .est-item-row > .est-markup {
-    position: relative; padding: 12px 1px 2px !important;
-    min-height: 0; height: auto; box-sizing: border-box;
-    font-size: 14px; text-align: center; line-height: 1; width: 100%;
-    border: 1.5px solid #dde3ec; border-radius: 6px; background: #fff;
+  /* Labels sit ABOVE each field as real spans */
+  .est-field-lbl {
+    display: block; width: 100%;
+    font-size: 8px; font-weight: 800; letter-spacing: .2px;
+    text-transform: uppercase; color: #8a96a8;
+    text-align: center; line-height: 1.1; margin-bottom: 2px;
+    pointer-events: none;
+  }
+  .est-item-row > .est-field {
+    display: flex; flex-direction: column; justify-content: flex-end;
+    padding: 0 !important; border: none !important; background: none;
+    min-height: 0; height: auto; box-sizing: border-box; width: 100%;
   }
   .est-item-row > .est-field > input {
-    border: none !important; background: none; width: 100%;
-    padding: 0 !important; font-size: 14px; text-align: center;
+    border: 1.5px solid #dde3ec !important; border-radius: 6px;
+    background: #fff; width: 100%;
+    padding: 6px 2px !important; font-size: 14px; text-align: center;
     font-family: inherit; box-sizing: border-box;
   }
-  .est-item-row > .est-field > input:focus { outline: none; }
-  .est-item-row > .est-field:focus-within,
-  .est-item-row > .est-markup:focus-within { border-color: #0f2440; }
-  .est-item-row > .est-field::before,
-  .est-item-row > .est-markup::before {
-    content: attr(data-lbl);
-    position: absolute; top: 1px; left: 0; right: 0; text-align: center;
-    font-size: 7px; font-weight: 800; text-transform: uppercase; color: #a0acc0;
-    pointer-events: none; white-space: nowrap; overflow: hidden;
-  }
+  .est-item-row > .est-field > input:focus { outline: none; border-color: #0f2440 !important; }
   .est-item-row .est-markup {
-    display: flex; gap: 0; align-items: center; justify-content: center;
-    border: 1.5px solid #dde3ec; border-radius: 6px;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+    border: none !important; padding: 0 !important; background: none;
+    gap: 0;
+  }
+  .est-item-row .est-markup .est-field-lbl { flex: 0 0 100%; }
+  .est-item-row .est-markup select,
+  .est-item-row .est-markup input {
+    border: 1.5px solid #dde3ec !important; background: #fff;
+    padding: 6px 0 !important; box-sizing: border-box;
+  }
+  .est-item-row .est-markup select {
+    border-right: none !important; border-radius: 6px 0 0 6px;
+    width: 26px; flex: none; font-size: 11px;
+  }
+  .est-item-row .est-markup input {
+    border-radius: 0 6px 6px 0; flex: 1; min-width: 0;
+    font-size: 14px; text-align: center;
   }
   .est-item-row .est-markup select { width: 20px; flex: none; border: none !important; background: none; padding: 0 !important; font-size: 11px; }
   .est-item-row .est-markup input { border: none !important; flex: 1; width: auto; min-width: 0; padding: 0 !important; font-size: 14px; text-align: center; }
 
   .est-item-row .est-tax-wrap {
-    position: relative; flex-direction: column; gap: 0;
-    align-items: center; justify-content: center; font-size: 0; padding-top: 11px;
-    border: 1.5px solid #dde3ec; border-radius: 6px; min-height: 31px;
-  }
-  .est-item-row .est-tax-wrap::before {
-    content: "Tax"; position: absolute; top: 1px; left: 0; right: 0; text-align: center;
-    font-size: 7px; font-weight: 800; text-transform: uppercase; color: #a0acc0;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    align-items: center; gap: 0; font-size: 0;
+    border: none !important; padding: 0 !important; min-height: 0;
   }
   .est-item-row .est-tax-lbl { display: none; }
-  .est-item-row .est-taxchk { width: 16px; height: 16px; margin: 0; }
-
-  /* ITEM TOTAL: label sits directly above the amount, both right aligned */
-  .est-item-row .est-line-total {
-    position: relative; padding-top: 10px;
-    font-size: 14px; font-weight: 800; text-align: right;
-    border-top: 1px solid #f0f3f8; margin-top: 2px;
+  .est-item-row .est-taxchk {
+    width: 18px; height: 18px; margin: 0 0 7px 0;
   }
-  .est-item-row .est-line-total::before {
-    content: "Item Total"; position: absolute; top: 1px; right: 0;
-    font-size: 7px; font-weight: 800; text-transform: uppercase; color: #a0acc0;
+
+  /* ITEM TOTAL: label above the amount, right aligned, roomy */
+  .est-item-row .est-line-total {
+    display: flex; flex-direction: column; align-items: flex-end;
+    border-top: 1px solid #f0f3f8; margin-top: 3px; padding-top: 5px;
+  }
+  .est-item-row .est-line-total .est-field-lbl {
+    text-align: right; margin-bottom: 1px;
+  }
+  .est-item-row .est-total-val {
+    font-size: 17px; font-weight: 800; color: #0f2440;
+    letter-spacing: -.2px; white-space: nowrap;
   }
 
   .est-item-row > button.est-x {

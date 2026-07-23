@@ -3035,9 +3035,15 @@ function renderEstSections() {
     nameIn.value = s.name || "";
     nameIn.addEventListener("input", () => { s.name = nameIn.value; });
     head.appendChild(nameIn);
-    const secTotal = document.createElement("span");
+    const secTotal = document.createElement("div");
     secTotal.className = "est-sec-total";
-    secTotal.dataset.lbl = "Section Total";
+    const secLbl = document.createElement("span");
+    secLbl.className = "est-field-lbl";
+    secLbl.textContent = "Section Total";
+    secTotal.appendChild(secLbl);
+    const secVal = document.createElement("span");
+    secVal.className = "est-sec-total-val";
+    secTotal.appendChild(secVal);
     head.appendChild(secTotal);
     const delSec = document.createElement("button");
     delSec.className = "est-x est-sec-del";
@@ -3071,13 +3077,14 @@ function renderEstSections() {
 
     const refreshTotals = () => {
       const c = calcEstimate(estDraft);
-      secTotal.textContent = fmtMoney(c.bySection[s.id] || 0);
+      secVal.textContent = fmtMoney(c.bySection[s.id] || 0);
       updateEstSummary(c);
       grid.querySelectorAll(".est-line-total").forEach((el) => {
         const it = s.items.find((x) => x.id === el.dataset.item);
         if (!it) return;
         const L = c.lines.find((x) => x.item.id === it.id);
-        el.textContent = fmtMoney(L ? L.customer : 0);
+        const v = el.querySelector(".est-total-val");
+        if (v) v.textContent = fmtMoney(L ? L.customer : 0);
       });
     };
 
@@ -3102,24 +3109,34 @@ function renderEstSections() {
       setTimeout(growDesc, 0);
       // NOTE: ::before does not render on <input>, so each numeric field is
       // wrapped in a div that carries the label.
+      // Real <span> labels above each field — pseudo-elements are unreliable here
+      const mkField = (labelText, input, cls) => {
+        const w = document.createElement("div");
+        w.className = "est-field" + (cls ? " " + cls : "");
+        const lb = document.createElement("span");
+        lb.className = "est-field-lbl";
+        lb.textContent = labelText;
+        w.appendChild(lb);
+        w.appendChild(input);
+        return w;
+      };
+
       const qtyIn = document.createElement("input");
       qtyIn.type = "number"; qtyIn.min = "0"; qtyIn.step = "0.01"; qtyIn.value = it.qty;
       qtyIn.addEventListener("input", () => { it.qty = qtyIn.value; refreshTotals(); });
-      const qty = document.createElement("div");
-      qty.className = "est-field";
-      qty.dataset.lbl = "Qty";
-      qty.appendChild(qtyIn);
+      const qty = mkField("Qty", qtyIn, "fld-qty");
 
       const rateIn = document.createElement("input");
       rateIn.type = "number"; rateIn.min = "0"; rateIn.step = "0.01"; rateIn.value = it.rate;
       rateIn.addEventListener("input", () => { it.rate = rateIn.value; refreshTotals(); });
-      const rate = document.createElement("div");
-      rate.className = "est-field";
-      rate.dataset.lbl = "Item Cost";
-      rate.appendChild(rateIn);
+      const rate = mkField("Item Cost", rateIn, "fld-cost");
       const mwrap = document.createElement("div");
       mwrap.className = "est-markup";
       mwrap.dataset.lbl = "Item Markup";
+      const mlbl = document.createElement("span");
+      mlbl.className = "est-field-lbl";
+      mlbl.textContent = "Item Markup";
+      mwrap.appendChild(mlbl);
       const msel = document.createElement("select");
       ["%", "$"].forEach((v) => { const o = document.createElement("option"); o.value = v; o.textContent = v; msel.appendChild(o); });
       msel.value = it.markupType || "%";
@@ -3131,16 +3148,26 @@ function renderEstSections() {
       mwrap.appendChild(mval);
       const taxWrap = document.createElement("label");
       taxWrap.className = "est-tax-wrap";
+      const txlbl = document.createElement("span");
+      txlbl.className = "est-field-lbl";
+      txlbl.textContent = "Tax";
+      taxWrap.appendChild(txlbl);
       const taxChk = document.createElement("input");
       taxChk.type = "checkbox";
       taxChk.className = "est-taxchk";
       taxChk.checked = it.taxable !== false;
       taxChk.title = "Taxable";
       taxChk.addEventListener("change", () => { it.taxable = taxChk.checked; refreshTotals(); });
-      const tot = document.createElement("span");
+      const tot = document.createElement("div");
       tot.className = "est-line-total";
-      tot.dataset.lbl = "Item Total";
       tot.dataset.item = it.id;
+      const totLbl = document.createElement("span");
+      totLbl.className = "est-field-lbl";
+      totLbl.textContent = "Item Total";
+      tot.appendChild(totLbl);
+      const totVal = document.createElement("span");
+      totVal.className = "est-total-val";
+      tot.appendChild(totVal);
       const del = document.createElement("button");
       del.className = "est-x";
       del.textContent = "✕";
@@ -3237,10 +3264,12 @@ function renderEstSections() {
   const c = calcEstimate(estDraft);
   host.querySelectorAll(".est-section").forEach((box, i) => {
     const s = estDraft.sections[i];
-    box.querySelector(".est-sec-total").textContent = fmtMoney(c.bySection[s.id] || 0);
+    const sv = box.querySelector(".est-sec-total-val");
+    if (sv) sv.textContent = fmtMoney(c.bySection[s.id] || 0);
     box.querySelectorAll(".est-line-total").forEach((el) => {
       const L = c.lines.find((x) => x.item.id === el.dataset.item);
-      el.textContent = fmtMoney(L ? L.customer : 0);
+      const v = el.querySelector(".est-total-val");
+      if (v) v.textContent = fmtMoney(L ? L.customer : 0);
     });
   });
   updateEstSummary(c);
