@@ -3039,19 +3039,26 @@ function renderEstSections() {
     secTotal.className = "est-sec-total";
     secTotal.dataset.lbl = "Section Total";
     head.appendChild(secTotal);
-    head.appendChild(makeHandle("sec-handle",
-      () => { estDrag = { type: "section", secId: s.id }; },
-      () => moveSection(s.id, -1),
-      () => moveSection(s.id, 1)));
     const delSec = document.createElement("button");
-    delSec.className = "est-x";
-    delSec.textContent = "✕";
-    delSec.title = "Remove section";
+    delSec.className = "est-x est-sec-del";
+    delSec.textContent = "🗑";
+    delSec.title = "Delete section";
     delSec.addEventListener("click", () => {
+      const label = (s.name || "this section").trim() || "this section";
+      const count = (s.items || []).filter((x) => (x.desc || "").trim() || Number(x.rate) > 0).length;
+      const msg = "Delete the section \"" + label + "\"" +
+        (count ? " and its " + count + " line item" + (count === 1 ? "" : "s") : "") +
+        "?\n\nThis cannot be undone.";
+      if (!confirm(msg)) return;
+      if (count > 0 && !confirm("Are you sure? " + count + " line item" + (count === 1 ? "" : "s") + " will be permanently removed.")) return;
       estDraft.sections = estDraft.sections.filter((x) => x.id !== s.id);
       if (estDraft.sections.length === 0) estDraft.sections.push({ id: "s" + Date.now(), name: "General", items: [blankItem()] });
       renderEstSections();
     });
+    head.appendChild(makeHandle("sec-handle",
+      () => { estDrag = { type: "section", secId: s.id }; },
+      () => moveSection(s.id, -1),
+      () => moveSection(s.id, 1)));
     head.appendChild(delSec);
     box.appendChild(head);
 
@@ -3080,7 +3087,7 @@ function renderEstSections() {
       wireItemDropTarget(row, s.id, () => s.items.findIndex((x) => x.id === it.id));
       const num = document.createElement("span");
       num.className = "est-item-num";
-      num.textContent = String(itemIndex + 1);
+      num.textContent = (itemIndex + 1) + ")";
 
       const desc = document.createElement("textarea");
       desc.rows = 1;
@@ -3129,6 +3136,10 @@ function renderEstSections() {
       del.className = "est-x";
       del.textContent = "✕";
       del.addEventListener("click", () => {
+        const nm = (it.desc || "").trim();
+        if (nm || Number(it.rate) > 0) {
+          if (!confirm("Delete line item" + (nm ? ' "' + nm.split("\n")[0].slice(0, 40) + '"' : "") + "?")) return;
+        }
         s.items = s.items.filter((x) => x.id !== it.id);
         if (s.items.length === 0) s.items.push(blankItem());
         renderEstSections();

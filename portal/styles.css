@@ -1430,7 +1430,10 @@ body {
     content: "Section Total"; position: absolute; top: 0; left: 0; right: 0; text-align: right;
     font-size: 7.5px; font-weight: 800; text-transform: uppercase; color: #a0acc0; white-space: nowrap;
   }
-  .est-sec-head > button.est-x { font-size: 16px; padding: 0; color: #c8102e; background: none; border: none; }
+  .est-sec-head > button.est-x.est-sec-del {
+    font-size: 15px; padding: 4px 2px; color: #c8102e;
+    background: none; border: none; margin-left: 4px;
+  }
 
   /* ITEM CARD: number | content, handle outside right */
   .est-item-wrap {
@@ -1442,21 +1445,23 @@ body {
 
   .est-item-row {
     display: grid !important;
-    grid-template-columns: 20px 62px 62px 62px 34px 1fr !important;
+    grid-template-columns: 22px 62px 62px 62px 34px 1fr !important;
     grid-template-areas:
-      "num  title title title title x"
-      "num  desc  desc  desc  desc  desc"
-      "num  cost  qty   mark  tax   ."
-      "num  total total total total total"
-      "num  photos photos photos photos photos" !important;
+      "num    title  title title title x"
+      "desc   desc   desc  desc  desc  desc"
+      "cost   qty    mark  tax   .     ."
+      "total  total  total total total total"
+      "photos photos photos photos photos photos" !important;
     column-gap: 4px !important; row-gap: 4px !important;
     background: #fff; border: 1px solid #e4e9f1; border-radius: 9px;
     padding: 7px 6px !important; margin: 0 !important;
     position: relative; align-items: center;
   }
   .est-item-num {
-    grid-area: num; display: flex !important; align-items: flex-start; justify-content: center;
-    font-size: 12px; font-weight: 800; color: #b8c1cf; padding-top: 8px;
+    grid-area: num; display: flex !important;
+    align-items: flex-start; justify-content: flex-start;
+    font-size: 12px; font-weight: 800; color: #8a96a8;
+    padding: 7px 0 0 1px; align-self: start;
   }
   .est-item-row > textarea[data-lbl="Item"] {
     grid-area: title; min-height: 26px; max-height: 32px; overflow: hidden;
