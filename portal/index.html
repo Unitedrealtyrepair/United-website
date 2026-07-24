@@ -6,7 +6,7 @@
   <title>URR Project Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=111" />
+  <link rel="stylesheet" href="styles.css?v=113" />
 </head>
 <body>
 
@@ -225,6 +225,12 @@
         <div id="costs-total" class="costs-total"></div>
         <div id="costs-list" class="logs-list"></div>
         <div id="costs-empty" class="status-msg hidden">No costs logged yet. Log material, labor, and sub costs here to track profit against your estimate.</div>
+      </div>
+
+      <!-- ===== Field Calc ===== -->
+      <div id="calc-section" class="hidden">
+        <iframe id="calc-frame" class="calc-frame" title="Field Calculator"
+                allow="accelerometer; gyroscope; magnetometer"></iframe>
       </div>
 
       <div id="loading" class="status-msg">Loading project files…</div>
@@ -464,7 +470,8 @@
         <div class="est-preview-tools">
           <span class="est-preview-hint">This is exactly what the customer sees — no markup, no internal notes.</span>
           <span class="spacer"></span>
-          <button id="est-pdf-btn" class="btn-primary">⬇ Download PDF</button>
+          <button id="est-send-btn" class="btn-primary">📨 Send to Customer</button>
+          <button id="est-pdf-btn" class="btn-ghost">⬇ Download PDF</button>
           <button id="est-preview-edit" class="btn-ghost">✎ Back to edit</button>
           <button id="est-preview-close" class="btn-ghost">Close</button>
         </div>
@@ -544,6 +551,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=111"></script>
+  <script src="app.js?v=113"></script>
 </body>
 </html>

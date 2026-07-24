@@ -1588,3 +1588,39 @@ body {
   .est-sums > div { font-size: 13px; }
   .est-sums .est-grand { font-size: 16px; }
 }
+
+
+/* ===== v112: payment schedule text wrapping ===== */
+.ev-row.ev-sched { align-items: start; }
+.ev-sched-desc {
+  white-space: normal !important;
+  line-height: 1.35;
+  padding-right: 8px;
+  overflow-wrap: anywhere;
+}
+.ev-row.ev-sched span:last-child { white-space: nowrap; }
+
+/* Field Calc tab */
+.calc-frame {
+  width: 100%;
+  height: calc(100vh - 190px);
+  min-height: 560px;
+  border: 1px solid #e4e9f1;
+  border-radius: 12px;
+  background: #f2f5f9;
+  display: block;
+}
+@media (max-width: 720px) {
+  .calc-frame { height: calc(100vh - 210px); min-height: 500px; border-radius: 10px; }
+}
+
+/* Field Calc access controls (admin, Subs tab) */
+.calc-access {
+  background: #fff; border: 1px solid #e4e9f1; border-radius: 12px;
+  padding: 14px 16px; margin-top: 16px;
+}
+.calc-access-lbl {
+  font-size: 13px; font-weight: 700; color: #0f2440; margin-bottom: 10px;
+}
+.calc-access .album-perms { padding: 0; border: none; margin: 0; }
+.calc-access-empty { font-size: 12.5px; color: #8a96a8; }

@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#0f2440" />
+<title>Tape Calc — United Realty Repair</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#0f2440;        /* URR navy */
+    --navy-2:#173257;      /* raised navy */
+    --navy-3:#1e3d68;      /* lighter navy */
+    --red:#c8102e;         /* URR red */
+    --red-dk:#a80d26;
+    --blade:#f5c518;       /* tape blade yellow, used as accent */
+    --page:#f2f5f9;        /* light body */
+    --card:#ffffff;
+    --rule:#dde3ec;
+    --ink:#0f2440;
+    --ink-dim:#5a6b84;
+    --ink-mute:#8a96a8;
+    --green:#1c7c3c;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:var(--page);
+    color:var(--ink);
+    font-family:'Barlow Condensed',system-ui,sans-serif;
+    display:flex;justify-content:center;
+    overscroll-behavior:none;
+  }
+  .case{
+    width:100%;max-width:440px;min-height:100%;
+    display:flex;flex-direction:column;
+    background:var(--page);
+    box-shadow:0 0 40px rgba(15,36,64,.08);
+  }
+
+  /* ---------- Blade readout ---------- */
+  .blade{
+    background:var(--navy);
+    color:#fff;
+    padding:14px 16px 0;
+    position:relative;
+    border-top:4px solid var(--blade);
+  }
+  .blade-top{
+    display:flex;align-items:baseline;justify-content:space-between;
+    font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    color:#8fa3bf;
+  }
+  .prec{
+    display:flex;gap:2px;background:rgba(255,255,255,.08);
+    border-radius:5px;padding:2px;
+  }
+  .prec button{
+    font-family:'Roboto Mono',monospace;font-size:10px;font-weight:700;
+    border:0;background:none;color:#8fa3bf;
+    padding:3px 7px;border-radius:4px;cursor:pointer;letter-spacing:0;
+  }
+  .prec button[aria-pressed="true"]{background:var(--blade);color:var(--navy);}
+
+  .expr{
+    font-family:'Roboto Mono',monospace;
+    font-size:13px;min-height:18px;margin-top:8px;
+    color:#8fa3bf;white-space:nowrap;overflow-x:auto;
+    scrollbar-width:none;
+  }
+  .expr::-webkit-scrollbar{display:none;}
+  .result{
+    font-family:'Roboto Mono',monospace;
+    color:var(--blade);
+    font-weight:700;font-size:clamp(30px,9vw,42px);
+    line-height:1.1;margin:2px 0 4px;
+    white-space:nowrap;overflow-x:auto;scrollbar-width:none;
+    letter-spacing:-.02em;
+  }
+  .result::-webkit-scrollbar{display:none;}
+  .subline{
+    font-family:'Roboto Mono',monospace;font-size:12px;
+    color:#8fa3bf;padding-bottom:12px;display:flex;gap:14px;
+  }
+  /* tick marks along the bottom edge of the blade, like a real tape */
+  .ticks{display:flex;align-items:flex-end;height:15px;gap:0;overflow:hidden;}
+  .ticks i{flex:1;background:var(--blade);opacity:.45;}
+  .ticks i.h{height:11px;} .ticks i.m{height:7px;} .ticks i.s{height:4px;}
+
+  /* ---------- Keypad ---------- */
+  .pad{
+    flex:1;display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:7px;padding:12px;
+    align-content:start;
+  }
+  button.k{
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:21px;font-weight:600;
+    color:var(--ink);
+    background:var(--card);
+    border:1px solid var(--rule);
+    border-radius:10px;
+    padding:15px 4px;
+    cursor:pointer;
+    transition:transform .05s,background .12s;
+    display:flex;align-items:center;justify-content:center;
+    min-height:54px;
+    box-shadow:0 1px 2px rgba(15,36,64,.06);
+  }
+  button.k:active{transform:translateY(1px);background:#e9eef5;}
+  button.k .sub{font-size:11px;color:var(--ink-dim);margin-left:3px;}
+  .k.num{font-family:'Roboto Mono',monospace;font-weight:500;font-size:20px;}
+  .k.unit{
+    background:var(--blade);color:var(--navy);font-weight:700;
+    border-color:#d9ad0f;
+  }
+  .k.frac{
+    background:#e9eef5;color:var(--navy);
+    font-family:'Roboto Mono',monospace;font-size:15px;font-weight:500;
+  }
+  .k.op{background:var(--navy);color:#fff;font-size:23px;font-weight:700;border-color:var(--navy);}
+  .k.eq{background:var(--red);color:#fff;font-size:26px;font-weight:700;border-color:var(--red-dk);}
+  .k.clr{background:#e9eef5;color:var(--ink-dim);font-size:16px;letter-spacing:.06em;}
+  .k.wide{grid-column:span 2;}
+
+  /* ---------- Memory strip ---------- */
+  .memstrip{
+    display:flex;gap:6px;padding:0 12px 10px;
+    overflow-x:auto;scrollbar-width:none;
+  }
+  .memstrip::-webkit-scrollbar{display:none;}
+  .memstrip button{
+    flex:none;font-family:'Roboto Mono',monospace;font-size:12px;
+    background:var(--card);color:var(--ink-dim);border:1px solid var(--rule);
+    border-radius:7px;padding:7px 11px;cursor:pointer;white-space:nowrap;
+  }
+  .memstrip button:active{background:var(--navy);color:#fff;border-color:var(--navy);}
+  .memstrip .lbl{
+    flex:none;align-self:center;font-size:10px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--ink-mute);padding-right:2px;font-weight:700;
+  }
+
+  /* ---------- Tape history ---------- */
+  .tape{
+    background:var(--card);border-top:1px solid var(--rule);
+    max-height:34vh;overflow-y:auto;padding:8px 12px 16px;
+  }
+  .tape h2{
+    font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--ink-mute);margin:4px 0 8px;font-weight:700;
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .tape h2 button{
+    background:none;border:0;color:var(--red);font-size:10px;
+    letter-spacing:.1em;cursor:pointer;text-transform:uppercase;
+    font-family:inherit;font-weight:700;
+  }
+  .row{
+    display:flex;justify-content:space-between;align-items:baseline;
+    gap:10px;padding:7px 0;border-bottom:1px dashed var(--rule);
+    font-family:'Roboto Mono',monospace;cursor:pointer;
+  }
+  .row:active{background:#f2f5f9;}
+  .row .r-expr{font-size:11px;color:var(--ink-mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .row .r-val{font-size:14px;color:var(--navy);font-weight:700;white-space:nowrap;}
+  .empty{color:var(--ink-mute);font-size:12px;font-family:'Roboto Mono',monospace;padding:10px 0;}
+
+  .hint{
+    font-size:11px;color:var(--ink-mute);padding:0 12px 10px;
+    font-family:'Roboto Mono',monospace;line-height:1.5;
+  }
+  /* ---------- Brand bar ---------- */
+  .brandbar{
+    display:flex;align-items:center;gap:9px;
+    background:var(--navy);padding:11px 14px 10px;
+    border-bottom:1px solid rgba(255,255,255,.08);
+  }
+  .bb-mark{
+    font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;
+    letter-spacing:.06em;color:var(--navy);background:#fff;
+    padding:3px 7px;border-radius:4px;
+    box-shadow:inset 0 -3px 0 var(--red);
+  }
+  .bb-name{
+    font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:14px;
+    letter-spacing:.03em;color:#fff;flex:1;
+  }
+  .bb-tool{
+    font-family:'Roboto Mono',monospace;font-size:9.5px;font-weight:700;
+    letter-spacing:.16em;text-transform:uppercase;color:var(--blade);
+  }
+
+  /* ---------- Mode tabs ---------- */
+  .modes{display:flex;gap:0;background:var(--navy);}
+  .modes button{
+    flex:1;background:none;border:0;border-bottom:3px solid transparent;
+    color:#8fa3bf;font-family:'Barlow Condensed',sans-serif;
+    font-size:15px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+    padding:13px 0 10px;cursor:pointer;
+  }
+  .modes button[aria-pressed="true"]{color:#fff;border-bottom-color:var(--blade);}
+
+  /* ---------- Roof panel ---------- */
+  .roof{flex:1;padding:12px;}
+  .pitchbar{
+    display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;
+    padding-bottom:12px;align-items:center;
+  }
+  .pitchbar::-webkit-scrollbar{display:none;}
+  .pitchbar .lbl{
+    flex:none;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-mute);font-weight:700;padding-right:2px;
+  }
+  .pitchbar button{
+    flex:none;font-family:'Roboto Mono',monospace;font-size:12px;font-weight:500;
+    background:var(--card);color:var(--ink-dim);
+    border:1px solid var(--rule);border-radius:7px;
+    padding:8px 11px;cursor:pointer;white-space:nowrap;
+  }
+  .pitchbar button[aria-pressed="true"]{
+    background:var(--navy);color:#fff;border-color:var(--navy);font-weight:700;
+  }
+  .rfields{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .rf{display:flex;flex-direction:column;gap:3px;}
+  .rf span{
+    font-size:9px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-mute);
+  }
+  .rf input{
+    font-family:'Roboto Mono',monospace;font-size:15px;
+    background:var(--card);border:1.5px solid var(--rule);border-radius:8px;
+    color:var(--ink);padding:10px;width:100%;box-sizing:border-box;
+  }
+  .rf input:focus{outline:none;border-color:var(--navy);}
+  .rout{margin-top:14px;display:flex;flex-direction:column;gap:1px;}
+  .ro{
+    display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+    padding:11px 12px;background:var(--card);
+    border-left:3px solid var(--rule);
+    border-bottom:1px solid var(--rule);
+  }
+  .ro:first-child{border-radius:8px 8px 0 0;}
+  .ro:last-child{border-radius:0 0 8px 8px;}
+  .ro.key{border-left-color:var(--red);background:var(--navy);}
+  .ro .k-lbl{
+    font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--ink-mute);
+  }
+  .ro.key .k-lbl{color:#8fa3bf;}
+  .ro .k-val{
+    font-family:'Roboto Mono',monospace;font-size:15px;font-weight:700;
+    color:var(--navy);white-space:nowrap;text-align:right;
+  }
+  .ro.key .k-val{font-size:21px;font-weight:700;color:var(--blade);}
+  .ro .k-sub{font-family:'Roboto Mono',monospace;font-size:10px;color:var(--ink-mute);display:block;margin-top:2px;font-weight:400;}
+  .ro.key .k-sub{color:#8fa3bf;}
+  .rf select{
+    font-family:'Roboto Mono',monospace;font-size:13px;
+    background:var(--card);border:1.5px solid var(--rule);border-radius:8px;
+    color:var(--ink);padding:10px 8px;width:100%;box-sizing:border-box;
+    -webkit-appearance:none;appearance:none;
+  }
+  .rf select:focus{outline:none;border-color:var(--navy);}
+
+  /* ---------- Phone level ---------- */
+  .levelbtn{
+    display:flex;align-items:center;gap:12px;width:100%;
+    margin-top:12px;padding:12px;cursor:pointer;text-align:left;
+    background:var(--card);border:1.5px solid var(--rule);border-radius:10px;
+    color:var(--ink);font-family:inherit;
+  }
+  .levelbtn:active{background:#e9eef5;}
+  .lv-face{
+    flex:none;width:52px;height:22px;border-radius:11px;
+    border:1.5px solid var(--navy);background:var(--blade);
+    position:relative;overflow:hidden;
+  }
+  .lv-face::before,.lv-face::after{
+    content:'';position:absolute;top:2px;bottom:2px;width:1px;background:var(--navy);opacity:.45;
+  }
+  .lv-face::before{left:18px;} .lv-face::after{right:18px;}
+  .lv-bubble{
+    position:absolute;top:50%;left:50%;
+    width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;
+    background:var(--green);
+    transition:left .06s linear;
+  }
+  .lv-bubble.off{background:var(--navy);}
+  .lv-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+  .lv-txt b{font-size:14px;font-weight:600;letter-spacing:.01em;}
+  .lv-txt em{font-style:normal;font-size:10.5px;color:var(--ink-mute);font-family:'Roboto Mono',monospace;}
+  .lv-read{
+    flex:none;font-family:'Roboto Mono',monospace;font-size:16px;font-weight:700;
+    color:var(--navy);white-space:nowrap;
+  }
+  .lv-actions{display:flex;gap:8px;margin-top:8px;}
+  .lv-actions button{
+    flex:1;font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;
+    letter-spacing:.08em;text-transform:uppercase;padding:12px;border-radius:9px;
+    cursor:pointer;border:1px solid var(--rule);
+  }
+  #lvSet{background:var(--red);color:#fff;border-color:var(--red-dk);}
+  #lvStop{background:var(--card);color:var(--ink-dim);}
+
+  .rnote{
+    font-size:11px;color:var(--ink-mute);font-family:'Roboto Mono',monospace;
+    line-height:1.55;padding:12px 2px 0;
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;}}
+</style>
+</head>
+<body>
+<div class="case">
+
+  <!-- brand bar -->
+  <div class="brandbar">
+    <span class="bb-mark">URR</span>
+    <span class="bb-name">United Realty Repair</span>
+    <span class="bb-tool">Field Calc</span>
+  </div>
+
+  <!-- mode tabs -->
+  <div class="modes" id="modes">
+    <button data-mode="tape" aria-pressed="true">Tape</button>
+    <button data-mode="roof" aria-pressed="false">Roof</button>
+  </div>
+
+  <!-- readout -->
+  <div class="blade">
+    <div class="blade-top">
+      <span id="bladeTitle">Tape Calc</span>
+      <span class="prec" id="prec">
+        <button data-d="8" aria-pressed="false">1/8</button>
+        <button data-d="16" aria-pressed="true">1/16</button>
+        <button data-d="32" aria-pressed="false">1/32</button>
+      </span>
+    </div>
+    <div class="expr" id="expr">&nbsp;</div>
+    <div class="result" id="result">0"</div>
+    <div class="subline">
+      <span id="dec">0.000 in</span>
+      <span id="feetdec">0.000 ft</span>
+    </div>
+    <div class="ticks" id="ticks"></div>
+  </div>
+
+  <!-- keypad -->
+  <div class="pad">
+    <button class="k num" data-n="7">7</button>
+    <button class="k num" data-n="8">8</button>
+    <button class="k num" data-n="9">9</button>
+    <button class="k op" data-op="/">÷</button>
+
+    <button class="k num" data-n="4">4</button>
+    <button class="k num" data-n="5">5</button>
+    <button class="k num" data-n="6">6</button>
+    <button class="k op" data-op="*">×</button>
+
+    <button class="k num" data-n="1">1</button>
+    <button class="k num" data-n="2">2</button>
+    <button class="k num" data-n="3">3</button>
+    <button class="k op" data-op="-">−</button>
+
+    <button class="k num" data-n="0">0</button>
+    <button class="k num" data-n=".">.</button>
+    <button class="k unit" data-u="ft">FT</button>
+    <button class="k op" data-op="+">+</button>
+
+    <button class="k frac" data-f="1/16">1/16</button>
+    <button class="k frac" data-f="1/8">1/8</button>
+    <button class="k frac" data-f="1/4">1/4</button>
+    <button class="k frac" data-f="1/2">1/2</button>
+
+    <button class="k frac" data-f="3/16">3/16</button>
+    <button class="k frac" data-f="3/8">3/8</button>
+    <button class="k frac" data-f="5/8">5/8</button>
+    <button class="k frac" data-f="3/4">3/4</button>
+
+    <button class="k clr" id="back">DEL</button>
+    <button class="k clr" id="clear">CLR</button>
+    <button class="k eq wide" id="equals">=</button>
+  </div>
+
+  <!-- memory / quick actions -->
+  <div class="memstrip">
+    <span class="lbl">Use</span>
+    <button data-mem="half">½ of total</button>
+    <button data-mem="third">⅓ of total</button>
+    <button data-mem="16oc">÷ 16&quot; OC</button>
+    <button data-mem="24oc">÷ 24&quot; OC</button>
+    <button data-mem="store">Store</button>
+    <button data-mem="recall" id="recallBtn">Recall —</button>
+  </div>
+
+  <div class="hint">
+    Type inches, or tap <b>FT</b> after a number for feet.<br>
+    Example: 12 <b>FT</b> 4 <b>5/8</b> + 8 <b>1/2</b> =
+  </div>
+
+  <!-- ROOF PANEL -->
+  <div class="roof" id="roofPanel" hidden>
+    <div class="pitchbar" id="pitchbar">
+      <span class="lbl">Pitch</span>
+      <button data-p="3">3/12</button>
+      <button data-p="4">4/12</button>
+      <button data-p="5">5/12</button>
+      <button data-p="6" aria-pressed="true">6/12</button>
+      <button data-p="7">7/12</button>
+      <button data-p="8">8/12</button>
+      <button data-p="9">9/12</button>
+      <button data-p="10">10/12</button>
+      <button data-p="12">12/12</button>
+    </div>
+
+    <div class="rfields">
+      <label class="rf">
+        <span>Rise (per 12&quot;)</span>
+        <input id="rRise" type="number" inputmode="decimal" step="0.25" value="6" />
+      </label>
+      <label class="rf">
+        <span>Run — horizontal</span>
+        <input id="rRun" type="text" inputmode="text" placeholder="12' 0&quot;" value="12'" />
+      </label>
+      <label class="rf">
+        <span>Overhang</span>
+        <input id="rOver" type="text" inputmode="text" placeholder="16&quot;" value="" />
+      </label>
+      <label class="rf">
+        <span>Or set by angle</span>
+        <input id="rAngle" type="number" inputmode="decimal" step="0.1" placeholder="26.6°" />
+      </label>
+      <label class="rf">
+        <span>Ridge thickness</span>
+        <input id="rRidge" type="text" inputmode="text" placeholder="1 1/2&quot;" value="" />
+      </label>
+      <label class="rf">
+        <span>Deduct at ridge</span>
+        <select id="rRidgeMode">
+          <option value="half">Half (common rafter)</option>
+          <option value="full">Full thickness</option>
+          <option value="none">No deduction</option>
+        </select>
+      </label>
+    </div>
+
+    <button id="levelBtn" class="levelbtn">
+      <span class="lv-face">
+        <span class="lv-bubble" id="lvBubble"></span>
+      </span>
+      <span class="lv-txt">
+        <b id="lvTitle">Measure pitch with phone</b>
+        <em id="lvSub">Hold phone flat on the rafter, then tap Set</em>
+      </span>
+      <span class="lv-read" id="lvRead">—</span>
+    </button>
+    <div class="lv-actions" id="lvActions" hidden>
+      <button id="lvSet">Set as pitch</button>
+      <button id="lvStop">Stop</button>
+    </div>
+
+    <div class="rout" id="rout"></div>
+
+    <div class="rnote">
+      Run is half the span for a gable. Rafter lengths include overhang when entered,
+      measured along the slope from the ridge to the tail cut.
+    </div>
+  </div>
+
+  <!-- running tape -->
+  <div class="tape">
+    <h2>Tape <button id="clearTape">Clear</button></h2>
+    <div id="tapeList"><div class="empty">No calculations yet.</div></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+
+  var denom = 16;          // display precision
+  var tokens = [];         // e.g. ["12'","4","5/8","+","8","1/2"]
+  var memory = null;
+  var history = [];
+  var lastResult = null;
+
+  // ---------- math ----------
+  function toInches(chunk){
+    // chunk: array of tokens between operators
+    var total = 0;
+    for (var i=0;i<chunk.length;i++){
+      var t = chunk[i];
+      if (t.slice(-1) === "'") total += parseFloat(t) * 12;
+      else if (t.indexOf('/') > -1){
+        var p = t.split('/');
+        total += parseFloat(p[0]) / parseFloat(p[1]);
+      } else total += parseFloat(t);
+    }
+    return total;
+  }
+
+  function evaluate(){
+    if (!tokens.length) return null;
+    var groups = [], ops = [], cur = [];
+    for (var i=0;i<tokens.length;i++){
+      var t = tokens[i];
+      if (t==='+'||t==='-'||t==='*'||t==='/'){
+        groups.push(cur); ops.push(t); cur = [];
+      } else cur.push(t);
+    }
+    groups.push(cur);
+    if (!groups[0].length) return null;
+
+    // × and ÷ first
+    var vals = groups.map(toInches);
+    for (var j=0;j<ops.length;j++){
+      if (ops[j]==='*' || ops[j]==='/'){
+        var a = vals[j], b = vals[j+1];
+        if (isNaN(a)||isNaN(b)) return null;
+        var r = ops[j]==='*' ? a*b : (b===0 ? NaN : a/b);
+        vals.splice(j,2,r); ops.splice(j,1); j--;
+      }
+    }
+    var out = vals[0];
+    for (var k=0;k<ops.length;k++){
+      out = ops[k]==='+' ? out + vals[k+1] : out - vals[k+1];
+    }
+    return isNaN(out) ? null : out;
+  }
+
+  function fmtFtIn(inches, d){
+    d = d || denom;
+    if (inches === null || isNaN(inches)) return '—';
+    var neg = inches < 0, v = Math.abs(inches);
+    var ft = Math.floor(v/12), rem = v - ft*12;
+    var whole = Math.floor(rem);
+    var num = Math.round((rem - whole) * d);
+    if (num === d){ whole++; num = 0; }
+    if (whole === 12){ ft++; whole = 0; }
+    var dd = d;
+    while (num && num % 2 === 0 && dd % 2 === 0){ num /= 2; dd /= 2; }
+    var s = '';
+    if (ft) s += ft + "' ";
+    s += whole;
+    if (num) s += ' ' + num + '/' + dd;
+    s += '"';
+    return (neg ? '-' : '') + s.trim();
+  }
+
+  // ---------- render ----------
+  function exprText(){
+    var s = '';
+    for (var i=0;i<tokens.length;i++){
+      var t = tokens[i];
+      var sym = t==='*' ? '×' : t==='/' ? '÷' : t==='-' ? '−' : t;
+      var needSpace = (t==='+'||t==='-'||t==='*'||t==='/') ||
+                      (i>0 && ['+','-','*','/'].indexOf(tokens[i-1])>-1);
+      s += (i && (needSpace || t.indexOf('/')>-1 || tokens[i-1].slice(-1)==="'") ? ' ' : '') + sym;
+    }
+    return s;
+  }
+
+  function render(){
+    $('expr').textContent = exprText() || '\u00a0';
+    var v = evaluate();
+    $('result').textContent = v === null ? '0"' : fmtFtIn(v);
+    $('dec').textContent   = (v === null ? 0 : v).toFixed(3) + ' in';
+    $('feetdec').textContent = ((v === null ? 0 : v)/12).toFixed(3) + ' ft';
+    lastResult = v;
+  }
+
+  function renderTape(){
+    var host = $('tapeList');
+    if (!history.length){ host.innerHTML = '<div class="empty">No calculations yet.</div>'; return; }
+    host.innerHTML = '';
+    for (var i=history.length-1;i>=0;i--){
+      (function(h){
+        var row = document.createElement('div');
+        row.className = 'row';
+        var a = document.createElement('span'); a.className='r-expr'; a.textContent = h.expr;
+        var b = document.createElement('span'); b.className='r-val';  b.textContent = h.val;
+        row.appendChild(a); row.appendChild(b);
+        row.addEventListener('click', function(){
+          tokens = [String(h.raw)]; render();
+        });
+        host.appendChild(row);
+      })(history[i]);
+    }
+  }
+
+  // ---------- input ----------
+  function lastTok(){ return tokens[tokens.length-1]; }
+  function isOp(t){ return t==='+'||t==='-'||t==='*'||t==='/'; }
+
+  function pushDigit(d){
+    var t = lastTok();
+    if (t && !isOp(t) && t.indexOf('/')===-1 && t.slice(-1)!=="'"){
+      if (d==='.' && t.indexOf('.')>-1) return;
+      tokens[tokens.length-1] = t + d;
+    } else {
+      if (d==='.') d = '0.';
+      tokens.push(d);
+    }
+    render();
+  }
+
+  function pushFeet(){
+    var t = lastTok();
+    if (!t || isOp(t) || t.slice(-1)==="'" || t.indexOf('/')>-1) return;
+    tokens[tokens.length-1] = t + "'";
+    render();
+  }
+
+  function pushFrac(f){
+    var t = lastTok();
+    if (t && t.indexOf('/')>-1) tokens[tokens.length-1] = f;  // swap fraction
+    else tokens.push(f);
+    render();
+  }
+
+  function pushOp(op){
+    if (!tokens.length){
+      if (lastResult !== null){ tokens = [String(lastResult)]; }
+      else return;
+    }
+    if (isOp(lastTok())) tokens[tokens.length-1] = op;
+    else tokens.push(op);
+    render();
+  }
+
+  function equals(){
+    var v = evaluate();
+    if (v === null) return;
+    history.push({ expr: exprText(), val: fmtFtIn(v), raw: v });
+    if (history.length > 60) history.shift();
+    tokens = [String(v)];
+    render(); renderTape();
+  }
+
+  // ---------- wire up ----------
+  var pad = document.querySelector('.pad');
+  pad.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.n)  return pushDigit(b.dataset.n);
+    if (b.dataset.f)  return pushFrac(b.dataset.f);
+    if (b.dataset.u)  return pushFeet();
+    if (b.dataset.op) return pushOp(b.dataset.op);
+  });
+
+  $('equals').addEventListener('click', equals);
+  $('clear').addEventListener('click', function(){ tokens=[]; render(); });
+  $('back').addEventListener('click', function(){
+    var t = lastTok();
+    if (!t) return;
+    if (t.length > 1 && !isOp(t) && t.indexOf('/')===-1) tokens[tokens.length-1] = t.slice(0,-1);
+    else tokens.pop();
+    render();
+  });
+  $('clearTape').addEventListener('click', function(){ history=[]; renderTape(); });
+
+  // precision toggle
+  $('prec').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    denom = parseInt(b.dataset.d,10);
+    Array.prototype.forEach.call(this.querySelectorAll('button'), function(x){
+      x.setAttribute('aria-pressed', x===b ? 'true':'false');
+    });
+    render(); renderTape();
+  });
+
+  // memory / quick math
+  document.querySelector('.memstrip').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    var k = b.dataset.mem, v = evaluate();
+    if (k==='store'){
+      if (v===null) return;
+      memory = v;
+      $('recallBtn').textContent = 'Recall ' + fmtFtIn(v);
+      return;
+    }
+    if (k==='recall'){
+      if (memory===null) return;
+      tokens = [String(memory)]; render(); return;
+    }
+    if (v===null) return;
+    if (k==='half')  tokens = [String(v/2)];
+    if (k==='third') tokens = [String(v/3)];
+    if (k==='16oc')  tokens = [String(v/16)];
+    if (k==='24oc')  tokens = [String(v/24)];
+    render();
+  });
+
+  // physical keyboard
+  document.addEventListener('keydown', function(e){
+    var k = e.key;
+    if (/^[0-9]$/.test(k)) return pushDigit(k);
+    if (k==='.')  return pushDigit('.');
+    if (k==='+'||k==='-'||k==='*'||k==='/') return pushOp(k);
+    if (k==='Enter'||k==='=') { e.preventDefault(); return equals(); }
+    if (k==='Backspace'){ e.preventDefault(); return $('back').click(); }
+    if (k==='Escape') { tokens=[]; return render(); }
+    if (k==='f'||k==='F') return pushFeet();
+  });
+
+  // decorative tape ticks
+  (function(){
+    var host = $('ticks'), html = '';
+    for (var i=0;i<64;i++){
+      var c = i%8===0 ? 'h' : i%4===0 ? 'm' : 's';
+      html += '<i class="'+c+'"></i>';
+    }
+    host.innerHTML = html;
+  })();
+
+  // ---------- text -> inches parser (for roof inputs) ----------
+  function parseLen(s){
+    s = String(s || '').trim();
+    if (!s) return 0;
+    var total = 0;
+    var fm = s.match(/(-?[\d.]+)\s*(?:'|ft\b|feet\b)/i);
+    if (fm){ total += parseFloat(fm[1]) * 12; s = s.replace(fm[0], ' '); }
+    s = s.replace(/["]|\bin\b|\binches\b/gi, ' ').trim();
+    var fr = s.match(/(-?\d+)?\s*(\d+)\s*\/\s*(\d+)/);
+    if (fr){
+      total += (fr[1] ? parseFloat(fr[1]) : 0) + parseFloat(fr[2]) / parseFloat(fr[3]);
+    } else if (s){
+      var n = parseFloat(s);
+      if (!isNaN(n)) total += n;
+    }
+    return total;
+  }
+
+  // ---------- roof mode ----------
+  var mode = 'tape';
+
+  function setMode(m){
+    mode = m;
+    var roofOn = m === 'roof';
+    document.querySelector('.pad').hidden = roofOn;
+    document.querySelector('.memstrip').hidden = roofOn;
+    document.querySelector('.hint').hidden = roofOn;
+    $('roofPanel').hidden = !roofOn;
+    document.querySelector('.blade').style.display = roofOn ? 'none' : '';
+    document.querySelector('.tape').hidden = roofOn;
+    Array.prototype.forEach.call($('modes').querySelectorAll('button'), function(b){
+      b.setAttribute('aria-pressed', b.dataset.mode === m ? 'true' : 'false');
+    });
+    if (roofOn) roofCalc();
+  }
+
+  $('modes').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    setMode(b.dataset.mode);
+  });
+
+  function roofRow(label, value, sub, key){
+    return '<div class="ro' + (key ? ' key' : '') + '">' +
+             '<span class="k-lbl">' + label + '</span>' +
+             '<span class="k-val">' + value +
+               (sub ? '<span class="k-sub">' + sub + '</span>' : '') +
+             '</span>' +
+           '</div>';
+  }
+
+  function roofCalc(){
+    var rise = parseFloat($('rRise').value);
+    if (isNaN(rise) || rise < 0) rise = 0;
+    var run  = parseLen($('rRun').value);      // inches, horizontal
+    var over = parseLen($('rOver').value);     // inches, horizontal overhang
+
+    var commonFactor = Math.sqrt(rise * rise + 144) / 12;
+    var hipFactor    = Math.sqrt(rise * rise + 288) / 12;
+
+    var ridgeT    = parseLen($('rRidge').value);
+    var ridgeMode = $('rRidgeMode').value;
+    var ridgeDed  = ridgeMode === 'half' ? ridgeT / 2 : ridgeMode === 'full' ? ridgeT : 0;
+    // deduction is measured along the slope, square off the ridge face
+    var ridgeSlope = ridgeDed * commonFactor;
+
+    var rafter    = run * commonFactor - ridgeSlope;
+    var tail      = over * commonFactor;
+    var totalRaft = rafter + tail;
+    var totalRise = run * (rise / 12);
+    var angle     = Math.atan2(rise, 12) * 180 / Math.PI;
+    var slopePct  = (rise / 12) * 100;
+    var hipRun    = Math.sqrt(run * run + run * run);          // plan diagonal
+    var hipLen    = Math.sqrt(run * run * 2 + totalRise * totalRise);
+
+    var html = '';
+    var subBits = [];
+    if (over) subBits.push(fmtFtIn(rafter) + ' + ' + fmtFtIn(tail) + ' tail');
+    if (ridgeSlope) subBits.push('less ' + fmtFtIn(ridgeSlope) + ' ridge');
+    if (!subBits.length) subBits.push((totalRaft / 12).toFixed(3) + ' ft');
+    html += roofRow('Common rafter', fmtFtIn(totalRaft), subBits.join(' \u00b7 '), true);
+    html += roofRow('Total rise', fmtFtIn(totalRise), (totalRise/12).toFixed(3) + ' ft');
+    html += roofRow('Pitch', rise + '/12', slopePct.toFixed(1) + '% slope');
+    html += roofRow('Angle', angle.toFixed(2) + '\u00b0', 'from horizontal');
+    html += roofRow('Rafter per foot of run', commonFactor.toFixed(4), 'multiply run by this');
+    html += roofRow('Hip / valley', fmtFtIn(hipLen), 'factor ' + hipFactor.toFixed(4));
+    if (run) html += roofRow('Span (gable)', fmtFtIn(run * 2), 'run \u00d7 2');
+    $('rout').innerHTML = html;
+  }
+
+  ['rRise','rRun','rOver','rRidge'].forEach(function(id){
+    $(id).addEventListener('input', function(){
+      if (id === 'rRise'){
+        $('rAngle').value = '';
+        Array.prototype.forEach.call($('pitchbar').querySelectorAll('button'), function(b){
+          b.setAttribute('aria-pressed', b.dataset.p === $('rRise').value ? 'true' : 'false');
+        });
+      }
+      roofCalc();
+    });
+  });
+
+  $('rRidgeMode').addEventListener('change', roofCalc);
+
+  // ---------- phone level (DeviceOrientation) ----------
+  var lvOn = false, lvAngle = null, lvHandler = null;
+
+  function lvUpdate(deg){
+    lvAngle = deg;
+    var pitch = Math.tan(Math.abs(deg) * Math.PI / 180) * 12;
+    $('lvRead').textContent = Math.abs(deg).toFixed(1) + '\u00b0';
+    $('lvSub').textContent  = 'Reads ' + (Math.round(pitch * 4) / 4) + '/12 \u2014 tap Set as pitch';
+    var b = $('lvBubble');
+    var clamp = Math.max(-45, Math.min(45, deg));
+    b.style.left = (50 + clamp) + '%';
+    b.classList.toggle('off', Math.abs(deg) > 1);
+  }
+
+  function lvStart(){
+    if (!window.DeviceOrientationEvent){
+      $('lvTitle').textContent = 'Level not available';
+      $('lvSub').textContent = 'This device has no tilt sensor';
+      return;
+    }
+    var begin = function(){
+      lvOn = true;
+      $('lvActions').hidden = false;
+      $('lvTitle').textContent = 'Reading tilt\u2026';
+      lvHandler = function(e){
+        // beta = front/back tilt. Phone flat on a slope reads the slope angle.
+        var deg = e.beta;
+        if (deg === null || deg === undefined) return;
+        if (deg > 90) deg = 180 - deg;
+        if (deg < -90) deg = -180 - deg;
+        lvUpdate(deg);
+      };
+      window.addEventListener('deviceorientation', lvHandler);
+    };
+    // iOS 13+ requires an explicit permission request from a user gesture
+    if (typeof DeviceOrientationEvent.requestPermission === 'function'){
+      DeviceOrientationEvent.requestPermission().then(function(state){
+        if (state === 'granted') begin();
+        else {
+          $('lvTitle').textContent = 'Motion access denied';
+          $('lvSub').textContent = 'Allow Motion & Orientation in Safari settings';
+        }
+      }).catch(function(){
+        $('lvTitle').textContent = 'Level needs HTTPS';
+        $('lvSub').textContent = 'Open the calculator over https:// to use tilt';
+      });
+    } else begin();
+  }
+
+  function lvStopFn(){
+    lvOn = false;
+    if (lvHandler) window.removeEventListener('deviceorientation', lvHandler);
+    $('lvActions').hidden = true;
+    $('lvTitle').textContent = 'Measure pitch with phone';
+    $('lvSub').textContent = 'Hold phone flat on the rafter, then tap Set';
+    $('lvRead').textContent = '\u2014';
+  }
+
+  $('levelBtn').addEventListener('click', function(){ if (!lvOn) lvStart(); });
+  $('lvStop').addEventListener('click', function(e){ e.stopPropagation(); lvStopFn(); });
+  $('lvSet').addEventListener('click', function(e){
+    e.stopPropagation();
+    if (lvAngle === null) return;
+    var pitch = Math.tan(Math.abs(lvAngle) * Math.PI / 180) * 12;
+    pitch = Math.round(pitch * 4) / 4;              // nearest 1/4 per 12
+    $('rRise').value = pitch;
+    $('rAngle').value = '';
+    Array.prototype.forEach.call($('pitchbar').querySelectorAll('button'), function(b){
+      b.setAttribute('aria-pressed', b.dataset.p === String(pitch) ? 'true' : 'false');
+    });
+    roofCalc();
+    lvStopFn();
+  });
+
+  // angle input drives rise
+  $('rAngle').addEventListener('input', function(){
+    var a = parseFloat(this.value);
+    if (isNaN(a) || a <= 0 || a >= 90) return;
+    var r = Math.tan(a * Math.PI / 180) * 12;
+    $('rRise').value = Math.round(r * 100) / 100;
+    Array.prototype.forEach.call($('pitchbar').querySelectorAll('button'), function(b){
+      b.setAttribute('aria-pressed', 'false');
+    });
+    roofCalc();
+  });
+
+  // pitch preset chips
+  $('pitchbar').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    $('rRise').value = b.dataset.p;
+    $('rAngle').value = '';
+    Array.prototype.forEach.call(this.querySelectorAll('button'), function(x){
+      x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+    });
+    roofCalc();
+  });
+
+  render(); renderTape(); roofCalc();
+})();
+</script>
+</body>
+</html>

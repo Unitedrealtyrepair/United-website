@@ -20,7 +20,7 @@ const COMPANY = {
 };
 
 const ROLE_ACCESS = {
-  admin:    ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Scans", "Invoices", "Change Orders", "Estimates", "Materials", "Subs"],
+  admin:    ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Scans", "Invoices", "Change Orders", "Estimates", "Materials", "Subs", "Calc"],
   customer: ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Invoices", "Change Orders", "Estimates"],
   sub:      ["Schedule", "Daily Logs", "Documents", "Photos", "Invoices", "Estimates", "Materials"]
 };
@@ -124,6 +124,7 @@ let termsLibrary = [];  // [{id, name, body, default}] — admin-only contract t
 let custInvoices = [];  // customer invoices — memory only
 let folderGrants = {};  // { folderId: [sub emails granted access] } — admin-only
 let subBids = [];       // sub bid submissions — memory only
+let calcAccess = [];    // emails granted the Field Calc tab — admin-managed
 let costs = [];         // job costing entries — ADMIN ONLY, memory only
 let editingCostId = null;
 let editingEstId = null;
@@ -156,6 +157,7 @@ function applyRemote(remote) {
   if (remote["urrTermsLibrary"]) termsLibrary = remote["urrTermsLibrary"];
   custInvoices = remote[pkey("CustInvoices")] || [];
   subBids = remote[pkey("SubEstimates")] || [];
+  if (remote["urrCalcAccess"]) calcAccess = remote["urrCalcAccess"];
   costs = remote[pkey("Costs")] || [];
   if (remote[pkey("FolderGrants")]) folderGrants = remote[pkey("FolderGrants")];
   if (remote["urrSubs"]) subs = remote["urrSubs"];
@@ -215,6 +217,7 @@ async function saveSubs()     { cacheSet("urrSubs", subs);            pushCollec
 async function saveFolderPerms() { cacheSet(pkey("FolderPerms"), folderPerms); pushCollection(pkey("FolderPerms"), folderPerms); }
 async function saveEstimates()   { pushCollection(pkey("Estimates"), estimates); }
 async function saveTermsLibrary() { pushCollection("urrTermsLibrary", termsLibrary); }
+async function saveCalcAccess()  { pushCollection("urrCalcAccess", calcAccess); }
 async function saveFolderGrants() { pushCollection(pkey("FolderGrants"), folderGrants); }
 async function saveCosts()        { pushCollection(pkey("Costs"), costs); }
 
@@ -696,7 +699,12 @@ function logout() {
 
 // ---------- Tabs ----------
 function buildTabs() {
-  const tabs = ROLE_ACCESS[SESSION.role] || [];
+  const tabs = (ROLE_ACCESS[SESSION.role] || []).slice();
+  // Field Calc: admins always; others only when explicitly granted
+  if (!isAdmin() && calcAccess.indexOf(String(SESSION.email).toLowerCase()) !== -1
+      && tabs.indexOf("Calc") === -1) {
+    tabs.push("Calc");
+  }
   const nav = $("tabs");
   nav.innerHTML = "";
   activeTab = tabs[0];
@@ -878,7 +886,9 @@ function render() {
     "logs-section":     activeTab === "Daily Logs",
     "subs-section":     activeTab === "Subs",
     "invoices-section": activeTab === "Invoices",
-    "estimates-section": activeTab === "Estimates"
+    "estimates-section": activeTab === "Estimates",
+    "calc-section": activeTab === "Calc" &&
+      (isAdmin() || calcAccess.indexOf(String(SESSION.email).toLowerCase()) !== -1)
   };
   $("pl-card").classList.toggle("hidden", !(activeTab === "Budget" && isAdmin()));
   for (const [id, show] of Object.entries(sections)) {
@@ -903,6 +913,7 @@ function render() {
   if (activeTab === "Subs") renderSubs();
   if (activeTab === "Invoices") renderInvoices();
   if (activeTab === "Estimates") renderEstimates();
+  if (activeTab === "Calc") renderCalc();
 
   // File grid only on file tabs
   const list = $("file-list");
@@ -2317,6 +2328,8 @@ function openCustInvoicePreview(id) {
   if (!inv) return;
   previewEstId = null;
   previewInvId = id;
+  const sb = $("est-send-btn");
+  if (sb) sb.classList.add("hidden");
   renderEstimateDoc(inv, $("est-preview-doc"), "INVOICE");
   $("est-preview-modal").classList.remove("hidden");
 }
@@ -2702,6 +2715,7 @@ function renderEstimates() {
     meta.textContent = [
       e.date ? fmtDateLong(e.date) : null,
       fmtMoney(t.total),
+      Number(e.revision) ? "Rev " + e.revision : null,
       e.signedName ? "Signed: " + e.signedName : null
     ].filter(Boolean).join("  ·  ");
     card.appendChild(meta);
@@ -3673,7 +3687,7 @@ function renderEstimateDoc(e, host, kind) {
     for (const r of n.schedule) {
       const row = document.createElement("div");
       row.className = "ev-row ev-sched";
-      row.innerHTML = "<span>" + escapeHtml(r.desc || "") + "</span><span></span><span></span><span>" + fmtMoney(r.amount) + "</span>";
+      row.innerHTML = "<span class='ev-sched-desc'>" + escapeHtml(r.desc || "") + "</span><span></span><span></span><span>" + fmtMoney(r.amount) + "</span>";
       host.appendChild(row);
     }
   }
@@ -3724,6 +3738,12 @@ function openEstPreview(id) {
   if (!e) return;
   previewEstId = id;
   previewInvId = null;
+  const sb = $("est-send-btn");
+  if (sb) {
+    sb.classList.remove("hidden");
+    const already = e.status === "sent" || e.status === "approved" || e.status === "declined" || e.sentAt;
+    sb.textContent = already ? "📨 Update Customer" : "📨 Send to Customer";
+  }
   renderEstimateDoc(e, $("est-preview-doc"));
   $("est-preview-modal").classList.remove("hidden");
 }
@@ -4090,6 +4110,52 @@ async function generateEstimatePdf(e, progress, kind) {
   doc.save(name);
 }
 
+// Push (or re-push) an estimate to the customer: flips status to "sent",
+// clears any prior response so they can sign the revision, and notifies them.
+async function sendEstimateToCustomer() {
+  if (!previewEstId) return;
+  const i = estimates.findIndex((x) => x.id === previewEstId);
+  if (i < 0) return;
+  const e = estimates[i];
+  const btn = $("est-send-btn");
+  const wasResponded = e.status === "approved" || e.status === "declined";
+  const revised = wasResponded || e.sentAt;
+
+  let msg;
+  if (revised) {
+    msg = "Send the REVISED estimate " + (e.number || "") + " to the customer?\n\n" +
+          (wasResponded ? "This clears their previous " + e.status + " response — they'll need to review and sign again.\n\n" : "") +
+          "They'll see the updated version immediately.";
+  } else {
+    msg = "Send estimate " + (e.number || "") + " to the customer?\n\nThey'll be able to review and sign it in their portal.";
+  }
+  if (!confirm(msg)) return;
+
+  btn.disabled = true;
+  btn.textContent = "Sending…";
+  try {
+    e.status = "sent";
+    e.sentAt = new Date().toISOString();
+    if (wasResponded) {
+      e.respondedAt = "";
+      e.signedName = "";
+      e.respondedBy = "";
+      // keep e.budgeted so an already-converted estimate can't double-post
+    }
+    e.revision = (Number(e.revision) || 0) + (revised ? 1 : 0);
+    estimates[i] = e;
+    await saveEstimates();
+    btn.textContent = revised ? "✓ Revision sent" : "✓ Sent";
+    render();
+  } catch (err) {
+    btn.textContent = "✗ Failed — try again";
+  }
+  setTimeout(() => {
+    btn.textContent = "📨 Send to Customer";
+    btn.disabled = false;
+  }, 2600);
+}
+
 // ----- Customer view -----
 function openEstView(id) {
   const e = estimates.find((x) => x.id === id);
@@ -4132,6 +4198,14 @@ async function respondEstimate(response) {
     alert("Couldn't submit: " + e.message);
   }
   btn.disabled = false;
+}
+
+// ---------- Field Calc ----------
+function renderCalc() {
+  const frame = $("calc-frame");
+  if (frame && !frame.getAttribute("src")) {
+    frame.setAttribute("src", "calc.html");
+  }
 }
 
 // ---------- Subs ----------
@@ -4236,6 +4310,42 @@ function subDocsBlock(s) {
   return wrap;
 }
 
+function renderCalcAccess(host) {
+  if (!isAdmin()) return;
+  const wrap = document.createElement("div");
+  wrap.className = "calc-access";
+  const lbl = document.createElement("div");
+  lbl.className = "calc-access-lbl";
+  lbl.textContent = "🧮 Field Calc access — tap a name to give them the Calc tab";
+  wrap.appendChild(lbl);
+
+  const chips = document.createElement("div");
+  chips.className = "album-perms";
+  const people = (SESSION.members && SESSION.members.length ? SESSION.members : presenceRosterList())
+    .filter((u) => u.role !== "admin");
+  if (!people.length) {
+    const em = document.createElement("span");
+    em.className = "calc-access-empty";
+    em.textContent = "No sub or customer accounts yet.";
+    chips.appendChild(em);
+  }
+  for (const u of people) {
+    const on = calcAccess.indexOf(String(u.email).toLowerCase()) !== -1;
+    const chip = document.createElement("button");
+    chip.className = "perm-chip" + (on ? " on" : "");
+    chip.textContent = (on ? "✓ " : "") + u.email + " (" + u.role + ")";
+    chip.addEventListener("click", async () => {
+      const e = String(u.email).toLowerCase();
+      calcAccess = on ? calcAccess.filter((x) => x !== e) : calcAccess.concat([e]);
+      await saveCalcAccess();
+      render();
+    });
+    chips.appendChild(chip);
+  }
+  wrap.appendChild(chips);
+  host.appendChild(wrap);
+}
+
 function renderSubs() {
   const list = $("subs-list");
   list.innerHTML = "";
@@ -4282,6 +4392,7 @@ function renderSubs() {
     list.appendChild(card);
   }
   if (subFilesData === null) loadSubFiles();
+  renderCalcAccess(list);
 }
 
 function subLine(icon, text, href) {
@@ -4886,6 +4997,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     renderTermsControls();
   });
   $("est-pdf-btn").addEventListener("click", downloadEstPdf);
+  $("est-send-btn").addEventListener("click", sendEstimateToCustomer);
   $("est-preview-close").addEventListener("click", () => closeModal("est-preview-modal"));
   $("est-preview-edit").addEventListener("click", () => {
     closeModal("est-preview-modal");
