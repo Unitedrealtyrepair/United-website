@@ -357,6 +357,45 @@
   .io-scroll{flex:1;overflow:auto;padding:12px;-webkit-overflow-scrolling:touch;}
   .io-scroll img{width:100%;height:auto;display:block;border-radius:8px;}
 
+  /* ---- Mode switching (beats display:grid/flex) ---- */
+  body.mode-roof .pad,
+  body.mode-roof .memstrip,
+  body.mode-roof .hint,
+  body.mode-roof .blade,
+  body.mode-roof .tape { display:none !important; }
+  body.mode-tape .roof { display:none !important; }
+
+  /* ---- Roof: fit one screen, no scrolling ---- */
+  body.mode-roof .roof{padding:8px 10px 10px;}
+  body.mode-roof .pitchbar{padding-bottom:8px;gap:5px;}
+  body.mode-roof .pitchbar button{
+    font-size:12.5px;padding:8px 10px;min-height:36px;border-radius:7px;
+  }
+  body.mode-roof .pitchbar .lbl{font-size:9px;}
+  body.mode-roof .rfields{gap:6px;}
+  body.mode-roof .rf span{font-size:8px;letter-spacing:.1em;}
+  body.mode-roof .rf input,
+  body.mode-roof .rf select{padding:7px 8px;font-size:14px;border-radius:7px;}
+  body.mode-roof .levelbtn{margin-top:8px;padding:8px 10px;gap:9px;}
+  body.mode-roof .lv-face{width:44px;height:18px;}
+  body.mode-roof .lv-bubble{width:12px;height:12px;margin:-6px 0 0 -6px;}
+  body.mode-roof .lv-txt b{font-size:12.5px;}
+  body.mode-roof .lv-txt em{font-size:9.5px;}
+  body.mode-roof .lv-read{font-size:14px;}
+  body.mode-roof .lv-actions{margin-top:6px;}
+  body.mode-roof .lv-actions button{padding:9px;font-size:13px;}
+  body.mode-roof .rout{margin-top:9px;}
+  body.mode-roof .ro{padding:6px 11px;}
+  body.mode-roof .ro.key{padding:9px 11px;}
+  body.mode-roof .ro .k-lbl{font-size:9px;letter-spacing:.1em;}
+  body.mode-roof .ro .k-val{font-size:13.5px;}
+  body.mode-roof .ro.key .k-val{font-size:18px;}
+  body.mode-roof .ro .k-sub{font-size:9px;}
+  body.mode-roof .share-row{margin-top:9px;gap:6px;}
+  body.mode-roof .sharebtn,
+  body.mode-roof .compactbtn{padding:10px 6px;font-size:12.5px;}
+  body.mode-roof .rnote{display:none;}
+
   .rnote{
     font-size:11px;color:var(--ink-mute);font-family:'Roboto Mono',monospace;
     line-height:1.55;padding:12px 2px 0;
@@ -796,12 +835,11 @@
   function setMode(m){
     mode = m;
     var roofOn = m === 'roof';
-    document.querySelector('.pad').hidden = roofOn;
-    document.querySelector('.memstrip').hidden = roofOn;
-    document.querySelector('.hint').hidden = roofOn;
+    // Body class, not the hidden attribute: .pad/.memstrip/.tape use
+    // display:grid|flex in CSS, which overrides [hidden].
+    document.body.classList.toggle('mode-roof', roofOn);
+    document.body.classList.toggle('mode-tape', !roofOn);
     $('roofPanel').hidden = !roofOn;
-    document.querySelector('.blade').style.display = roofOn ? 'none' : '';
-    document.querySelector('.tape').hidden = roofOn;
     Array.prototype.forEach.call($('modes').querySelectorAll('button'), function(b){
       b.setAttribute('aria-pressed', b.dataset.mode === m ? 'true' : 'false');
     });
@@ -965,6 +1003,7 @@
     roofCalc();
   });
 
+  setMode('tape');            // establishes the body mode class on load
   render(); renderTape(); roofCalc();
 })();
 </script>
