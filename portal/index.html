@@ -6,7 +6,7 @@
   <title>URR Project Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=124" />
+  <link rel="stylesheet" href="styles.css?v=125" />
 </head>
 <body>
 
@@ -231,6 +231,18 @@
       <div id="calc-section" class="hidden">
         <iframe id="calc-frame" class="calc-frame" title="Field Calculator"
                 allow="accelerometer; gyroscope; magnetometer"></iframe>
+      </div>
+
+      <!-- ===== Building Codes & References ===== -->
+      <div id="codes-section" class="hidden">
+        <div class="section-toolbar">
+          <div class="section-title">Building Codes &amp; References</div>
+        </div>
+        <div class="codes-intro">
+          Codes and standards called out on the project plan sheets. Links open
+          the official source — ICC Digital Codes and NFPA offer free read-only access.
+        </div>
+        <div id="codes-list"></div>
       </div>
 
       <div id="loading" class="status-msg">Loading project files…</div>
@@ -551,6 +563,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=124"></script>
+  <script src="app.js?v=125"></script>
 </body>
 </html>

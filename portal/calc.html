@@ -266,110 +266,73 @@
 
   /* ---------- Phone level (graphic vial) ---------- */
   .lv-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;width:100%;}
-  /* Yellow level body — like a Stabila / Empire */
+  /* Yellow level body */
   .lv-vial{
     position:relative;display:flex;align-items:center;justify-content:center;
-    width:100%;height:48px;border-radius:4px;overflow:hidden;margin:8px 0 3px;
-    background:linear-gradient(180deg,
-      #ffd83d 0%, #f5c518 18%, #edb810 50%, #d9a50c 82%, #f2c62a 100%);
+    width:100%;height:44px;border-radius:4px;overflow:hidden;margin:8px 0 3px;
+    background:linear-gradient(180deg,#ffd83d 0%,#f5c518 20%,#e8b70e 55%,#d4a20b 100%);
     border:1px solid #b8910a;
-    box-shadow:
-      inset 0 1px 0 rgba(255,255,255,.55),
-      inset 0 -1px 0 rgba(0,0,0,.14),
-      0 1px 2px rgba(15,36,64,.18);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.5), 0 1px 2px rgba(15,36,64,.18);
   }
-  /* machined edge lines along top and bottom, like an extruded frame */
-  .lv-vial::before,
-  .lv-vial::after{
-    content:'';position:absolute;left:0;right:0;height:1px;
-    background:rgba(0,0,0,.10);
+  .lv-vial::before,.lv-vial::after{
+    content:'';position:absolute;left:0;right:0;height:1px;background:rgba(0,0,0,.09);
   }
-  .lv-vial::before{top:7px;}
-  .lv-vial::after{bottom:7px;}
+  .lv-vial::before{top:6px;} .lv-vial::after{bottom:6px;}
 
-  /* logo stamped on the yellow body, left side */
+  /* logo in full color on the yellow body */
   .lv-etch{
-    position:absolute;left:9px;top:0;bottom:0;
+    position:absolute;left:10px;top:0;bottom:0;
     display:flex;align-items:center;pointer-events:none;z-index:1;
   }
-  .lv-etch-mark{height:52%;width:auto;opacity:.34;filter:grayscale(1) brightness(.25);}
+  .lv-etch-mark{height:56%;width:auto;opacity:1;filter:none;}
 
-  /* dark recessed panel holding the vial */
+  /* dark housing — SHORT, centered, like a real vial window */
   .lv-window{
-    position:relative;width:60%;max-width:250px;height:30px;
+    position:relative;width:112px;height:26px;
     display:flex;align-items:center;justify-content:center;
-    background:linear-gradient(180deg,#2b2b2b 0%,#1a1a1a 52%,#242424 100%);
+    background:linear-gradient(180deg,#2e2e2e 0%,#171717 55%,#232323 100%);
     border-radius:3px;
-    box-shadow:
-      inset 0 2px 4px rgba(0,0,0,.6),
-      inset 0 -1px 0 rgba(255,255,255,.06),
-      0 0 0 1px rgba(0,0,0,.35);
+    box-shadow:inset 0 1px 3px rgba(0,0,0,.7), 0 0 0 1px rgba(0,0,0,.4);
     z-index:2;
   }
-  /* the clear glass vial barrel inside the panel */
+  /* the glass barrel */
   .lv-liquid{
-    position:absolute;left:5%;right:5%;top:50%;height:19px;margin-top:-9.5px;
-    border-radius:9.5px;
-    background:linear-gradient(180deg,
-      rgba(214,240,150,.92) 0%,
-      rgba(178,222,88,.95) 38%,
-      rgba(150,205,52,.95) 72%,
-      rgba(124,180,38,.95) 100%);
-    box-shadow:
-      inset 0 2px 3px rgba(60,90,15,.35),
-      inset 0 -1px 2px rgba(255,255,255,.45),
-      0 0 0 1.5px rgba(235,235,225,.85);
+    position:absolute;left:4px;right:4px;top:4px;bottom:4px;
+    border-radius:9px;
+    background:linear-gradient(180deg,#d8f0a0 0%,#b6e05c 40%,#9ad233 75%,#82bb28 100%);
+    box-shadow:inset 0 1px 2px rgba(60,90,15,.4), 0 0 0 1.5px rgba(240,240,232,.9);
   }
   .lv-gloss{
-    position:absolute;left:6.5%;right:6.5%;top:50%;height:8px;margin-top:-8px;
-    border-radius:9px 9px 50% 50% / 9px 9px 100% 100%;
-    background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,0));
+    position:absolute;left:6px;right:6px;top:5px;height:7px;
+    border-radius:8px 8px 50% 50% / 8px 8px 100% 100%;
+    background:linear-gradient(180deg,rgba(255,255,255,.6),rgba(255,255,255,0));
     pointer-events:none;z-index:4;
   }
+  .lv-ticks{display:none;}   /* keep it clean — the rings are the reference */
 
-  /* tick marks etched on the vial */
-  .lv-ticks{position:absolute;left:5%;right:5%;top:50%;height:19px;margin-top:-9.5px;z-index:3;}
-  .lv-ticks i{
-    position:absolute;top:50%;transform:translateY(-50%);
-    width:1px;height:5px;background:rgba(40,60,10,.35);
-  }
-  .lv-ticks i.maj{height:9px;width:1.2px;background:rgba(40,60,10,.55);}
-
-  /* the two black rings marking level */
+  /* the two black rings that mark level */
   .lv-center{
-    position:absolute;left:50%;top:50%;height:19px;margin-top:-9.5px;
-    width:22px;margin-left:-11px;
-    border-left:2px solid rgba(20,20,20,.85);
-    border-right:2px solid rgba(20,20,20,.85);
+    position:absolute;left:50%;top:4px;bottom:4px;width:20px;margin-left:-10px;
+    border-left:2px solid rgba(15,15,15,.9);
+    border-right:2px solid rgba(15,15,15,.9);
     z-index:5;
   }
 
-  /* small bubble — lighter than the fluid, like real spirit levels */
+  /* simple bubble — pale, floats in the green */
   .lv-bubble{
     position:absolute;top:50%;left:50%;
-    width:15px;height:13px;margin:-6.5px 0 0 -7.5px;border-radius:50%;
-    background:
-      radial-gradient(ellipse at 38% 30%, rgba(255,255,255,.95) 0%, rgba(255,255,255,.5) 34%, rgba(255,255,255,.12) 62%, rgba(255,255,255,0) 100%),
-      radial-gradient(ellipse at 50% 60%, rgba(238,252,208,.95) 0%, rgba(222,245,170,.9) 60%, rgba(206,236,140,.85) 100%);
-    border:1px solid rgba(255,255,255,.8);
-    box-shadow:
-      inset 0 -1px 2px rgba(110,150,30,.35),
-      0 0 3px rgba(255,255,255,.5);
-    transition:left .07s linear;
+    width:16px;height:16px;margin-top:-8px;margin-left:-8px;border-radius:50%;
+    background:radial-gradient(circle at 38% 32%, #ffffff 0%, #f2fbdc 45%, #dff0b4 100%);
+    border:1px solid rgba(255,255,255,.9);
+    box-shadow:inset 0 -1px 2px rgba(120,160,40,.3);
+    will-change:transform;
     z-index:4;
-  }
-  /* off level: darker cast so it still reads */
-  .lv-bubble.off{
-    background:
-      radial-gradient(ellipse at 38% 30%, rgba(255,255,255,.9) 0%, rgba(255,255,255,.42) 34%, rgba(255,255,255,.1) 62%, rgba(255,255,255,0) 100%),
-      radial-gradient(ellipse at 50% 60%, rgba(226,240,214,.9) 0%, rgba(198,220,180,.85) 60%, rgba(176,200,158,.8) 100%);
   }
 
   .lv-scale{
     display:flex;justify-content:space-between;
-    width:60%;max-width:250px;margin:0 auto;
-    font-family:'Roboto Mono',monospace;font-size:8.5px;color:var(--ink-mute);
-    padding:0 4px;
+    width:120px;margin:0 auto;
+    font-family:'Roboto Mono',monospace;font-size:8px;color:var(--ink-mute);
   }
 
   /* ---------- Phone level ---------- */
@@ -1129,11 +1092,24 @@
     $('lvSub').textContent  = a < 0.6
       ? 'Level \u2014 no slope detected'
       : 'Reads ' + shown + '/12 \u2014 tap Set as pitch';
-    var frac = Math.max(0, Math.min(1, pitch / 24));
-    var b = $('lvBubble');
-    // inset the travel so the bubble never clips the rounded ends
-    b.style.left = (7 + frac * 86) + '%';
+    lvTargetPitch = pitch;
     b.classList.toggle('off', a >= 0.6);
+  }
+
+  // Smooth bubble motion — eased toward the target every frame, like the
+  // iPhone level. Uses transform so it never repaints the whole element.
+  var lvTargetPitch = 0, lvShownPitch = 0, lvRaf = null;
+
+  function lvAnimate(){
+    lvShownPitch += (lvTargetPitch - lvShownPitch) * 0.18;   // easing
+    var b = $('lvBubble');
+    if (b){
+      var frac = Math.max(0, Math.min(1, lvShownPitch / 24));
+      // travel inside the barrel: +/- 42px from centre
+      var px = (frac - 0.5) * 84;
+      b.style.transform = 'translateX(' + px.toFixed(2) + 'px)';
+    }
+    lvRaf = requestAnimationFrame(lvAnimate);
   }
 
   // Vial tick marks
@@ -1159,6 +1135,7 @@
       lvOn = true;
       $('lvActions').hidden = false;
       $('lvTitle').textContent = 'Reading tilt\u2026';
+      if (!lvRaf) lvAnimate();
       lvHandler = function(e){
         var deg = e.beta;               // front/back tilt
         if (deg === null || deg === undefined) return;
@@ -1186,6 +1163,10 @@
     lvOn = false;
     if (lvHandler) window.removeEventListener('deviceorientation', lvHandler);
     lvHandler = null;
+    if (lvRaf){ cancelAnimationFrame(lvRaf); lvRaf = null; }
+    lvTargetPitch = 0; lvShownPitch = 0;
+    var b0 = $('lvBubble');
+    if (b0) b0.style.transform = 'translateX(0px)';
     $('lvActions').hidden = true;
     $('lvTitle').textContent = 'Measure pitch with phone';
     $('lvSub').textContent = 'Lay phone flat on the rafter, then tap Set';

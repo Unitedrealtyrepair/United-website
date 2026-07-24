@@ -20,9 +20,9 @@ const COMPANY = {
 };
 
 const ROLE_ACCESS = {
-  admin:    ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Scans", "Invoices", "Change Orders", "Estimates", "Materials", "Subs", "Calc"],
+  admin:    ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Scans", "Invoices", "Change Orders", "Estimates", "Materials", "Subs", "Calc", "Codes"],
   customer: ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Invoices", "Change Orders", "Estimates"],
-  sub:      ["Schedule", "Daily Logs", "Documents", "Photos", "Invoices", "Estimates", "Materials"]
+  sub:      ["Schedule", "Daily Logs", "Documents", "Photos", "Invoices", "Estimates", "Materials", "Codes"]
 };
 
 let SESSION = null; // { email, code, role, projects, apiKey }
@@ -966,7 +966,8 @@ function render() {
     "invoices-section": activeTab === "Invoices",
     "estimates-section": activeTab === "Estimates",
     "calc-section": activeTab === "Calc" &&
-      (isAdmin() || calcAccess.indexOf(String(SESSION.email).toLowerCase()) !== -1)
+      (isAdmin() || calcAccess.indexOf(String(SESSION.email).toLowerCase()) !== -1),
+    "codes-section": activeTab === "Codes"
   };
   $("pl-card").classList.toggle("hidden", !(activeTab === "Budget" && isAdmin()));
   for (const [id, show] of Object.entries(sections)) {
@@ -992,6 +993,7 @@ function render() {
   if (activeTab === "Invoices") renderInvoices();
   if (activeTab === "Estimates") renderEstimates();
   if (activeTab === "Calc") renderCalc();
+  if (activeTab === "Codes") renderCodes();
 
   // File grid only on file tabs
   const list = $("file-list");
@@ -4312,11 +4314,103 @@ async function respondEstimate(response) {
   btn.disabled = false;
 }
 
+// ---------- Building Codes & References ----------
+const CODE_LIBRARY = [
+  {
+    group: "Adopted Building Codes — Idaho",
+    note: "Idaho adopts the 2018 I-Codes with state amendments. Free read-only access via the ICC Digital Codes library.",
+    items: [
+      { name: "2018 IRC — International Residential Code", sub: "One- and two-family dwellings. The primary code for most URR work.", url: "https://codes.iccsafe.org/content/IRC2018P4" },
+      { name: "2018 IBC — International Building Code", sub: "Commercial and multi-family structures.", url: "https://codes.iccsafe.org/content/IBC2018P4" },
+      { name: "2018 IEBC — International Existing Building Code", sub: "Alterations, repairs and additions to existing buildings.", url: "https://codes.iccsafe.org/content/IEBC2018P4" },
+      { name: "2018 IECC — Energy Conservation Code", sub: "Insulation, fenestration U-factors, air sealing. Referenced in the envelope table on A1.1.", url: "https://codes.iccsafe.org/content/IECC2018P4" },
+      { name: "2018 IMC — International Mechanical Code", sub: "HVAC, ducting, ventilation.", url: "https://codes.iccsafe.org/content/IMC2018P4" },
+      { name: "2018 IPC — International Plumbing Code", sub: "Plumbing systems and fixtures.", url: "https://codes.iccsafe.org/content/IPC2018P4" },
+      { name: "2018 IFGC — International Fuel Gas Code", sub: "Gas piping and appliances.", url: "https://codes.iccsafe.org/content/IFGC2018P4" },
+      { name: "2018 IFC — International Fire Code", sub: "Fire protection and life safety.", url: "https://codes.iccsafe.org/content/IFC2018P4" }
+    ]
+  },
+  {
+    group: "Electrical",
+    items: [
+      { name: "NFPA 70 — National Electrical Code", sub: "Free read-only access. Idaho adopts the NEC statewide.", url: "https://www.nfpa.org/codes-and-standards/nfpa-70-standard-development/70" },
+      { name: "Idaho Division of Building Safety — Electrical", sub: "State amendments, licensing and permit rules.", url: "https://dbs.idaho.gov/programs/electrical/" }
+    ]
+  },
+  {
+    group: "City of Boise",
+    items: [
+      { name: "Boise Planning & Development Services", sub: "Permits, inspections, plan review.", url: "https://www.cityofboise.org/departments/planning-and-development-services/" },
+      { name: "Boise Permit & Inspection Portal", sub: "Look up permit status, schedule inspections.", url: "https://developmentservices.cityofboise.org/" },
+      { name: "Boise Building Code Amendments", sub: "Local amendments to the adopted I-Codes.", url: "https://www.cityofboise.org/departments/planning-and-development-services/building/" }
+    ]
+  },
+  {
+    group: "State of Idaho",
+    items: [
+      { name: "Idaho Division of Building Safety", sub: "Adopted codes, amendments and state programs.", url: "https://dbs.idaho.gov/" },
+      { name: "Idaho Contractor Registration", sub: "Verify or renew registration. Required for URR and subs.", url: "https://dbs.idaho.gov/programs/contractors/" },
+      { name: "Idaho Code 45-525 — Contractor Disclosure", sub: "The disclosure statement quoted in URR contract terms.", url: "https://legislature.idaho.gov/statutesrules/idstat/Title45/T45CH5/SECT45-525/" }
+    ]
+  },
+  {
+    group: "Referenced Standards — from plan general notes",
+    note: "Standards called out on sheet A1.1 for 2515 Bannock.",
+    items: [
+      { name: "ACI 318 — Structural Concrete", sub: "Concrete design and reinforcement placement.", url: "https://www.concrete.org/store/productdetail.aspx?ItemID=318U19" },
+      { name: "ASTM A615 — Reinforcing Steel", sub: "Grade 60 deformed bars.", url: "https://www.astm.org/a0615_a0615m-22.html" },
+      { name: "ASTM A307 — Anchor Bolts", sub: "Carbon steel bolts for foundation anchorage.", url: "https://www.astm.org/a0307-21.html" },
+      { name: "APA — Engineered Wood Association", sub: "Sheathing, span ratings, nailing schedules.", url: "https://www.apawood.org/" },
+      { name: "WWPA — Lumber Grading Rules", sub: "Douglas Fir-Larch grading referenced in the framing notes.", url: "https://www.wwpa.org/" },
+      { name: "Simpson Strong-Tie", sub: "Connector specs and installation. Called out in the nailing schedule.", url: "https://www.strongtie.com/" },
+      { name: "ACCA Manual J", sub: "Residential HVAC load calculation, per the design criteria table.", url: "https://www.acca.org/standards/technical-manuals" }
+    ]
+  }
+];
+
+function renderCodes() {
+  const host = $("codes-list");
+  host.innerHTML = "";
+  for (const g of CODE_LIBRARY) {
+    const sec = document.createElement("div");
+    sec.className = "code-group";
+    const h = document.createElement("div");
+    h.className = "code-group-title";
+    h.textContent = g.group;
+    sec.appendChild(h);
+    if (g.note) {
+      const n = document.createElement("div");
+      n.className = "code-group-note";
+      n.textContent = g.note;
+      sec.appendChild(n);
+    }
+    for (const it of g.items) {
+      const a = document.createElement("a");
+      a.className = "code-link";
+      a.href = it.url;
+      a.target = "_blank";
+      a.rel = "noopener";
+      const nm = document.createElement("div");
+      nm.className = "code-link-name";
+      nm.textContent = it.name;
+      a.appendChild(nm);
+      if (it.sub) {
+        const s = document.createElement("div");
+        s.className = "code-link-sub";
+        s.textContent = it.sub;
+        a.appendChild(s);
+      }
+      sec.appendChild(a);
+    }
+    host.appendChild(sec);
+  }
+}
+
 // ---------- Field Calc ----------
 function renderCalc() {
   const frame = $("calc-frame");
   if (frame && !frame.getAttribute("src")) {
-    frame.setAttribute("src", "calc.html?v=124");
+    frame.setAttribute("src", "calc.html?v=125");
   }
 }
 
