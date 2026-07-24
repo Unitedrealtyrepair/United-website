@@ -127,20 +127,19 @@
 
   /* ---------- Memory strip ---------- */
   .memstrip{
-    display:flex;gap:6px;padding:0 12px 10px;
-    overflow-x:auto;scrollbar-width:none;
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:8px;padding:2px 12px 14px;
   }
-  .memstrip::-webkit-scrollbar{display:none;}
   .memstrip button{
-    flex:none;font-family:'Roboto Mono',monospace;font-size:12px;
-    background:var(--card);color:var(--ink-dim);border:1px solid var(--rule);
-    border-radius:7px;padding:7px 11px;cursor:pointer;white-space:nowrap;
+    font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:600;
+    background:var(--card);color:var(--ink);border:1px solid var(--rule);
+    border-radius:9px;padding:12px 6px;cursor:pointer;white-space:nowrap;
+    box-shadow:0 1px 2px rgba(15,36,64,.06);
+    min-height:46px;display:flex;align-items:center;justify-content:center;
   }
   .memstrip button:active{background:var(--navy);color:#fff;border-color:var(--navy);}
-  .memstrip .lbl{
-    flex:none;align-self:center;font-size:10px;letter-spacing:.14em;
-    text-transform:uppercase;color:var(--ink-mute);padding-right:2px;font-weight:700;
-  }
+  .memstrip .lbl{display:none;}
 
   /* ---------- Tape history ---------- */
   .tape{
@@ -214,10 +213,11 @@
     color:var(--ink-mute);font-weight:700;padding-right:2px;
   }
   .pitchbar button{
-    flex:none;font-family:'Roboto Mono',monospace;font-size:12px;font-weight:500;
-    background:var(--card);color:var(--ink-dim);
-    border:1px solid var(--rule);border-radius:7px;
-    padding:8px 11px;cursor:pointer;white-space:nowrap;
+    flex:none;font-family:'Roboto Mono',monospace;font-size:14px;font-weight:600;
+    background:var(--card);color:var(--ink);
+    border:1px solid var(--rule);border-radius:8px;
+    padding:11px 14px;cursor:pointer;white-space:nowrap;
+    min-height:44px;
   }
   .pitchbar button[aria-pressed="true"]{
     background:var(--navy);color:#fff;border-color:var(--navy);font-weight:700;
@@ -237,7 +237,7 @@
   .rout{margin-top:14px;display:flex;flex-direction:column;gap:1px;}
   .ro{
     display:flex;justify-content:space-between;align-items:baseline;gap:12px;
-    padding:11px 12px;background:var(--card);
+    padding:9px 12px;background:var(--card);
     border-left:3px solid var(--rule);
     border-bottom:1px solid var(--rule);
   }
@@ -254,7 +254,7 @@
     color:var(--navy);white-space:nowrap;text-align:right;
   }
   .ro.key .k-val{font-size:21px;font-weight:700;color:var(--blade);}
-  .ro .k-sub{font-family:'Roboto Mono',monospace;font-size:10px;color:var(--ink-mute);display:block;margin-top:2px;font-weight:400;}
+  .ro .k-sub{font-family:'Roboto Mono',monospace;font-size:9.5px;color:var(--ink-mute);display:block;margin-top:1px;font-weight:400;}
   .ro.key .k-sub{color:#8fa3bf;}
   .rf select{
     font-family:'Roboto Mono',monospace;font-size:13px;
@@ -303,6 +303,37 @@
   }
   #lvSet{background:var(--red);color:#fff;border-color:var(--red-dk);}
   #lvStop{background:var(--card);color:var(--ink-dim);}
+
+  .share-row{display:flex;gap:8px;margin-top:12px;}
+  .sharebtn,.compactbtn{
+    flex:1;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;
+    letter-spacing:.06em;text-transform:uppercase;padding:12px 8px;border-radius:9px;
+    cursor:pointer;border:1px solid var(--rule);
+  }
+  .sharebtn{background:var(--navy);color:#fff;border-color:var(--navy);}
+  .compactbtn{background:var(--card);color:var(--ink-dim);}
+
+  /* Compact view: hide the input controls so the whole result set fits a screen */
+  body.compact .pitchbar,
+  body.compact .rfields,
+  body.compact .levelbtn,
+  body.compact .lv-actions,
+  body.compact .rnote,
+  body.compact .modes{display:none !important;}
+  body.compact .roof{padding:8px 12px 12px;}
+  body.compact .ro{padding:8px 12px;}
+  body.compact .ro.key{padding:12px;}
+  body.compact .compactbtn{background:var(--blade);color:var(--navy);border-color:var(--blade);}
+  body.compact .rsummary{display:block;}
+  .rsummary{
+    display:none;background:var(--navy);color:#fff;border-radius:10px;
+    padding:10px 13px;margin-bottom:10px;
+  }
+  .rsummary b{color:var(--blade);font-family:'Roboto Mono',monospace;}
+  .rsummary .rs-line{
+    font-family:'Roboto Mono',monospace;font-size:12.5px;line-height:1.6;
+    color:#c8d4e6;
+  }
 
   .rnote{
     font-size:11px;color:var(--ink-mute);font-family:'Roboto Mono',monospace;
@@ -460,7 +491,13 @@
       <button id="lvStop">Stop</button>
     </div>
 
+    <div class="rsummary" id="rsummary"></div>
     <div class="rout" id="rout"></div>
+
+    <div class="share-row">
+      <button id="shareBtn" class="sharebtn">📤 Share / Save Image</button>
+      <button id="compactBtn" class="compactbtn">⤢ Compact view</button>
+    </div>
 
     <div class="rnote">
       Run is half the span for a gable. Rafter lengths include overhang when entered,
@@ -766,6 +803,7 @@
   function roofCalc(){
     var rise = parseFloat($('rRise').value);
     if (isNaN(rise) || rise < 0) rise = 0;
+    var riseWarn = rise > 24;   // steeper than 24/12 is almost certainly a typo
     var run  = parseLen($('rRun').value);      // inches, horizontal
     var over = parseLen($('rOver').value);     // inches, horizontal overhang
 
@@ -794,13 +832,71 @@
     if (!subBits.length) subBits.push((totalRaft / 12).toFixed(3) + ' ft');
     html += roofRow('Common rafter', fmtFtIn(totalRaft), subBits.join(' \u00b7 '), true);
     html += roofRow('Total rise', fmtFtIn(totalRise), (totalRise/12).toFixed(3) + ' ft');
-    html += roofRow('Pitch', rise + '/12', slopePct.toFixed(1) + '% slope');
+    html += roofRow('Pitch', rise + '/12',
+              (riseWarn ? '\u26a0 check this \u2014 ' : '') + slopePct.toFixed(1) + '% slope');
     html += roofRow('Angle', angle.toFixed(2) + '\u00b0', 'from horizontal');
     html += roofRow('Rafter per foot of run', commonFactor.toFixed(4), 'multiply run by this');
     html += roofRow('Hip / valley', fmtFtIn(hipLen), 'factor ' + hipFactor.toFixed(4));
     if (run) html += roofRow('Span (gable)', fmtFtIn(run * 2), 'run \u00d7 2');
     $('rout').innerHTML = html;
+
+    // Summary line shown when the inputs are collapsed
+    var bits = [
+      rise + '/12 pitch',
+      'run ' + fmtFtIn(run),
+      over ? 'overhang ' + fmtFtIn(over) : null,
+      ridgeT ? 'ridge ' + fmtFtIn(ridgeT) + ' (' + ridgeMode + ')' : null
+    ].filter(Boolean);
+    $('rsummary').innerHTML =
+      '<div class="rs-line"><b>' + COMPANY_NAME + '</b> \u00b7 Roof Layout</div>' +
+      '<div class="rs-line">' + bits.join('  \u00b7  ') + '</div>';
   }
+
+  var COMPANY_NAME = 'United Realty Repair';
+
+  // Compact view: strip the inputs so every result fits one screenshot
+  $('compactBtn').addEventListener('click', function(){
+    var on = document.body.classList.toggle('compact');
+    this.textContent = on ? '\u2921 Show inputs' : '\u2922 Compact view';
+    window.scrollTo(0, 0);
+  });
+
+  // Share: render the results to an image via canvas, then use the share sheet
+  $('shareBtn').addEventListener('click', async function(){
+    var btn = this;
+    var orig = btn.textContent;
+    btn.textContent = 'Preparing\u2026';
+    var wasCompact = document.body.classList.contains('compact');
+    if (!wasCompact) document.body.classList.add('compact');
+    try {
+      if (!window.html2canvas){
+        await new Promise(function(res, rej){
+          var s = document.createElement('script');
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+          s.onload = res; s.onerror = rej;
+          document.head.appendChild(s);
+        });
+      }
+      var node = $('roofPanel');
+      var canvas = await window.html2canvas(node, { scale: 2, backgroundColor: '#f2f5f9', logging: false });
+      var blob = await new Promise(function(res){ canvas.toBlob(res, 'image/png'); });
+      var file = new File([blob], 'URR-roof-layout.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })){
+        await navigator.share({ files: [file], title: 'URR Roof Layout' });
+      } else {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url; a.download = 'URR-roof-layout.png';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+      }
+      btn.textContent = '\u2713 Ready';
+    } catch (err){
+      btn.textContent = '\u2717 Try screenshot instead';
+    }
+    if (!wasCompact) document.body.classList.remove('compact');
+    setTimeout(function(){ btn.textContent = orig; }, 2600);
+  });
 
   ['rRise','rRun','rOver','rRidge'].forEach(function(id){
     $(id).addEventListener('input', function(){
@@ -820,6 +916,13 @@
   var lvOn = false, lvAngle = null, lvHandler = null;
 
   function lvUpdate(deg){
+    // Ignore near-vertical readings — the phone is not lying on a roof plane
+    if (Math.abs(deg) > 70){
+      $('lvRead').textContent = '--';
+      $('lvSub').textContent  = 'Lay the phone flat on the slope';
+      lvAngle = null;
+      return;
+    }
     lvAngle = deg;
     var pitch = Math.tan(Math.abs(deg) * Math.PI / 180) * 12;
     $('lvRead').textContent = Math.abs(deg).toFixed(1) + '\u00b0';
