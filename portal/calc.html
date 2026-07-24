@@ -266,89 +266,110 @@
 
   /* ---------- Phone level (graphic vial) ---------- */
   .lv-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;width:100%;}
-  /* Flat level body — matte plastic/aluminum face */
+  /* Yellow level body — like a Stabila / Empire */
   .lv-vial{
     position:relative;display:flex;align-items:center;justify-content:center;
-    width:100%;height:46px;border-radius:5px;overflow:hidden;margin:8px 0 3px;
-    background:linear-gradient(180deg,#fafbfd 0%,#eceff5 48%,#dfe4ec 52%,#f4f6fa 100%);
-    border:1px solid #c3cbd8;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.95), 0 1px 2px rgba(15,36,64,.16);
-  }
-  /* logo sits flat on the body, left of the vial */
-  .lv-etch{
-    position:absolute;left:10px;top:0;bottom:0;
-    display:flex;align-items:center;pointer-events:none;
-  }
-  .lv-etch-mark{height:60%;width:auto;opacity:.20;filter:grayscale(1) brightness(.5);}
-
-  /* The vial window: a SMALL barrel in the middle, like a real level */
-  .lv-window{
-    position:relative;width:56%;max-width:230px;height:24px;
-    border-radius:12px;overflow:hidden;
-    border:1.5px solid #9aa5b5;
+    width:100%;height:48px;border-radius:4px;overflow:hidden;margin:8px 0 3px;
+    background:linear-gradient(180deg,
+      #ffd83d 0%, #f5c518 18%, #edb810 50%, #d9a50c 82%, #f2c62a 100%);
+    border:1px solid #b8910a;
     box-shadow:
-      inset 0 2px 4px rgba(15,36,64,.28),
-      0 1px 0 rgba(255,255,255,.9);
+      inset 0 1px 0 rgba(255,255,255,.55),
+      inset 0 -1px 0 rgba(0,0,0,.14),
+      0 1px 2px rgba(15,36,64,.18);
   }
-  .lv-liquid{
-    position:absolute;inset:0;
-    background:linear-gradient(180deg,#fff6c9 0%,#f7dc63 34%,#f0c81f 68%,#d9ae10 100%);
+  /* machined edge lines along top and bottom, like an extruded frame */
+  .lv-vial::before,
+  .lv-vial::after{
+    content:'';position:absolute;left:0;right:0;height:1px;
+    background:rgba(0,0,0,.10);
   }
-  .lv-gloss{
-    position:absolute;left:2px;right:2px;top:1px;height:42%;
-    border-radius:11px 11px 60% 60% / 11px 11px 100% 100%;
-    background:linear-gradient(180deg,rgba(255,255,255,.75),rgba(255,255,255,0));
-    pointer-events:none;
-  }
+  .lv-vial::before{top:7px;}
+  .lv-vial::after{bottom:7px;}
 
-  /* URR mark + wordmark etched into the glass */
+  /* logo stamped on the yellow body, left side */
   .lv-etch{
-    position:absolute;left:3%;right:3%;top:7px;bottom:7px;
-    display:flex;align-items:center;justify-content:center;gap:6px;
-    pointer-events:none;
+    position:absolute;left:9px;top:0;bottom:0;
+    display:flex;align-items:center;pointer-events:none;z-index:1;
   }
-  .lv-etch-mark{
-    height:74%;width:auto;
-    opacity:.26;
-    filter:grayscale(1) brightness(.4) drop-shadow(0 1px 0 rgba(255,255,255,.85));
-  }
-  .lv-ticks{position:absolute;inset:0;}
-  .lv-ticks i{
-    position:absolute;top:50%;transform:translateY(-50%);
-    width:1px;height:6px;background:rgba(15,36,64,.32);
-  }
-  .lv-ticks i.maj{height:11px;width:1.2px;background:rgba(15,36,64,.55);}
-  /* twin center lines marking level */
-  .lv-center{
-    position:absolute;left:50%;top:2px;bottom:2px;width:19px;margin-left:-9.5px;
-    border-left:1.5px solid rgba(15,36,64,.7);
-    border-right:1.5px solid rgba(15,36,64,.7);
+  .lv-etch-mark{height:52%;width:auto;opacity:.34;filter:grayscale(1) brightness(.25);}
+
+  /* dark recessed panel holding the vial */
+  .lv-window{
+    position:relative;width:60%;max-width:250px;height:30px;
+    display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(180deg,#2b2b2b 0%,#1a1a1a 52%,#242424 100%);
+    border-radius:3px;
+    box-shadow:
+      inset 0 2px 4px rgba(0,0,0,.6),
+      inset 0 -1px 0 rgba(255,255,255,.06),
+      0 0 0 1px rgba(0,0,0,.35);
     z-index:2;
   }
+  /* the clear glass vial barrel inside the panel */
+  .lv-liquid{
+    position:absolute;left:5%;right:5%;top:50%;height:19px;margin-top:-9.5px;
+    border-radius:9.5px;
+    background:linear-gradient(180deg,
+      rgba(214,240,150,.92) 0%,
+      rgba(178,222,88,.95) 38%,
+      rgba(150,205,52,.95) 72%,
+      rgba(124,180,38,.95) 100%);
+    box-shadow:
+      inset 0 2px 3px rgba(60,90,15,.35),
+      inset 0 -1px 2px rgba(255,255,255,.45),
+      0 0 0 1.5px rgba(235,235,225,.85);
+  }
+  .lv-gloss{
+    position:absolute;left:6.5%;right:6.5%;top:50%;height:8px;margin-top:-8px;
+    border-radius:9px 9px 50% 50% / 9px 9px 100% 100%;
+    background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,0));
+    pointer-events:none;z-index:4;
+  }
 
-  /* Small, dark, obvious bubble — reads at a glance on the yellow */
+  /* tick marks etched on the vial */
+  .lv-ticks{position:absolute;left:5%;right:5%;top:50%;height:19px;margin-top:-9.5px;z-index:3;}
+  .lv-ticks i{
+    position:absolute;top:50%;transform:translateY(-50%);
+    width:1px;height:5px;background:rgba(40,60,10,.35);
+  }
+  .lv-ticks i.maj{height:9px;width:1.2px;background:rgba(40,60,10,.55);}
+
+  /* the two black rings marking level */
+  .lv-center{
+    position:absolute;left:50%;top:50%;height:19px;margin-top:-9.5px;
+    width:22px;margin-left:-11px;
+    border-left:2px solid rgba(20,20,20,.85);
+    border-right:2px solid rgba(20,20,20,.85);
+    z-index:5;
+  }
+
+  /* small bubble — lighter than the fluid, like real spirit levels */
   .lv-bubble{
     position:absolute;top:50%;left:50%;
-    width:17px;height:17px;margin:-8.5px 0 0 -8.5px;border-radius:50%;
+    width:15px;height:13px;margin:-6.5px 0 0 -7.5px;border-radius:50%;
     background:
-      radial-gradient(circle at 36% 30%, rgba(255,255,255,.75) 0%, rgba(255,255,255,.15) 34%, rgba(255,255,255,0) 55%),
-      radial-gradient(circle at 50% 55%, #2f9e5a 0%, #1c7c3c 62%, #10552a 100%);
-    border:1px solid rgba(255,255,255,.55);
-    box-shadow:0 1px 3px rgba(0,0,0,.35), inset 0 -2px 3px rgba(0,0,0,.22);
+      radial-gradient(ellipse at 38% 30%, rgba(255,255,255,.95) 0%, rgba(255,255,255,.5) 34%, rgba(255,255,255,.12) 62%, rgba(255,255,255,0) 100%),
+      radial-gradient(ellipse at 50% 60%, rgba(238,252,208,.95) 0%, rgba(222,245,170,.9) 60%, rgba(206,236,140,.85) 100%);
+    border:1px solid rgba(255,255,255,.8);
+    box-shadow:
+      inset 0 -1px 2px rgba(110,150,30,.35),
+      0 0 3px rgba(255,255,255,.5);
     transition:left .07s linear;
-    z-index:3;
+    z-index:4;
   }
+  /* off level: darker cast so it still reads */
   .lv-bubble.off{
     background:
-      radial-gradient(circle at 36% 30%, rgba(255,255,255,.7) 0%, rgba(255,255,255,.12) 34%, rgba(255,255,255,0) 55%),
-      radial-gradient(circle at 50% 55%, #2a4f80 0%, var(--navy) 62%, #071528 100%);
+      radial-gradient(ellipse at 38% 30%, rgba(255,255,255,.9) 0%, rgba(255,255,255,.42) 34%, rgba(255,255,255,.1) 62%, rgba(255,255,255,0) 100%),
+      radial-gradient(ellipse at 50% 60%, rgba(226,240,214,.9) 0%, rgba(198,220,180,.85) 60%, rgba(176,200,158,.8) 100%);
   }
 
   .lv-scale{
     display:flex;justify-content:space-between;
-    width:56%;max-width:230px;margin:0 auto;
+    width:60%;max-width:250px;margin:0 auto;
     font-family:'Roboto Mono',monospace;font-size:8.5px;color:var(--ink-mute);
-    padding:0 2px;
+    padding:0 4px;
   }
 
   /* ---------- Phone level ---------- */
@@ -454,13 +475,16 @@
 
   /* Level: single slim row */
   body.mode-roof .levelbtn{margin-top:6px;padding:6px 8px;gap:8px;border-radius:8px;border-width:1px;}
-  body.mode-roof .lv-vial{height:38px;margin:6px 0 2px;}
-  body.mode-roof .lv-window{height:20px;border-radius:10px;}
-  body.mode-roof .lv-bubble{width:14px;height:14px;margin:-7px 0 0 -7px;}
-  body.mode-roof .lv-center{width:16px;margin-left:-8px;}
-  body.mode-roof .lv-ticks i{height:5px;}
-  body.mode-roof .lv-ticks i.maj{height:9px;}
-  body.mode-roof .lv-etch-mark{height:52%;}
+  body.mode-roof .lv-vial{height:40px;margin:6px 0 2px;}
+  body.mode-roof .lv-vial::before{top:6px;}
+  body.mode-roof .lv-vial::after{bottom:6px;}
+  body.mode-roof .lv-window{height:25px;}
+  body.mode-roof .lv-liquid,
+  body.mode-roof .lv-ticks{height:16px;margin-top:-8px;}
+  body.mode-roof .lv-center{height:16px;margin-top:-8px;width:19px;margin-left:-9.5px;}
+  body.mode-roof .lv-bubble{width:13px;height:11px;margin:-5.5px 0 0 -6.5px;}
+  body.mode-roof .lv-gloss{height:7px;margin-top:-7px;}
+  body.mode-roof .lv-etch-mark{height:46%;}
   body.mode-roof .lv-scale{font-size:7.5px;}
   body.mode-roof .lv-head b{font-size:11.5px;}
   body.mode-roof #lvSub{font-size:8.5px;}
