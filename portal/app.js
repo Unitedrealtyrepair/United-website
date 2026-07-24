@@ -4211,7 +4211,7 @@ async function respondEstimate(response) {
 function renderCalc() {
   const frame = $("calc-frame");
   if (frame && !frame.getAttribute("src")) {
-    frame.setAttribute("src", "calc.html?v=120");
+    frame.setAttribute("src", "calc.html?v=121");
   }
 }
 

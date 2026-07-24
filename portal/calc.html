@@ -266,85 +266,94 @@
 
   /* ---------- Phone level (graphic vial) ---------- */
   .lv-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;width:100%;}
+  /* Aluminum level body with a glass window */
   .lv-vial{
-    position:relative;display:block;width:100%;height:38px;
-    border-radius:19px;overflow:hidden;margin:8px 0 3px;
-    /* brass end caps + glass body */
-    background:linear-gradient(90deg,
-      #b8933f 0%, #e6cf8a 3%, #b8933f 6%,
-      transparent 6.5%, transparent 93.5%,
-      #b8933f 94%, #e6cf8a 97%, #b8933f 100%);
+    position:relative;display:block;width:100%;height:44px;
+    border-radius:7px;overflow:hidden;margin:8px 0 3px;
+    background:linear-gradient(180deg,#f4f6f9 0%,#dfe4ec 42%,#c9d0dc 58%,#eef1f6 100%);
+    border:1px solid #b4bdcb;
     box-shadow:
-      inset 0 2px 5px rgba(0,0,0,.30),
-      inset 0 -2px 4px rgba(255,255,255,.35),
-      0 1px 3px rgba(15,36,64,.28);
+      inset 0 1px 0 rgba(255,255,255,.9),
+      inset 0 -1px 0 rgba(255,255,255,.6),
+      0 1px 3px rgba(15,36,64,.22);
   }
-  /* the liquid inside the tube */
+  /* the glass vial window inset into the body */
   .lv-liquid{
-    position:absolute;left:6.5%;right:6.5%;top:0;bottom:0;
+    position:absolute;left:3%;right:3%;top:7px;bottom:7px;
+    border-radius:5px;
     background:
       linear-gradient(180deg,
-        rgba(255,255,255,.55) 0%,
-        #fbe27a 16%,
-        var(--blade) 52%,
-        #cfa20d 88%,
-        #a8830a 100%);
+        rgba(255,255,255,.75) 0%,
+        rgba(247,228,120,.92) 22%,
+        rgba(245,197,24,.95) 55%,
+        rgba(214,168,12,.95) 85%,
+        rgba(255,255,255,.5) 100%);
+    box-shadow:
+      inset 0 2px 4px rgba(120,95,5,.32),
+      inset 0 -1px 2px rgba(255,255,255,.5),
+      0 0 0 1px rgba(15,36,64,.30);
   }
   /* curved glass highlight across the top */
   .lv-gloss{
-    position:absolute;left:6.5%;right:6.5%;top:2px;height:38%;
-    border-radius:0 0 60% 60% / 0 0 100% 100%;
-    background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,0));
+    position:absolute;left:3%;right:3%;top:8px;height:34%;
+    border-radius:5px 5px 50% 50% / 5px 5px 100% 100%;
+    background:linear-gradient(180deg,rgba(255,255,255,.70),rgba(255,255,255,0));
     pointer-events:none;
   }
   /* etched logo — frosted, sits under the bubble */
+  /* URR mark + wordmark etched into the glass */
   .lv-etch{
-    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-    pointer-events:none;opacity:.42;
+    position:absolute;left:3%;right:3%;top:7px;bottom:7px;
+    display:flex;align-items:center;justify-content:center;gap:6px;
+    pointer-events:none;
   }
-  .lv-etch svg{width:100%;height:100%;color:#6b5307;}
-  .etch-g{
-    filter:drop-shadow(0 1px 0 rgba(255,255,255,.85));
+  .lv-etch-mark{
+    height:60%;width:auto;
+    opacity:.30;
+    filter:grayscale(1) brightness(.35) drop-shadow(0 1px 0 rgba(255,255,255,.8));
   }
-  .etch-t1{
-    font-family:'Barlow Condensed',sans-serif;font-size:7.6px;font-weight:700;
-    letter-spacing:.13em;fill:currentColor;
-  }
-  .etch-t2{
-    font-family:'Roboto Mono',monospace;font-size:5.2px;font-weight:400;
-    letter-spacing:.22em;fill:currentColor;opacity:.75;
+  .lv-etch-txt{
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:9px;font-weight:700;letter-spacing:.16em;
+    color:#6b5307;opacity:.34;
+    text-shadow:0 1px 0 rgba(255,255,255,.8);
+    white-space:nowrap;
   }
   .lv-ticks{position:absolute;inset:0;display:flex;align-items:center;}
+  .lv-ticks{position:absolute;left:3%;right:3%;top:7px;bottom:7px;}
   .lv-ticks i{
     position:absolute;top:50%;transform:translateY(-50%);
-    width:1px;height:9px;background:rgba(15,36,64,.42);
-    box-shadow:1px 0 0 rgba(255,255,255,.5);
+    width:1px;height:8px;background:rgba(15,36,64,.40);
+    box-shadow:1px 0 0 rgba(255,255,255,.55);
   }
-  .lv-ticks i.maj{height:17px;width:1.5px;background:rgba(15,36,64,.66);}
+  .lv-ticks i.maj{height:15px;width:1.5px;background:rgba(15,36,64,.62);}
+  /* twin center lines, like a real vial */
   .lv-center{
-    position:absolute;left:50%;top:4px;bottom:4px;width:0;
-    border-left:1.5px solid rgba(200,16,46,.55);
-    box-shadow:1px 0 0 rgba(255,255,255,.45);
+    position:absolute;left:50%;top:7px;bottom:7px;width:15px;margin-left:-7.5px;
+    border-left:1.5px solid rgba(15,36,64,.55);
+    border-right:1.5px solid rgba(15,36,64,.55);
+    box-shadow:1px 0 0 rgba(255,255,255,.5), inset -1px 0 0 rgba(255,255,255,.5);
   }
+  /* Air bubble: pale, translucent, sits inside the fluid */
   .lv-bubble{
     position:absolute;top:50%;left:50%;
-    width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;
+    width:30px;height:22px;margin:-11px 0 0 -15px;border-radius:50%;
     background:
-      radial-gradient(circle at 34% 28%, rgba(255,255,255,.95) 0%, rgba(255,255,255,.25) 26%, rgba(255,255,255,0) 46%),
-      radial-gradient(circle at 50% 50%, rgba(255,255,255,.30) 55%, rgba(255,255,255,.62) 78%, rgba(255,255,255,.18) 100%);
-    border:1px solid rgba(255,255,255,.75);
+      radial-gradient(ellipse at 36% 30%, rgba(255,255,255,.98) 0%, rgba(255,255,255,.55) 30%, rgba(255,255,255,.18) 55%, rgba(255,255,255,.05) 100%),
+      radial-gradient(ellipse at 50% 60%, rgba(255,252,225,.85) 0%, rgba(252,240,170,.55) 70%, rgba(250,232,140,.25) 100%);
+    border:1px solid rgba(255,255,255,.85);
     box-shadow:
-      inset 0 -3px 6px rgba(120,95,5,.35),
-      inset 0 2px 4px rgba(255,255,255,.85),
-      0 1px 3px rgba(90,70,4,.35);
+      inset 0 -2px 5px rgba(150,120,10,.28),
+      inset 0 2px 3px rgba(255,255,255,.95),
+      0 0 6px rgba(255,255,255,.45);
     transition:left .07s linear;
   }
-  /* off level: tint the bubble navy so it reads at a glance */
+  /* off level: subtle navy cast, still reads as a bubble */
   .lv-bubble.off{
     background:
-      radial-gradient(circle at 34% 28%, rgba(255,255,255,.85) 0%, rgba(255,255,255,.2) 28%, rgba(255,255,255,0) 48%),
-      radial-gradient(circle at 50% 50%, rgba(23,50,87,.42) 55%, rgba(15,36,64,.62) 80%, rgba(15,36,64,.3) 100%);
-    border-color:rgba(255,255,255,.6);
+      radial-gradient(ellipse at 36% 30%, rgba(255,255,255,.92) 0%, rgba(255,255,255,.45) 30%, rgba(255,255,255,.12) 58%, rgba(255,255,255,.04) 100%),
+      radial-gradient(ellipse at 50% 60%, rgba(226,235,248,.75) 0%, rgba(186,203,228,.5) 70%, rgba(160,182,214,.25) 100%);
+    border-color:rgba(255,255,255,.75);
   }
   .lv-scale{
     display:flex;justify-content:space-between;width:100%;
@@ -474,10 +483,14 @@
 
   /* Level: single slim row */
   body.mode-roof .levelbtn{margin-top:6px;padding:6px 8px;gap:8px;border-radius:8px;border-width:1px;}
-  body.mode-roof .lv-vial{height:30px;border-radius:15px;margin:6px 0 2px;}
-  body.mode-roof .lv-bubble{width:21px;height:21px;margin:-10.5px 0 0 -10.5px;}
-  body.mode-roof .etch-t1{font-size:6.6px;}
-  body.mode-roof .etch-t2{font-size:4.6px;}
+  body.mode-roof .lv-vial{height:36px;border-radius:6px;margin:6px 0 2px;}
+  body.mode-roof .lv-liquid,
+  body.mode-roof .lv-ticks,
+  body.mode-roof .lv-etch{top:6px;bottom:6px;}
+  body.mode-roof .lv-gloss{top:7px;}
+  body.mode-roof .lv-center{top:6px;bottom:6px;}
+  body.mode-roof .lv-bubble{width:26px;height:19px;margin:-9.5px 0 0 -13px;}
+  body.mode-roof .lv-etch-txt{font-size:7.5px;letter-spacing:.13em;}
   body.mode-roof .lv-ticks i{height:7px;}
   body.mode-roof .lv-ticks i.maj{height:13px;}
   body.mode-roof .lv-scale{font-size:7.5px;}
@@ -660,18 +673,8 @@
         <span class="lv-ticks" id="lvTicks"></span>
         <span class="lv-center"></span>
         <span class="lv-etch">
-          <svg viewBox="0 0 120 34" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-            <!-- etched URR shield + wordmark, frosted into the glass -->
-            <g class="etch-g">
-              <path d="M12 6 L24 6 L24 17 Q24 24 18 27 Q12 24 12 17 Z"
-                    fill="none" stroke="currentColor" stroke-width="1.1"/>
-              <path d="M18 9.5 L21.5 16 L18 19 L14.5 16 Z"
-                    fill="none" stroke="currentColor" stroke-width="1"/>
-              <circle cx="18" cy="8.6" r="1.15" fill="none" stroke="currentColor" stroke-width=".9"/>
-              <text x="30" y="14.5" class="etch-t1">UNITED REALTY REPAIR</text>
-              <text x="30" y="22" class="etch-t2">FIELD LEVEL</text>
-            </g>
-          </svg>
+          <img src="logo-mark.png" alt="" class="lv-etch-mark" />
+          <span class="lv-etch-txt">UNITED REALTY REPAIR</span>
         </span>
         <span class="lv-bubble" id="lvBubble"></span>
         <span class="lv-gloss"></span>
