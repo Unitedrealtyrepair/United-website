@@ -366,35 +366,55 @@
   body.mode-tape .roof { display:none !important; }
 
   /* ---- Roof: fit one screen, no scrolling ---- */
-  body.mode-roof .roof{padding:8px 10px 10px;}
-  body.mode-roof .pitchbar{padding-bottom:8px;gap:5px;}
+  body.mode-roof .roof{padding:6px 8px 8px;}
+
+  /* Pitch chips: small and tight */
+  body.mode-roof .pitchbar{padding-bottom:6px;gap:4px;}
   body.mode-roof .pitchbar button{
-    font-size:12.5px;padding:8px 10px;min-height:36px;border-radius:7px;
+    font-size:11px;padding:5px 8px;min-height:0;border-radius:6px;font-weight:600;
   }
-  body.mode-roof .pitchbar .lbl{font-size:9px;}
-  body.mode-roof .rfields{gap:6px;}
-  body.mode-roof .rf span{font-size:8px;letter-spacing:.1em;}
+  body.mode-roof .pitchbar .lbl{font-size:8px;letter-spacing:.1em;}
+
+  /* Inputs: compact 2-col grid */
+  body.mode-roof .rfields{gap:5px;}
+  body.mode-roof .rf{gap:1px;}
+  body.mode-roof .rf span{font-size:7.5px;letter-spacing:.08em;}
   body.mode-roof .rf input,
-  body.mode-roof .rf select{padding:7px 8px;font-size:14px;border-radius:7px;}
-  body.mode-roof .levelbtn{margin-top:8px;padding:8px 10px;gap:9px;}
-  body.mode-roof .lv-face{width:44px;height:18px;}
-  body.mode-roof .lv-bubble{width:12px;height:12px;margin:-6px 0 0 -6px;}
-  body.mode-roof .lv-txt b{font-size:12.5px;}
-  body.mode-roof .lv-txt em{font-size:9.5px;}
-  body.mode-roof .lv-read{font-size:14px;}
-  body.mode-roof .lv-actions{margin-top:6px;}
-  body.mode-roof .lv-actions button{padding:9px;font-size:13px;}
-  body.mode-roof .rout{margin-top:9px;}
-  body.mode-roof .ro{padding:6px 11px;}
-  body.mode-roof .ro.key{padding:9px 11px;}
-  body.mode-roof .ro .k-lbl{font-size:9px;letter-spacing:.1em;}
-  body.mode-roof .ro .k-val{font-size:13.5px;}
-  body.mode-roof .ro.key .k-val{font-size:18px;}
-  body.mode-roof .ro .k-sub{font-size:9px;}
-  body.mode-roof .share-row{margin-top:9px;gap:6px;}
+  body.mode-roof .rf select{
+    padding:5px 7px;font-size:13px;border-radius:6px;border-width:1px;
+  }
+
+  /* Level: single slim row */
+  body.mode-roof .levelbtn{margin-top:6px;padding:6px 8px;gap:8px;border-radius:8px;border-width:1px;}
+  body.mode-roof .lv-face{width:36px;height:15px;border-width:1px;}
+  body.mode-roof .lv-bubble{width:10px;height:10px;margin:-5px 0 0 -5px;}
+  body.mode-roof .lv-txt b{font-size:11.5px;}
+  body.mode-roof .lv-txt em{font-size:8.5px;}
+  body.mode-roof .lv-read{font-size:13px;}
+  body.mode-roof .lv-actions{margin-top:5px;gap:5px;}
+  body.mode-roof .lv-actions button{padding:7px;font-size:11.5px;border-radius:7px;}
+
+  /* Results: dense rows */
+  body.mode-roof .rout{margin-top:7px;}
+  body.mode-roof .ro{padding:4px 9px;border-bottom-width:1px;}
+  body.mode-roof .ro.key{padding:6px 9px;}
+  body.mode-roof .ro .k-lbl{font-size:8px;letter-spacing:.08em;}
+  body.mode-roof .ro .k-val{font-size:12.5px;}
+  body.mode-roof .ro.key .k-val{font-size:16px;}
+  body.mode-roof .ro .k-sub{font-size:8px;margin-top:0;}
+
+  /* Share row: slim */
+  body.mode-roof .share-row{margin-top:7px;gap:5px;}
   body.mode-roof .sharebtn,
-  body.mode-roof .compactbtn{padding:10px 6px;font-size:12.5px;}
+  body.mode-roof .compactbtn{padding:7px 6px;font-size:11px;border-radius:7px;}
   body.mode-roof .rnote{display:none;}
+
+  /* Mode tabs slimmer in roof so the panel gets the space */
+  body.mode-roof .modes button{padding:9px 0 7px;font-size:13px;}
+  body.mode-roof .brandbar{padding:7px 12px 6px;}
+  body.mode-roof .bb-name{font-size:12.5px;}
+  body.mode-roof .bb-mark{font-size:11px;padding:2px 5px;}
+  body.mode-roof .bb-tool{font-size:8.5px;}
 
   .rnote{
     font-size:11px;color:var(--ink-mute);font-family:'Roboto Mono',monospace;

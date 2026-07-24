@@ -1603,15 +1603,15 @@ body {
 /* Field Calc tab */
 .calc-frame {
   width: 100%;
-  height: calc(100vh - 190px);
-  min-height: 560px;
+  height: calc(100vh - 150px);
+  min-height: 620px;
   border: 1px solid #e4e9f1;
   border-radius: 12px;
   background: #f2f5f9;
   display: block;
 }
 @media (max-width: 720px) {
-  .calc-frame { height: calc(100vh - 210px); min-height: 500px; border-radius: 10px; }
+  .calc-frame { height: calc(100vh - 160px); min-height: 600px; border-radius: 10px; }
 }
 
 /* Field Calc access controls (admin, Subs tab) */
