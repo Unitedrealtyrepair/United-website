@@ -308,16 +308,9 @@
     pointer-events:none;
   }
   .lv-etch-mark{
-    height:60%;width:auto;
-    opacity:.30;
-    filter:grayscale(1) brightness(.35) drop-shadow(0 1px 0 rgba(255,255,255,.8));
-  }
-  .lv-etch-txt{
-    font-family:'Barlow Condensed',sans-serif;
-    font-size:9px;font-weight:700;letter-spacing:.16em;
-    color:#6b5307;opacity:.34;
-    text-shadow:0 1px 0 rgba(255,255,255,.8);
-    white-space:nowrap;
+    height:74%;width:auto;
+    opacity:.26;
+    filter:grayscale(1) brightness(.4) drop-shadow(0 1px 0 rgba(255,255,255,.85));
   }
   .lv-ticks{position:absolute;inset:0;display:flex;align-items:center;}
   .lv-ticks{position:absolute;left:3%;right:3%;top:7px;bottom:7px;}
@@ -369,25 +362,6 @@
     color:var(--ink);font-family:inherit;
   }
   .levelbtn:active{background:#e9eef5;}
-  .lv-face{
-    flex:none;width:52px;height:22px;border-radius:11px;
-    border:1.5px solid var(--navy);background:var(--blade);
-    position:relative;overflow:hidden;
-  }
-  .lv-face::before,.lv-face::after{
-    content:'';position:absolute;top:2px;bottom:2px;width:1px;background:var(--navy);opacity:.45;
-  }
-  .lv-face::before{left:18px;} .lv-face::after{right:18px;}
-  .lv-bubble{
-    position:absolute;top:50%;left:50%;
-    width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;
-    background:var(--green);
-    transition:left .06s linear;
-  }
-  .lv-bubble.off{background:var(--navy);}
-  .lv-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
-  .lv-txt b{font-size:14px;font-weight:600;letter-spacing:.01em;}
-  .lv-txt em{font-style:normal;font-size:10.5px;color:var(--ink-mute);font-family:'Roboto Mono',monospace;}
   .lv-read{
     flex:none;font-family:'Roboto Mono',monospace;font-size:16px;font-weight:700;
     color:var(--navy);white-space:nowrap;
@@ -490,7 +464,6 @@
   body.mode-roof .lv-gloss{top:7px;}
   body.mode-roof .lv-center{top:6px;bottom:6px;}
   body.mode-roof .lv-bubble{width:26px;height:19px;margin:-9.5px 0 0 -13px;}
-  body.mode-roof .lv-etch-txt{font-size:7.5px;letter-spacing:.13em;}
   body.mode-roof .lv-ticks i{height:7px;}
   body.mode-roof .lv-ticks i.maj{height:13px;}
   body.mode-roof .lv-scale{font-size:7.5px;}
@@ -674,7 +647,6 @@
         <span class="lv-center"></span>
         <span class="lv-etch">
           <img src="logo-mark.png" alt="" class="lv-etch-mark" />
-          <span class="lv-etch-txt">UNITED REALTY REPAIR</span>
         </span>
         <span class="lv-bubble" id="lvBubble"></span>
         <span class="lv-gloss"></span>

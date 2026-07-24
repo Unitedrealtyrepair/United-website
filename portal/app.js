@@ -498,7 +498,43 @@ function renderBellPop() {
     info.appendChild(who);
     info.appendChild(meta);
     row.appendChild(info);
+    if (isAdmin()) {
+      const del = document.createElement("button");
+      del.className = "msg-del";
+      del.textContent = "🗑";
+      del.title = "Remove this notification";
+      del.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        try {
+          const out = await api({
+            action: "deleteActivity", email: SESSION.email, code: SESSION.code, actId: a.id
+          });
+          if (out.ok) {
+            activityList = activityList.filter((x) => x.id !== a.id);
+            renderBellPop();
+            renderBell();
+          }
+        } catch (err) { alert("Couldn't remove that notification."); }
+      });
+      row.appendChild(del);
+    }
     pop.appendChild(row);
+  }
+  if (isAdmin() && activityList.length) {
+    const clr = document.createElement("button");
+    clr.className = "msg-clear-thread";
+    clr.textContent = "🗑 Clear all notifications";
+    clr.addEventListener("click", async (ev) => {
+      ev.stopPropagation();
+      if (!confirm("Clear all notifications?")) return;
+      try {
+        const out = await api({
+          action: "deleteActivity", email: SESSION.email, code: SESSION.code, all: true
+        });
+        if (out.ok) { activityList = []; renderBellPop(); renderBell(); }
+      } catch (err) { alert("Couldn't clear notifications."); }
+    });
+    pop.appendChild(clr);
   }
 }
 
@@ -547,6 +583,26 @@ function renderMsgPop() {
     });
     pop.appendChild(sel);
     items = (inboxThreads[msgTargetEmail] || {}).items || [];
+    if (items.length) {
+      const clr = document.createElement("button");
+      clr.className = "msg-clear-thread";
+      clr.textContent = "🗑 Clear this conversation";
+      clr.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        if (!confirm("Delete ALL messages with " + msgTargetEmail + "?\n\nThis cannot be undone.")) return;
+        try {
+          const out = await api({
+            action: "deleteMessage", email: SESSION.email, code: SESSION.code,
+            with: msgTargetEmail, all: true
+          });
+          if (out.ok) {
+            if (inboxThreads[msgTargetEmail]) inboxThreads[msgTargetEmail].items = [];
+            renderMsgPop();
+          }
+        } catch (err) { alert("Couldn't clear the conversation."); }
+      });
+      pop.appendChild(clr);
+    }
   } else {
     items = myThread;
   }
@@ -571,6 +627,28 @@ function renderMsgPop() {
     const wrap = document.createElement("div");
     wrap.className = "msg-wrap-line " + (mine ? "mine" : "theirs");
     wrap.appendChild(bub);
+    if (isAdmin()) {
+      // Admin can delete any message in the thread
+      const del = document.createElement("button");
+      del.className = "msg-del";
+      del.textContent = "🗑";
+      del.title = "Delete this message";
+      del.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        if (!confirm("Delete this message?\n\n\"" + m.text.slice(0, 80) + (m.text.length > 80 ? "…" : "") + "\"")) return;
+        try {
+          const out = await api({
+            action: "deleteMessage", email: SESSION.email, code: SESSION.code,
+            with: msgTargetEmail, msgId: m.id
+          });
+          if (out.ok) {
+            if (inboxThreads[msgTargetEmail]) inboxThreads[msgTargetEmail].items = out.thread || [];
+            renderMsgPop();
+          }
+        } catch (err) { alert("Couldn't delete that message."); }
+      });
+      wrap.appendChild(del);
+    }
     wrap.appendChild(t);
     thread.appendChild(wrap);
   }
@@ -4152,6 +4230,33 @@ async function sendEstimateToCustomer() {
     e.revision = (Number(e.revision) || 0) + (revised ? 1 : 0);
     estimates[i] = e;
     await saveEstimates();
+
+    // Ping every customer on this project: bell notification + a message
+    const custs = projectMembers().filter((m) => m.role === "customer").map((m) => m.email);
+    if (custs.length) {
+      const label = (e.number ? e.number + " " : "") + (e.title || "estimate");
+      const noteTxt = revised
+        ? "Revised estimate " + label + " is ready to review and sign."
+        : "New estimate " + label + " is ready to review and sign.";
+      try {
+        // bell notification
+        await api({
+          action: "notify", email: SESSION.email, code: SESSION.code,
+          project: currentProject.name, kind: "estimate",
+          summary: noteTxt, notify: custs
+        });
+      } catch (err) { console.warn("notify failed", err); }
+      // message into each customer's thread
+      for (const c of custs) {
+        try {
+          await api({
+            action: "sendMessage", email: SESSION.email, code: SESSION.code,
+            to: c, text: noteTxt + " Open the Estimates tab to view it."
+          });
+        } catch (err) { console.warn("message failed", err); }
+      }
+    }
+
     btn.textContent = revised ? "✓ Revision sent" : "✓ Sent";
     render();
   } catch (err) {
@@ -4211,7 +4316,7 @@ async function respondEstimate(response) {
 function renderCalc() {
   const frame = $("calc-frame");
   if (frame && !frame.getAttribute("src")) {
-    frame.setAttribute("src", "calc.html?v=121");
+    frame.setAttribute("src", "calc.html?v=122");
   }
 }
 
