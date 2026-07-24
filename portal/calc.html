@@ -335,6 +335,28 @@
     color:#c8d4e6;
   }
 
+  /* Full-screen image overlay for saving to Photos */
+  .img-overlay{
+    position:fixed;inset:0;z-index:9999;background:rgba(10,18,32,.96);
+    display:flex;flex-direction:column;
+  }
+  .io-bar{
+    display:flex;align-items:center;gap:10px;padding:12px 14px;
+    background:var(--navy);border-bottom:2px solid var(--blade);
+  }
+  .io-tip{
+    flex:1;color:#fff;font-family:'Barlow Condensed',sans-serif;
+    font-size:14px;font-weight:500;line-height:1.3;
+  }
+  .io-tip b{color:var(--blade);}
+  .io-close{
+    flex:none;background:var(--red);color:#fff;border:none;border-radius:8px;
+    padding:9px 16px;font-family:'Barlow Condensed',sans-serif;font-size:14px;
+    font-weight:700;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;
+  }
+  .io-scroll{flex:1;overflow:auto;padding:12px;-webkit-overflow-scrolling:touch;}
+  .io-scroll img{width:100%;height:auto;display:block;border-radius:8px;}
+
   .rnote{
     font-size:11px;color:var(--ink-mute);font-family:'Roboto Mono',monospace;
     line-height:1.55;padding:12px 2px 0;
@@ -862,10 +884,13 @@
   });
 
   // Share: render the results to an image via canvas, then use the share sheet
+  // Share: build a PNG, then show it full-screen so iOS lets you
+  // long-press -> "Add to Photos". Works even inside the portal iframe,
+  // where the native share sheet is blocked.
   $('shareBtn').addEventListener('click', async function(){
     var btn = this;
     var orig = btn.textContent;
-    btn.textContent = 'Preparing\u2026';
+    btn.textContent = 'Building image\u2026';
     var wasCompact = document.body.classList.contains('compact');
     if (!wasCompact) document.body.classList.add('compact');
     try {
@@ -879,119 +904,43 @@
       }
       var node = $('roofPanel');
       var canvas = await window.html2canvas(node, { scale: 2, backgroundColor: '#f2f5f9', logging: false });
-      var blob = await new Promise(function(res){ canvas.toBlob(res, 'image/png'); });
-      var file = new File([blob], 'URR-roof-layout.png', { type: 'image/png' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })){
-        await navigator.share({ files: [file], title: 'URR Roof Layout' });
-      } else {
-        var url = URL.createObjectURL(blob);
-        var a = document.createElement('a');
-        a.href = url; a.download = 'URR-roof-layout.png';
-        document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+      var dataUrl = canvas.toDataURL('image/png');
+
+      // Try the native share sheet first (works when opened outside the portal)
+      var shared = false;
+      try {
+        var blob = await new Promise(function(res){ canvas.toBlob(res, 'image/png'); });
+        var file = new File([blob], 'URR-roof-layout.png', { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })){
+          await navigator.share({ files: [file], title: 'URR Roof Layout' });
+          shared = true;
+        }
+      } catch (e) { shared = false; }
+
+      if (!shared){
+        // Fall back to a full-screen image the user can long-press to save
+        showImageOverlay(dataUrl);
       }
-      btn.textContent = '\u2713 Ready';
+      btn.textContent = '\u2713 Done';
     } catch (err){
-      btn.textContent = '\u2717 Try screenshot instead';
+      btn.textContent = '\u2717 Use a screenshot instead';
     }
     if (!wasCompact) document.body.classList.remove('compact');
     setTimeout(function(){ btn.textContent = orig; }, 2600);
   });
 
-  ['rRise','rRun','rOver','rRidge'].forEach(function(id){
-    $(id).addEventListener('input', function(){
-      if (id === 'rRise'){
-        $('rAngle').value = '';
-        Array.prototype.forEach.call($('pitchbar').querySelectorAll('button'), function(b){
-          b.setAttribute('aria-pressed', b.dataset.p === $('rRise').value ? 'true' : 'false');
-        });
-      }
-      roofCalc();
-    });
-  });
-
-  $('rRidgeMode').addEventListener('change', roofCalc);
-
-  // ---------- phone level (DeviceOrientation) ----------
-  var lvOn = false, lvAngle = null, lvHandler = null;
-
-  function lvUpdate(deg){
-    // Ignore near-vertical readings — the phone is not lying on a roof plane
-    if (Math.abs(deg) > 70){
-      $('lvRead').textContent = '--';
-      $('lvSub').textContent  = 'Lay the phone flat on the slope';
-      lvAngle = null;
-      return;
-    }
-    lvAngle = deg;
-    var pitch = Math.tan(Math.abs(deg) * Math.PI / 180) * 12;
-    $('lvRead').textContent = Math.abs(deg).toFixed(1) + '\u00b0';
-    $('lvSub').textContent  = 'Reads ' + (Math.round(pitch * 4) / 4) + '/12 \u2014 tap Set as pitch';
-    var b = $('lvBubble');
-    var clamp = Math.max(-45, Math.min(45, deg));
-    b.style.left = (50 + clamp) + '%';
-    b.classList.toggle('off', Math.abs(deg) > 1);
+  function showImageOverlay(dataUrl){
+    var ov = document.createElement('div');
+    ov.className = 'img-overlay';
+    ov.innerHTML =
+      '<div class="io-bar">' +
+        '<span class="io-tip">Press and hold the image \u2192 <b>Add to Photos</b></span>' +
+        '<button class="io-close">Close</button>' +
+      '</div>' +
+      '<div class="io-scroll"><img src="' + dataUrl + '" alt="Roof layout" /></div>';
+    document.body.appendChild(ov);
+    ov.querySelector('.io-close').addEventListener('click', function(){ ov.remove(); });
   }
-
-  function lvStart(){
-    if (!window.DeviceOrientationEvent){
-      $('lvTitle').textContent = 'Level not available';
-      $('lvSub').textContent = 'This device has no tilt sensor';
-      return;
-    }
-    var begin = function(){
-      lvOn = true;
-      $('lvActions').hidden = false;
-      $('lvTitle').textContent = 'Reading tilt\u2026';
-      lvHandler = function(e){
-        // beta = front/back tilt. Phone flat on a slope reads the slope angle.
-        var deg = e.beta;
-        if (deg === null || deg === undefined) return;
-        if (deg > 90) deg = 180 - deg;
-        if (deg < -90) deg = -180 - deg;
-        lvUpdate(deg);
-      };
-      window.addEventListener('deviceorientation', lvHandler);
-    };
-    // iOS 13+ requires an explicit permission request from a user gesture
-    if (typeof DeviceOrientationEvent.requestPermission === 'function'){
-      DeviceOrientationEvent.requestPermission().then(function(state){
-        if (state === 'granted') begin();
-        else {
-          $('lvTitle').textContent = 'Motion access denied';
-          $('lvSub').textContent = 'Allow Motion & Orientation in Safari settings';
-        }
-      }).catch(function(){
-        $('lvTitle').textContent = 'Level needs HTTPS';
-        $('lvSub').textContent = 'Open the calculator over https:// to use tilt';
-      });
-    } else begin();
-  }
-
-  function lvStopFn(){
-    lvOn = false;
-    if (lvHandler) window.removeEventListener('deviceorientation', lvHandler);
-    $('lvActions').hidden = true;
-    $('lvTitle').textContent = 'Measure pitch with phone';
-    $('lvSub').textContent = 'Hold phone flat on the rafter, then tap Set';
-    $('lvRead').textContent = '\u2014';
-  }
-
-  $('levelBtn').addEventListener('click', function(){ if (!lvOn) lvStart(); });
-  $('lvStop').addEventListener('click', function(e){ e.stopPropagation(); lvStopFn(); });
-  $('lvSet').addEventListener('click', function(e){
-    e.stopPropagation();
-    if (lvAngle === null) return;
-    var pitch = Math.tan(Math.abs(lvAngle) * Math.PI / 180) * 12;
-    pitch = Math.round(pitch * 4) / 4;              // nearest 1/4 per 12
-    $('rRise').value = pitch;
-    $('rAngle').value = '';
-    Array.prototype.forEach.call($('pitchbar').querySelectorAll('button'), function(b){
-      b.setAttribute('aria-pressed', b.dataset.p === String(pitch) ? 'true' : 'false');
-    });
-    roofCalc();
-    lvStopFn();
-  });
 
   // angle input drives rise
   $('rAngle').addEventListener('input', function(){
