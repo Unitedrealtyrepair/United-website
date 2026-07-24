@@ -264,10 +264,98 @@
   }
   .rf select:focus{outline:none;border-color:var(--navy);}
 
+  /* ---------- Phone level (graphic vial) ---------- */
+  .lv-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;width:100%;}
+  .lv-vial{
+    position:relative;display:block;width:100%;height:38px;
+    border-radius:19px;overflow:hidden;margin:8px 0 3px;
+    /* brass end caps + glass body */
+    background:linear-gradient(90deg,
+      #b8933f 0%, #e6cf8a 3%, #b8933f 6%,
+      transparent 6.5%, transparent 93.5%,
+      #b8933f 94%, #e6cf8a 97%, #b8933f 100%);
+    box-shadow:
+      inset 0 2px 5px rgba(0,0,0,.30),
+      inset 0 -2px 4px rgba(255,255,255,.35),
+      0 1px 3px rgba(15,36,64,.28);
+  }
+  /* the liquid inside the tube */
+  .lv-liquid{
+    position:absolute;left:6.5%;right:6.5%;top:0;bottom:0;
+    background:
+      linear-gradient(180deg,
+        rgba(255,255,255,.55) 0%,
+        #fbe27a 16%,
+        var(--blade) 52%,
+        #cfa20d 88%,
+        #a8830a 100%);
+  }
+  /* curved glass highlight across the top */
+  .lv-gloss{
+    position:absolute;left:6.5%;right:6.5%;top:2px;height:38%;
+    border-radius:0 0 60% 60% / 0 0 100% 100%;
+    background:linear-gradient(180deg,rgba(255,255,255,.62),rgba(255,255,255,0));
+    pointer-events:none;
+  }
+  /* etched logo — frosted, sits under the bubble */
+  .lv-etch{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    pointer-events:none;opacity:.42;
+  }
+  .lv-etch svg{width:100%;height:100%;color:#6b5307;}
+  .etch-g{
+    filter:drop-shadow(0 1px 0 rgba(255,255,255,.85));
+  }
+  .etch-t1{
+    font-family:'Barlow Condensed',sans-serif;font-size:7.6px;font-weight:700;
+    letter-spacing:.13em;fill:currentColor;
+  }
+  .etch-t2{
+    font-family:'Roboto Mono',monospace;font-size:5.2px;font-weight:400;
+    letter-spacing:.22em;fill:currentColor;opacity:.75;
+  }
+  .lv-ticks{position:absolute;inset:0;display:flex;align-items:center;}
+  .lv-ticks i{
+    position:absolute;top:50%;transform:translateY(-50%);
+    width:1px;height:9px;background:rgba(15,36,64,.42);
+    box-shadow:1px 0 0 rgba(255,255,255,.5);
+  }
+  .lv-ticks i.maj{height:17px;width:1.5px;background:rgba(15,36,64,.66);}
+  .lv-center{
+    position:absolute;left:50%;top:4px;bottom:4px;width:0;
+    border-left:1.5px solid rgba(200,16,46,.55);
+    box-shadow:1px 0 0 rgba(255,255,255,.45);
+  }
+  .lv-bubble{
+    position:absolute;top:50%;left:50%;
+    width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;
+    background:
+      radial-gradient(circle at 34% 28%, rgba(255,255,255,.95) 0%, rgba(255,255,255,.25) 26%, rgba(255,255,255,0) 46%),
+      radial-gradient(circle at 50% 50%, rgba(255,255,255,.30) 55%, rgba(255,255,255,.62) 78%, rgba(255,255,255,.18) 100%);
+    border:1px solid rgba(255,255,255,.75);
+    box-shadow:
+      inset 0 -3px 6px rgba(120,95,5,.35),
+      inset 0 2px 4px rgba(255,255,255,.85),
+      0 1px 3px rgba(90,70,4,.35);
+    transition:left .07s linear;
+  }
+  /* off level: tint the bubble navy so it reads at a glance */
+  .lv-bubble.off{
+    background:
+      radial-gradient(circle at 34% 28%, rgba(255,255,255,.85) 0%, rgba(255,255,255,.2) 28%, rgba(255,255,255,0) 48%),
+      radial-gradient(circle at 50% 50%, rgba(23,50,87,.42) 55%, rgba(15,36,64,.62) 80%, rgba(15,36,64,.3) 100%);
+    border-color:rgba(255,255,255,.6);
+  }
+  .lv-scale{
+    display:flex;justify-content:space-between;width:100%;
+    font-family:'Roboto Mono',monospace;font-size:8.5px;color:var(--ink-mute);
+    padding:0 1px;
+  }
+
   /* ---------- Phone level ---------- */
   .levelbtn{
-    display:flex;align-items:center;gap:12px;width:100%;
-    margin-top:12px;padding:12px;cursor:pointer;text-align:left;
+    display:flex;flex-direction:column;align-items:stretch;gap:0;width:100%;
+    margin-top:12px;padding:10px 12px 8px;cursor:pointer;text-align:left;
     background:var(--card);border:1.5px solid var(--rule);border-radius:10px;
     color:var(--ink);font-family:inherit;
   }
@@ -386,11 +474,16 @@
 
   /* Level: single slim row */
   body.mode-roof .levelbtn{margin-top:6px;padding:6px 8px;gap:8px;border-radius:8px;border-width:1px;}
-  body.mode-roof .lv-face{width:36px;height:15px;border-width:1px;}
-  body.mode-roof .lv-bubble{width:10px;height:10px;margin:-5px 0 0 -5px;}
-  body.mode-roof .lv-txt b{font-size:11.5px;}
-  body.mode-roof .lv-txt em{font-size:8.5px;}
-  body.mode-roof .lv-read{font-size:13px;}
+  body.mode-roof .lv-vial{height:30px;border-radius:15px;margin:6px 0 2px;}
+  body.mode-roof .lv-bubble{width:21px;height:21px;margin:-10.5px 0 0 -10.5px;}
+  body.mode-roof .etch-t1{font-size:6.6px;}
+  body.mode-roof .etch-t2{font-size:4.6px;}
+  body.mode-roof .lv-ticks i{height:7px;}
+  body.mode-roof .lv-ticks i.maj{height:13px;}
+  body.mode-roof .lv-scale{font-size:7.5px;}
+  body.mode-roof .lv-head b{font-size:11.5px;}
+  body.mode-roof #lvSub{font-size:8.5px;}
+  body.mode-roof .lv-read{font-size:12.5px;}
   body.mode-roof .lv-actions{margin-top:5px;gap:5px;}
   body.mode-roof .lv-actions button{padding:7px;font-size:11.5px;border-radius:7px;}
 
@@ -558,14 +651,35 @@
     </div>
 
     <button id="levelBtn" class="levelbtn">
-      <span class="lv-face">
-        <span class="lv-bubble" id="lvBubble"></span>
-      </span>
-      <span class="lv-txt">
+      <span class="lv-head">
         <b id="lvTitle">Measure pitch with phone</b>
-        <em id="lvSub">Hold phone flat on the rafter, then tap Set</em>
+        <span class="lv-read" id="lvRead">—</span>
       </span>
-      <span class="lv-read" id="lvRead">—</span>
+      <span class="lv-vial">
+        <span class="lv-liquid"></span>
+        <span class="lv-ticks" id="lvTicks"></span>
+        <span class="lv-center"></span>
+        <span class="lv-etch">
+          <svg viewBox="0 0 120 34" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+            <!-- etched URR shield + wordmark, frosted into the glass -->
+            <g class="etch-g">
+              <path d="M12 6 L24 6 L24 17 Q24 24 18 27 Q12 24 12 17 Z"
+                    fill="none" stroke="currentColor" stroke-width="1.1"/>
+              <path d="M18 9.5 L21.5 16 L18 19 L14.5 16 Z"
+                    fill="none" stroke="currentColor" stroke-width="1"/>
+              <circle cx="18" cy="8.6" r="1.15" fill="none" stroke="currentColor" stroke-width=".9"/>
+              <text x="30" y="14.5" class="etch-t1">UNITED REALTY REPAIR</text>
+              <text x="30" y="22" class="etch-t2">FIELD LEVEL</text>
+            </g>
+          </svg>
+        </span>
+        <span class="lv-bubble" id="lvBubble"></span>
+        <span class="lv-gloss"></span>
+      </span>
+      <span class="lv-scale">
+        <span>0</span><span>3</span><span>6</span><span>9</span><span>12</span><span>18</span><span>24</span>
+      </span>
+      <em id="lvSub">Lay phone flat on the rafter, then tap Set</em>
     </button>
     <div class="lv-actions" id="lvActions" hidden>
       <button id="lvSet">Set as pitch</button>
@@ -999,6 +1113,106 @@
     document.body.appendChild(ov);
     ov.querySelector('.io-close').addEventListener('click', function(){ ov.remove(); });
   }
+
+  // ---------- phone level (DeviceOrientation) ----------
+  var lvOn = false, lvAngle = null, lvHandler = null;
+
+  function lvUpdate(deg){
+    // Ignore near-vertical readings — the phone is not lying on a roof plane
+    if (Math.abs(deg) > 70){
+      $('lvRead').textContent = '--';
+      $('lvSub').textContent  = 'Lay the phone flat on the slope';
+      lvAngle = null;
+      return;
+    }
+    lvAngle = deg;
+    var a = Math.abs(deg);
+    var pitch = Math.tan(a * Math.PI / 180) * 12;
+    var shown = Math.round(pitch * 4) / 4;
+    $('lvRead').textContent = shown + '/12  \u00b7  ' + a.toFixed(1) + '\u00b0';
+    $('lvSub').textContent  = a < 0.6
+      ? 'Level \u2014 no slope detected'
+      : 'Reads ' + shown + '/12 \u2014 tap Set as pitch';
+    var frac = Math.max(0, Math.min(1, pitch / 24));
+    var b = $('lvBubble');
+    b.style.left = (frac * 100) + '%';
+    b.classList.toggle('off', a >= 0.6);
+  }
+
+  // Vial tick marks
+  (function(){
+    var host = $('lvTicks');
+    if (!host) return;
+    var majors = [0, 3, 6, 9, 12, 18, 24];
+    var html = '';
+    for (var p = 0; p <= 24; p++){
+      var pct = (p / 24) * 100;
+      html += '<i class="' + (majors.indexOf(p) !== -1 ? 'maj' : '') + '" style="left:' + pct + '%"></i>';
+    }
+    host.innerHTML = html;
+  })();
+
+  function lvStart(){
+    if (!window.DeviceOrientationEvent){
+      $('lvTitle').textContent = 'Level not available';
+      $('lvSub').textContent = 'This device has no tilt sensor';
+      return;
+    }
+    var begin = function(){
+      lvOn = true;
+      $('lvActions').hidden = false;
+      $('lvTitle').textContent = 'Reading tilt\u2026';
+      lvHandler = function(e){
+        var deg = e.beta;               // front/back tilt
+        if (deg === null || deg === undefined) return;
+        if (deg > 90) deg = 180 - deg;
+        if (deg < -90) deg = -180 - deg;
+        lvUpdate(deg);
+      };
+      window.addEventListener('deviceorientation', lvHandler);
+    };
+    if (typeof DeviceOrientationEvent.requestPermission === 'function'){
+      DeviceOrientationEvent.requestPermission().then(function(state){
+        if (state === 'granted') begin();
+        else {
+          $('lvTitle').textContent = 'Motion access denied';
+          $('lvSub').textContent = 'Settings \u2192 Apps \u2192 Safari \u2192 Motion & Orientation';
+        }
+      }).catch(function(){
+        $('lvTitle').textContent = 'Level needs HTTPS';
+        $('lvSub').textContent = 'Open the portal over https:// to use tilt';
+      });
+    } else begin();
+  }
+
+  function lvStopFn(){
+    lvOn = false;
+    if (lvHandler) window.removeEventListener('deviceorientation', lvHandler);
+    lvHandler = null;
+    $('lvActions').hidden = true;
+    $('lvTitle').textContent = 'Measure pitch with phone';
+    $('lvSub').textContent = 'Lay phone flat on the rafter, then tap Set';
+    $('lvRead').textContent = '\u2014';
+  }
+
+  $('levelBtn').addEventListener('click', function(){
+    if (lvOn) lvStopFn();     // tapping again restarts; never dead-ends
+    lvStart();
+  });
+  $('lvStop').addEventListener('click', function(e){ e.stopPropagation(); lvStopFn(); });
+  $('lvSet').addEventListener('click', function(e){
+    e.stopPropagation();
+    if (lvAngle === null) return;
+    var pitch = Math.tan(Math.abs(lvAngle) * Math.PI / 180) * 12;
+    pitch = Math.round(pitch * 4) / 4;
+    $('rRise').value = pitch;
+    $('rAngle').value = '';
+    Array.prototype.forEach.call($('pitchbar').querySelectorAll('button'), function(b){
+      b.setAttribute('aria-pressed', b.dataset.p === String(pitch) ? 'true' : 'false');
+    });
+    roofCalc();
+    lvStopFn();
+  });
 
   // angle input drives rise
   $('rAngle').addEventListener('input', function(){
