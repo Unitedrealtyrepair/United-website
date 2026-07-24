@@ -1672,3 +1672,86 @@ body {
 .code-link-sub {
   font-size: 12px; color: #8a96a8; line-height: 1.45; margin-top: 3px;
 }
+
+/* ===== Time Clock (v126) ===== */
+.clock-btn {
+  width: 100%; border: none; border-radius: 14px; cursor: pointer;
+  padding: 26px 20px; margin-bottom: 12px;
+  font-family: inherit; display: flex; flex-direction: column;
+  align-items: center; gap: 6px; transition: transform .06s;
+  box-shadow: 0 2px 8px rgba(15,36,64,.14);
+}
+.clock-btn:active { transform: translateY(1px); }
+.clock-btn.in  { background: #1c7c3c; color: #fff; }
+.clock-btn.out { background: #c8102e; color: #fff; }
+.cb-label {
+  font-family: "Barlow Condensed", sans-serif;
+  font-size: 30px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  line-height: 1;
+}
+.cb-sub { font-size: 14px; opacity: .85; font-weight: 500; }
+.cb-timer {
+  font-family: "Roboto Mono", monospace; font-size: 20px; font-weight: 700;
+  letter-spacing: .02em; opacity: .95;
+}
+.clock-status {
+  text-align: center; font-size: 13px; color: #8a96a8;
+  margin-bottom: 14px; line-height: 1.5;
+}
+.clock-status b { display: block; color: #0f2440; font-size: 14.5px; }
+.clock-status.running b { color: #1c7c3c; }
+.clock-status span { display: block; }
+
+.tc-totals { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.tc-tot {
+  background: #0f2440; border-radius: 11px; padding: 13px 15px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.tc-tot span { font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #8fa3bf; }
+.tc-tot b { font-family: "Roboto Mono", monospace; font-size: 21px; color: #f5c518; }
+
+.tc-sub-title {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+  color: #8a96a8; margin: 4px 0 6px;
+}
+.tc-proj-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 7px 12px; background: #fff; border: 1px solid #e4e9f1;
+  border-radius: 8px; margin-bottom: 5px; font-size: 13.5px; color: #40506a;
+}
+.tc-proj-row b { font-family: "Roboto Mono", monospace; color: #0f2440; }
+
+.tc-toolbar { margin-top: 16px; }
+.tc-actions { display: flex; gap: 7px; }
+.tc-actions .btn-ghost { font-size: 12.5px; padding: 7px 11px; }
+
+.tc-day {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  color: #8a96a8; margin: 14px 0 6px; padding-bottom: 4px;
+  border-bottom: 1.5px solid #dde3ec;
+}
+.tc-day b { font-family: "Roboto Mono", monospace; color: #0f2440; letter-spacing: 0; }
+.tc-row {
+  display: flex; align-items: center; gap: 12px;
+  background: #fff; border: 1px solid #e4e9f1; border-radius: 9px;
+  padding: 10px 13px; margin-bottom: 6px; cursor: pointer;
+}
+.tc-row:active { background: #f2f5f9; }
+.tc-row.open { border-left: 3px solid #1c7c3c; background: #f4fbf6; }
+.tc-left { flex: 1; min-width: 0; }
+.tc-proj { font-size: 14px; font-weight: 700; color: #0f2440; }
+.tc-times { font-size: 12px; color: #8a96a8; margin-top: 2px; }
+.tc-hours {
+  font-family: "Roboto Mono", monospace; font-size: 15px; font-weight: 700;
+  color: #0f2440; white-space: nowrap;
+}
+.tc-calc {
+  font-family: "Roboto Mono", monospace; font-size: 14px; font-weight: 700;
+  color: #0f2440; background: #f2f6fc; border-radius: 8px;
+  padding: 9px 12px; margin: 8px 0 2px;
+}
+#time-modal input[type="datetime-local"] {
+  width: 100%; padding: 10px 12px; border: 1.5px solid #dde3ec;
+  border-radius: 8px; font-family: inherit; font-size: 15px; box-sizing: border-box;
+}

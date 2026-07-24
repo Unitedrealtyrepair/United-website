@@ -6,7 +6,7 @@
   <title>URR Project Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=125" />
+  <link rel="stylesheet" href="styles.css?v=126" />
 </head>
 <body>
 
@@ -243,6 +243,28 @@
           the official source — ICC Digital Codes and NFPA offer free read-only access.
         </div>
         <div id="codes-list"></div>
+      </div>
+
+      <!-- ===== Time Clock (ADMIN ONLY) ===== -->
+      <div id="time-section" class="hidden">
+        <button id="clock-btn" class="clock-btn in"></button>
+        <div id="clock-status" class="clock-status"></div>
+
+        <div class="tc-totals">
+          <div class="tc-tot"><span>Today</span><b id="time-today">0h 00m</b></div>
+          <div class="tc-tot"><span>This week</span><b id="time-week">0h 00m</b></div>
+        </div>
+        <div id="time-by-project"></div>
+
+        <div class="section-toolbar tc-toolbar">
+          <div class="section-title">Timesheet</div>
+          <div class="tc-actions">
+            <button id="time-add-btn" class="btn-ghost">+ Add entry</button>
+            <button id="time-export-btn" class="btn-ghost">⬇ Export week</button>
+          </div>
+        </div>
+        <div id="time-list" class="tc-list"></div>
+        <div id="time-empty" class="status-msg hidden">No time logged yet. Tap Clock In to start.</div>
       </div>
 
       <div id="loading" class="status-msg">Loading project files…</div>
@@ -537,6 +559,28 @@
       </div>
     </div>
 
+    <!-- ===== Time entry modal (admin) ===== -->
+    <div id="time-modal" class="modal-overlay hidden">
+      <div class="modal">
+        <h2 id="time-modal-title">Edit Time Entry</h2>
+        <label>Property</label>
+        <select id="time-project"></select>
+        <label>Clock in</label>
+        <input type="datetime-local" id="time-start" />
+        <label>Clock out <span class="lbl-hint">— leave blank if still running</span></label>
+        <input type="datetime-local" id="time-end" />
+        <div id="time-calc" class="tc-calc"></div>
+        <label>Note (optional)</label>
+        <input type="text" id="time-note" placeholder="e.g. framing inspection, met with Kyle" />
+        <div class="modal-actions">
+          <button id="time-delete" class="btn-danger hidden">Delete</button>
+          <span class="spacer"></span>
+          <button id="time-cancel" class="btn-ghost">Cancel</button>
+          <button id="time-save" class="btn-primary">Save</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ===== Photo lightbox ===== -->
     <div id="lightbox" class="lightbox hidden">
       <button id="lightbox-close" class="lightbox-close">&times;</button>
@@ -563,6 +607,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=125"></script>
+  <script src="app.js?v=126"></script>
 </body>
 </html>

@@ -20,7 +20,7 @@ const COMPANY = {
 };
 
 const ROLE_ACCESS = {
-  admin:    ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Scans", "Invoices", "Change Orders", "Estimates", "Materials", "Subs", "Calc", "Codes"],
+  admin:    ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Scans", "Invoices", "Change Orders", "Estimates", "Materials", "Subs", "Calc", "Codes", "Time"],
   customer: ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Invoices", "Change Orders", "Estimates"],
   sub:      ["Schedule", "Daily Logs", "Documents", "Photos", "Invoices", "Estimates", "Materials", "Codes"]
 };
@@ -125,6 +125,8 @@ let custInvoices = [];  // customer invoices — memory only
 let folderGrants = {};  // { folderId: [sub emails granted access] } — admin-only
 let subBids = [];       // sub bid submissions — memory only
 let calcAccess = [];    // emails granted the Field Calc tab — admin-managed
+let timeEntries = [];   // admin time clock — {id, project, start, end, note, rate, costId}
+let editingTimeId = null;
 let costs = [];         // job costing entries — ADMIN ONLY, memory only
 let editingCostId = null;
 let editingEstId = null;
@@ -158,6 +160,7 @@ function applyRemote(remote) {
   custInvoices = remote[pkey("CustInvoices")] || [];
   subBids = remote[pkey("SubEstimates")] || [];
   if (remote["urrCalcAccess"]) calcAccess = remote["urrCalcAccess"];
+  if (remote["urrTimeClock"]) timeEntries = remote["urrTimeClock"];
   costs = remote[pkey("Costs")] || [];
   if (remote[pkey("FolderGrants")]) folderGrants = remote[pkey("FolderGrants")];
   if (remote["urrSubs"]) subs = remote["urrSubs"];
@@ -218,6 +221,7 @@ async function saveFolderPerms() { cacheSet(pkey("FolderPerms"), folderPerms); p
 async function saveEstimates()   { pushCollection(pkey("Estimates"), estimates); }
 async function saveTermsLibrary() { pushCollection("urrTermsLibrary", termsLibrary); }
 async function saveCalcAccess()  { pushCollection("urrCalcAccess", calcAccess); }
+async function saveTimeEntries() { pushCollection("urrTimeClock", timeEntries); }
 async function saveFolderGrants() { pushCollection(pkey("FolderGrants"), folderGrants); }
 async function saveCosts()        { pushCollection(pkey("Costs"), costs); }
 
@@ -967,7 +971,8 @@ function render() {
     "estimates-section": activeTab === "Estimates",
     "calc-section": activeTab === "Calc" &&
       (isAdmin() || calcAccess.indexOf(String(SESSION.email).toLowerCase()) !== -1),
-    "codes-section": activeTab === "Codes"
+    "codes-section": activeTab === "Codes",
+    "time-section": activeTab === "Time" && isAdmin()
   };
   $("pl-card").classList.toggle("hidden", !(activeTab === "Budget" && isAdmin()));
   for (const [id, show] of Object.entries(sections)) {
@@ -994,6 +999,7 @@ function render() {
   if (activeTab === "Estimates") renderEstimates();
   if (activeTab === "Calc") renderCalc();
   if (activeTab === "Codes") renderCodes();
+  if (activeTab === "Time" && isAdmin()) renderTime();
 
   // File grid only on file tabs
   const list = $("file-list");
@@ -4314,6 +4320,267 @@ async function respondEstimate(response) {
   btn.disabled = false;
 }
 
+// ---------- Time Clock (ADMIN ONLY) ----------
+let clockTimer = null;
+
+function hoursBetween(startIso, endIso) {
+  if (!startIso || !endIso) return 0;
+  const ms = new Date(endIso) - new Date(startIso);
+  return ms > 0 ? Math.round((ms / 3600000) * 100) / 100 : 0;
+}
+
+function fmtHrs(h) {
+  const hh = Math.floor(h);
+  const mm = Math.round((h - hh) * 60);
+  return hh + "h " + String(mm).padStart(2, "0") + "m";
+}
+
+function fmtClock(iso) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+// datetime-local wants local time, not UTC
+function toLocalInput(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const off = d.getTimezoneOffset() * 60000;
+  return new Date(d - off).toISOString().slice(0, 16);
+}
+function fromLocalInput(v) {
+  return v ? new Date(v).toISOString() : "";
+}
+
+function openEntry() {
+  return timeEntries.find((e) => !e.end) || null;
+}
+
+function weekStart(d) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  x.setDate(x.getDate() - x.getDay());   // Sunday
+  return x;
+}
+
+function renderTime() {
+  const open = openEntry();
+  const btn = $("clock-btn");
+  const status = $("clock-status");
+
+  // --- the big button ---
+  if (open) {
+    btn.className = "clock-btn out";
+    btn.innerHTML = "<span class='cb-label'>Clock Out</span><span class='cb-timer' id='cb-timer'>0h 00m</span>";
+    status.innerHTML = "<b>On the clock at " + escapeHtml(shortProject(open.project)) + "</b>" +
+      "<span>Since " + fmtClock(open.start) + "</span>";
+    status.className = "clock-status running";
+    if (!clockTimer) clockTimer = setInterval(tickClock, 1000);
+    tickClock();
+  } else {
+    btn.className = "clock-btn in";
+    btn.innerHTML = "<span class='cb-label'>Clock In</span><span class='cb-sub'>" +
+      escapeHtml(shortProject(currentProject.name)) + "</span>";
+    status.innerHTML = "<span>Not clocked in. Tap to start on " +
+      escapeHtml(shortProject(currentProject.name)) + ".</span>";
+    status.className = "clock-status";
+    if (clockTimer) { clearInterval(clockTimer); clockTimer = null; }
+  }
+
+  // --- totals ---
+  const now = new Date();
+  const todayKey = now.toDateString();
+  const ws = weekStart(now);
+  let todayH = 0, weekH = 0;
+  const byProject = {};
+  for (const e of timeEntries) {
+    const h = e.end ? hoursBetween(e.start, e.end) : hoursBetween(e.start, new Date().toISOString());
+    const d = new Date(e.start);
+    if (d.toDateString() === todayKey) todayH += h;
+    if (d >= ws) {
+      weekH += h;
+      byProject[e.project] = (byProject[e.project] || 0) + h;
+    }
+  }
+  $("time-today").textContent = fmtHrs(todayH);
+  $("time-week").textContent = fmtHrs(weekH);
+
+  // --- per-property breakdown this week ---
+  const bp = $("time-by-project");
+  bp.innerHTML = "";
+  const keys = Object.keys(byProject).sort((a, b) => byProject[b] - byProject[a]);
+  if (keys.length) {
+    const t = document.createElement("div");
+    t.className = "tc-sub-title";
+    t.textContent = "This week by property";
+    bp.appendChild(t);
+    for (const k of keys) {
+      const row = document.createElement("div");
+      row.className = "tc-proj-row";
+      row.innerHTML = "<span>" + escapeHtml(shortProject(k)) + "</span><b>" + fmtHrs(byProject[k]) + "</b>";
+      bp.appendChild(row);
+    }
+  }
+
+  // --- entry list, newest first, grouped by day ---
+  const list = $("time-list");
+  list.innerHTML = "";
+  const sorted = timeEntries.slice().sort((a, b) => (b.start || "").localeCompare(a.start || ""));
+  $("time-empty").classList.toggle("hidden", sorted.length > 0);
+
+  let lastDay = "";
+  for (const e of sorted) {
+    const day = new Date(e.start).toDateString();
+    if (day !== lastDay) {
+      lastDay = day;
+      const dh = document.createElement("div");
+      dh.className = "tc-day";
+      const dayH = sorted.filter((x) => new Date(x.start).toDateString() === day)
+        .reduce((s, x) => s + (x.end ? hoursBetween(x.start, x.end) : 0), 0);
+      dh.innerHTML = "<span>" + new Date(e.start).toLocaleDateString("en-US",
+        { weekday: "short", month: "short", day: "numeric" }) + "</span><b>" + fmtHrs(dayH) + "</b>";
+      list.appendChild(dh);
+    }
+    const row = document.createElement("div");
+    row.className = "tc-row" + (e.end ? "" : " open");
+    const left = document.createElement("div");
+    left.className = "tc-left";
+    const p = document.createElement("div");
+    p.className = "tc-proj";
+    p.textContent = shortProject(e.project);
+    left.appendChild(p);
+    const t = document.createElement("div");
+    t.className = "tc-times";
+    t.textContent = fmtClock(e.start) + " – " + (e.end ? fmtClock(e.end) : "running") +
+      (e.note ? "  ·  " + e.note : "");
+    left.appendChild(t);
+    row.appendChild(left);
+    const h = document.createElement("div");
+    h.className = "tc-hours";
+    h.textContent = e.end ? fmtHrs(hoursBetween(e.start, e.end)) : "—";
+    row.appendChild(h);
+    row.addEventListener("click", () => openTimeModal(e.id));
+    list.appendChild(row);
+  }
+}
+
+function tickClock() {
+  const open = openEntry();
+  const el = $("cb-timer");
+  if (!open || !el) return;
+  const ms = Date.now() - new Date(open.start);
+  const hh = Math.floor(ms / 3600000);
+  const mm = Math.floor((ms % 3600000) / 60000);
+  const ss = Math.floor((ms % 60000) / 1000);
+  el.textContent = hh + "h " + String(mm).padStart(2, "0") + "m " + String(ss).padStart(2, "0") + "s";
+}
+
+async function toggleClock() {
+  const open = openEntry();
+  const btn = $("clock-btn");
+  btn.disabled = true;
+  if (open) {
+    open.end = new Date().toISOString();
+  } else {
+    timeEntries.push({
+      id: "t" + Date.now(),
+      project: currentProject.name,
+      start: new Date().toISOString(),
+      end: "",
+      note: ""
+    });
+  }
+  await saveTimeEntries();
+  btn.disabled = false;
+  render();
+}
+
+function openTimeModal(id) {
+  editingTimeId = id || null;
+  const e = id ? timeEntries.find((x) => x.id === id) : null;
+  $("time-modal-title").textContent = e ? "Edit Time Entry" : "Add Time Entry";
+  const sel = $("time-project");
+  sel.innerHTML = "";
+  for (const p of SESSION.projects) {
+    const o = document.createElement("option");
+    o.value = p.name;
+    o.textContent = shortProject(p.name);
+    sel.appendChild(o);
+  }
+  sel.value = e ? e.project : currentProject.name;
+  $("time-start").value = e ? toLocalInput(e.start) : toLocalInput(new Date().toISOString());
+  $("time-end").value   = e ? toLocalInput(e.end)   : "";
+  $("time-note").value  = e ? (e.note || "") : "";
+  $("time-delete").classList.toggle("hidden", !e);
+  updateTimeModalHours();
+  $("time-modal").classList.remove("hidden");
+}
+
+function updateTimeModalHours() {
+  const s = fromLocalInput($("time-start").value);
+  const en = fromLocalInput($("time-end").value);
+  const h = hoursBetween(s, en);
+  $("time-calc").textContent = en ? fmtHrs(h) + "  (" + h.toFixed(2) + " hrs)" : "Still running";
+}
+
+async function saveTimeEntry() {
+  const s = fromLocalInput($("time-start").value);
+  if (!s) { alert("Enter a start time."); return; }
+  const en = fromLocalInput($("time-end").value);
+  if (en && new Date(en) <= new Date(s)) { alert("Clock-out must be after clock-in."); return; }
+  const data = {
+    project: $("time-project").value,
+    start: s,
+    end: en,
+    note: $("time-note").value.trim()
+  };
+  if (editingTimeId) {
+    const i = timeEntries.findIndex((x) => x.id === editingTimeId);
+    if (i >= 0) timeEntries[i] = { ...timeEntries[i], ...data };
+  } else {
+    timeEntries.push({ id: "t" + Date.now(), ...data });
+  }
+  await saveTimeEntries();
+  closeModal("time-modal");
+  render();
+}
+
+async function deleteTimeEntry() {
+  if (!confirm("Delete this time entry?")) return;
+  timeEntries = timeEntries.filter((x) => x.id !== editingTimeId);
+  await saveTimeEntries();
+  closeModal("time-modal");
+  render();
+}
+
+// Export the visible week as CSV
+function exportTimeCsv() {
+  const ws = weekStart(new Date());
+  const rows = [["Date", "Property", "Clock In", "Clock Out", "Hours", "Note"]];
+  timeEntries
+    .filter((e) => new Date(e.start) >= ws)
+    .sort((a, b) => (a.start || "").localeCompare(b.start || ""))
+    .forEach((e) => {
+      rows.push([
+        new Date(e.start).toLocaleDateString("en-US"),
+        e.project,
+        fmtClock(e.start),
+        e.end ? fmtClock(e.end) : "",
+        e.end ? hoursBetween(e.start, e.end).toFixed(2) : "",
+        (e.note || "").replace(/"/g, '""')
+      ]);
+    });
+  const csv = rows.map((r) => r.map((c) => '"' + String(c) + '"').join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "URR-timesheet-" + ws.toISOString().slice(0, 10) + ".csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
 // ---------- Building Codes & References ----------
 const CODE_LIBRARY = [
   {
@@ -4410,7 +4677,7 @@ function renderCodes() {
 function renderCalc() {
   const frame = $("calc-frame");
   if (frame && !frame.getAttribute("src")) {
-    frame.setAttribute("src", "calc.html?v=125");
+    frame.setAttribute("src", "calc.html?v=126");
   }
 }
 
@@ -5103,7 +5370,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLightbox(); });
 
   // Click outside modal closes it
-  for (const id of ["task-modal", "budget-modal", "log-modal", "sub-modal", "task-view-modal", "est-modal", "est-view-modal", "est-preview-modal", "cost-modal"]) {
+  for (const id of ["task-modal", "budget-modal", "log-modal", "sub-modal", "task-view-modal", "est-modal", "est-view-modal", "est-preview-modal", "cost-modal", "time-modal"]) {
     $(id).addEventListener("click", (e) => { if (e.target.id === id) closeModal(id); });
   }
 
@@ -5119,6 +5386,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     $("scan-upload-input").value = "";
   });
   $("scan-store-link").href = CUBICASA_APPSTORE;
+  $("clock-btn").addEventListener("click", toggleClock);
+  $("time-add-btn").addEventListener("click", () => openTimeModal(null));
+  $("time-export-btn").addEventListener("click", exportTimeCsv);
+  $("time-save").addEventListener("click", saveTimeEntry);
+  $("time-cancel").addEventListener("click", () => closeModal("time-modal"));
+  $("time-delete").addEventListener("click", deleteTimeEntry);
+  $("time-start").addEventListener("input", updateTimeModalHours);
+  $("time-end").addEventListener("input", updateTimeModalHours);
+
   $("add-cost-btn").addEventListener("click", () => openCostModal(null));
   $("cost-save").addEventListener("click", saveCost);
   $("cost-cancel").addEventListener("click", () => closeModal("cost-modal"));
