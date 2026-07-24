@@ -4018,12 +4018,19 @@ async function generateEstimatePdf(e, progress, kind) {
     doc.line(M, y + 1.5, W - M, y + 1.5);
     y += 7;
     const srow = (label, amt) => {
-      ensure(6);
-      doc.setFont("helvetica", "normal").setFontSize(9.5).setTextColor(45, 58, 82);
-      doc.text(label, M, y);
+      // Reserve the right column for the amount so long milestone text wraps
+      // onto additional lines instead of running underneath it.
+      const amtW = 34;
+      const labelW = (W - 2 * M) - amtW - 6;
+      doc.setFont("helvetica", "normal").setFontSize(9.5);
+      const lines = doc.splitTextToSize(String(label || ""), labelW);
+      const blockH = Math.max(lines.length * 4.4, 5);
+      ensure(blockH + 5);
+      doc.setTextColor(45, 58, 82);
+      doc.text(lines, M, y);
       doc.setFont("helvetica", "bold").setTextColor(...NAVY);
       doc.text(money(amt), colAmt, y, { align: "right" });
-      y += 3;
+      y += blockH - 0.6;
       doc.setDrawColor(...LINE).setLineWidth(0.2);
       doc.line(M, y, W - M, y);
       y += 4;
@@ -4204,7 +4211,7 @@ async function respondEstimate(response) {
 function renderCalc() {
   const frame = $("calc-frame");
   if (frame && !frame.getAttribute("src")) {
-    frame.setAttribute("src", "calc.html?v=114");
+    frame.setAttribute("src", "calc.html?v=115");
   }
 }
 
