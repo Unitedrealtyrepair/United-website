@@ -445,7 +445,53 @@ function renderPresenceBadge() {
     info.appendChild(who);
     info.appendChild(meta);
     row.appendChild(info);
+    // Force-clear a stuck session
+    if (st.cls !== "offline") {
+      const off = document.createElement("button");
+      off.className = "presence-off";
+      off.textContent = "Log off";
+      off.title = "Clear this session";
+      off.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        off.disabled = true;
+        off.textContent = "…";
+        try {
+          const out = await api({
+            action: "clearPresence", email: SESSION.email, code: SESSION.code, who: m.email
+          });
+          if (out.ok) {
+            presenceMap = out.presence || {};
+            renderPresenceBadge();
+            renderPresence();
+          }
+        } catch (err) {
+          off.textContent = "Log off";
+          off.disabled = false;
+        }
+      });
+      row.appendChild(off);
+    }
     pop.appendChild(row);
+  }
+  if (rows.some((r) => r.st.cls !== "offline")) {
+    const all = document.createElement("button");
+    all.className = "msg-clear-thread";
+    all.textContent = "Log everyone off";
+    all.addEventListener("click", async (ev) => {
+      ev.stopPropagation();
+      if (!confirm("Clear all active sessions?\n\nThis resets the online indicator. Nobody is signed out of their account.")) return;
+      try {
+        const out = await api({
+          action: "clearPresence", email: SESSION.email, code: SESSION.code, all: true
+        });
+        if (out.ok) {
+          presenceMap = out.presence || {};
+          renderPresenceBadge();
+          renderPresence();
+        }
+      } catch (err) { alert("Couldn't clear sessions."); }
+    });
+    pop.appendChild(all);
   }
 }
 
@@ -627,7 +673,14 @@ function renderMsgPop() {
     const t = document.createElement("div");
     t.className = "msg-time";
     const d2 = new Date(m.t);
-    t.textContent = (mine ? "You" : (m.from === "admin" ? "United Realty Repair" : m.from)) + " · " + d2.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + d2.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    let stamp = (mine ? "You" : (m.from === "admin" ? "United Realty Repair" : m.from)) + " · " + d2.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + d2.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    // Read receipt on messages I sent
+    if (mine) {
+      const others = (m.readBy || []).filter((r) => String(r).toLowerCase() !== String(meLabel).toLowerCase());
+      stamp += others.length ? "  ·  ✓✓ Read" : "  ·  ✓ Sent";
+      t.classList.add(others.length ? "rr-read" : "rr-sent");
+    }
+    t.textContent = stamp;
     const wrap = document.createElement("div");
     wrap.className = "msg-wrap-line " + (mine ? "mine" : "theirs");
     wrap.appendChild(bub);
@@ -4677,7 +4730,7 @@ function renderCodes() {
 function renderCalc() {
   const frame = $("calc-frame");
   if (frame && !frame.getAttribute("src")) {
-    frame.setAttribute("src", "calc.html?v=126");
+    frame.setAttribute("src", "calc.html?v=127");
   }
 }
 

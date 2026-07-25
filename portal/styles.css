@@ -1755,3 +1755,15 @@ body {
   width: 100%; padding: 10px 12px; border: 1.5px solid #dde3ec;
   border-radius: 8px; font-family: inherit; font-size: 15px; box-sizing: border-box;
 }
+
+/* Read receipts + force logout (v127) */
+.msg-time.rr-read { color: #1c7c3c; font-weight: 600; }
+.msg-time.rr-sent { color: #a0acc0; }
+.presence-off {
+  flex: none; background: #fff; color: #c8102e;
+  border: 1px solid #f0d3d8; border-radius: 6px;
+  font-family: inherit; font-size: 10.5px; font-weight: 700;
+  padding: 4px 8px; cursor: pointer; white-space: nowrap;
+}
+.presence-off:active { background: #fdeef1; }
+.presence-off:disabled { opacity: .5; }
