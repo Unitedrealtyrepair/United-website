@@ -863,7 +863,7 @@ body {
   z-index: 60;
 }
 @media (max-width: 720px) {
-  .presence-pop { position: fixed; left: 4vw; right: 4vw; top: 120px; min-width: 0; }
+  .presence-pop { position: fixed; left: 3vw; right: 3vw; top: 118px; min-width: 0; max-width: 94vw; }
 }
 
 /* ---- Messages ---- */
@@ -1310,7 +1310,7 @@ body {
 }
 
 /* ===== v85: cleaner presence popup ===== */
-.presence-pop { min-width: 300px; padding: 4px 0 6px; }
+.presence-pop { min-width: 360px; padding: 4px 0 6px; }
 .presence-group {
   font-size: 10.5px;
   font-weight: 800;
@@ -1327,9 +1327,10 @@ body {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 8px 14px;
+  padding: 8px 12px 8px 14px;
   border-bottom: 1px solid #f2f5f9;
 }
+.presence-row .presence-info { flex: 1 1 auto; min-width: 0; }
 .presence-row:last-child { border-bottom: none; }
 .presence-info { min-width: 0; flex: 1; }
 .presence-who {
@@ -1760,10 +1761,12 @@ body {
 .msg-time.rr-read { color: #1c7c3c; font-weight: 600; }
 .msg-time.rr-sent { color: #a0acc0; }
 .presence-off {
-  flex: none; background: #fff; color: #c8102e;
-  border: 1px solid #f0d3d8; border-radius: 6px;
-  font-family: inherit; font-size: 10.5px; font-weight: 700;
-  padding: 4px 8px; cursor: pointer; white-space: nowrap;
+  flex: 0 0 auto; background: #fdeef1; color: #c8102e;
+  border: 1px solid #f0c3cc; border-radius: 7px;
+  font-family: inherit; font-size: 11px; font-weight: 700;
+  padding: 6px 11px; cursor: pointer; white-space: nowrap;
+  letter-spacing: .02em;
 }
+.presence-off:hover { background: #fbdde3; }
 .presence-off:active { background: #fdeef1; }
 .presence-off:disabled { opacity: .5; }

@@ -445,12 +445,15 @@ function renderPresenceBadge() {
     info.appendChild(who);
     info.appendChild(meta);
     row.appendChild(info);
-    // Force-clear a stuck session
-    if (st.cls !== "offline") {
+    // Force-clear a session — available wherever a session record exists,
+    // so stale "last seen" entries can be cleared too
+    if (rec) {
       const off = document.createElement("button");
       off.className = "presence-off";
-      off.textContent = "Log off";
-      off.title = "Clear this session";
+      off.textContent = st.cls === "offline" ? "Clear" : "Log off";
+      off.title = st.cls === "offline"
+        ? "Clear this stale session record"
+        : "Clear this session — resets the online indicator";
       off.addEventListener("click", async (ev) => {
         ev.stopPropagation();
         off.disabled = true;
@@ -465,7 +468,7 @@ function renderPresenceBadge() {
             renderPresence();
           }
         } catch (err) {
-          off.textContent = "Log off";
+          off.textContent = st.cls === "offline" ? "Clear" : "Log off";
           off.disabled = false;
         }
       });
@@ -473,7 +476,7 @@ function renderPresenceBadge() {
     }
     pop.appendChild(row);
   }
-  if (rows.some((r) => r.st.cls !== "offline")) {
+  if (rows.some((r) => r.rec)) {
     const all = document.createElement("button");
     all.className = "msg-clear-thread";
     all.textContent = "Log everyone off";
@@ -4730,7 +4733,7 @@ function renderCodes() {
 function renderCalc() {
   const frame = $("calc-frame");
   if (frame && !frame.getAttribute("src")) {
-    frame.setAttribute("src", "calc.html?v=127");
+    frame.setAttribute("src", "calc.html?v=128");
   }
 }
 
