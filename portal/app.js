@@ -219,7 +219,17 @@ async function saveLogs()     { cacheSet(pkey("Logs"), logs); pushCollection(pke
 async function saveSubs()     { cacheSet("urrSubs", subs);            pushCollection("urrSubs", subs); }
 async function saveFolderPerms() { cacheSet(pkey("FolderPerms"), folderPerms); pushCollection(pkey("FolderPerms"), folderPerms); }
 async function saveEstimates()   { pushCollection(pkey("Estimates"), estimates); }
-async function saveCustInvoices() { pushCollection(pkey("CustInvoices"), custInvoices); }
+async function saveCustInvoices() {
+  // Unlike pushCollection this surfaces failures, so the Save button can't
+  // claim success when the write didn't land.
+  const out = await api({
+    action: "save", email: SESSION.email, code: SESSION.code,
+    key: pkey("CustInvoices"), data: custInvoices, notify: []
+  });
+  setSyncStatus(out && out.ok ? "synced" : "offline");
+  if (!out || !out.ok) throw new Error((out && out.error) || "save rejected");
+  return out;
+}
 async function saveTermsLibrary() { pushCollection("urrTermsLibrary", termsLibrary); }
 async function saveCalcAccess()  { pushCollection("urrCalcAccess", calcAccess); }
 async function saveTimeEntries() { pushCollection("urrTimeClock", timeEntries); }
@@ -2526,8 +2536,13 @@ async function saveCustInvoiceEdit() {
   const i = custInvoices.findIndex((x) => x.id === editingCustInvId);
   if (i < 0) return;
   const btn = $("ci-save");
+  const orig = btn.textContent;
   btn.disabled = true;
-  const patch = {
+  btn.textContent = "Saving…";
+  // Written straight from the browser — the whole invoice list is saved,
+  // which admin is already permitted to do. No backend action needed.
+  custInvoices[i] = {
+    ...custInvoices[i],
     number: $("ci-number").value.trim(),
     date: $("ci-date").value,
     title: $("ci-title").value.trim(),
@@ -2536,22 +2551,34 @@ async function saveCustInvoiceEdit() {
     terms: $("ci-terms").value
   };
   try {
-    const out = await api({
-      action: "custInvoiceUpdate", email: SESSION.email, code: SESSION.code,
-      project: currentProject.name, invId: editingCustInvId, patch
-    });
-    if (out.ok && out.invoices) custInvoices = out.invoices;
-    closeModal("ci-modal");
-    render();
-  } catch (e) { alert("Couldn't save: " + e.message); }
-  btn.disabled = false;
+    await saveCustInvoices();
+    btn.textContent = "✓ Saved";
+    setTimeout(() => {
+      btn.textContent = orig;
+      btn.disabled = false;
+      closeModal("ci-modal");
+      render();
+    }, 500);
+  } catch (e) {
+    btn.textContent = "✗ Failed";
+    alert("Couldn't save the invoice: " + (e.message || "unknown error"));
+    setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
+  }
 }
 
 async function custInvoiceAction(inv, payload) {
+  const i = custInvoices.findIndex((x) => x.id === inv.id);
+  if (i < 0) return;
   try {
-    const out = await api({ action: "custInvoiceUpdate", email: SESSION.email, code: SESSION.code, project: currentProject.name, invId: inv.id, ...payload });
-    if (out.ok && out.invoices) { custInvoices = out.invoices; render(); }
-  } catch (e) { console.warn("cust invoice update failed", e); }
+    if (payload.remove) custInvoices.splice(i, 1);
+    else if (payload.visible !== undefined) custInvoices[i].visible = payload.visible === true;
+    else Object.assign(custInvoices[i], payload);
+    await saveCustInvoices();
+    render();
+  } catch (e) {
+    console.warn("cust invoice update failed", e);
+    alert("Couldn't save that change.");
+  }
 }
 
 async function logInvoicePayment(inv) {
@@ -5006,7 +5033,7 @@ function renderCodes() {
 function renderCalc() {
   const frame = $("calc-frame");
   if (frame && !frame.getAttribute("src")) {
-    frame.setAttribute("src", "calc.html?v=132");
+    frame.setAttribute("src", "calc.html?v=133");
   }
 }
 
