@@ -1,3 +1,4 @@
+/* URR Portal v135 */
 :root {
   --navy: #0f2440;
   --navy-light: #1b3a63;
@@ -1812,3 +1813,43 @@ body {
 }
 
 .ci-hint { font-size: 10.5px; color: #8a96a8; margin-top: 3px; font-family: "Roboto Mono", monospace; }
+
+/* ===== Payment Draws ===== */
+.draws-history { margin: 8px 0 14px; }
+.draws-history.hidden { display: none; }
+.draws-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--navy); margin-bottom: 6px; opacity: .75; }
+.draws-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.draw-chip { background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--navy); border-radius: 8px; padding: 8px 12px; font-family: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 1px; min-width: 96px; text-align: left; }
+.draw-chip:hover { border-left-color: var(--red); }
+.draw-chip b { font-size: 13.5px; color: var(--navy); font-weight: 700; }
+.draw-chip span { font-size: 14px; color: var(--navy); font-weight: 700; }
+.draw-chip em { font-size: 11px; color: #6b7a90; font-style: normal; }
+.draw-chip-hidden { opacity: .6; border-left-style: dashed; }
+
+.draw-modal { max-width: 640px; width: 100%; display: flex; flex-direction: column; max-height: 88vh; }
+.draw-head { flex: 0 0 auto; }
+.draw-head-row { display: flex; gap: 12px; }
+.draw-field { flex: 1; display: flex; flex-direction: column; margin-bottom: 10px; }
+.draw-field-sm { flex: 0 0 150px; }
+.draw-field label { font-size: 13px; font-weight: 600; color: var(--navy); margin-bottom: 4px; }
+.draw-hint { font-size: 12px; color: #6b7a90; line-height: 1.4; margin: 6px 0 4px; }
+.draw-hint b { color: var(--navy); }
+
+.draw-counter { display: flex; gap: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin: 6px 0; }
+.draw-counter > div { flex: 1; display: flex; flex-direction: column; gap: 2px; text-align: center; }
+.draw-counter span { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #6b7a90; font-weight: 600; }
+.draw-counter b { font-size: 14px; color: var(--navy); font-weight: 700; }
+.draw-counter.balanced { border-color: #1a7f45; background: #eaf7ef; }
+.draw-counter.balanced b { color: #1a7f45; }
+.draw-counter.over { border-color: var(--red); background: #fdecef; }
+.draw-counter.over b { color: var(--red); }
+
+.draw-lines { flex: 1 1 auto; overflow-y: auto; margin-top: 4px; border-top: 1px solid var(--border); }
+.draw-sec-head { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--navy); background: var(--bg); padding: 8px 10px; margin-top: 6px; border-radius: 6px; }
+.draw-line { display: flex; align-items: center; gap: 12px; padding: 9px 4px; border-bottom: 1px solid var(--border); }
+.draw-line-info { flex: 1; min-width: 0; }
+.draw-line-desc { font-size: 14px; font-weight: 600; color: var(--navy); }
+.draw-line-meta { font-size: 12px; color: #6b7a90; margin-top: 2px; }
+.draw-line-in { flex: 0 0 92px; }
+.draw-line-input { width: 100%; border: 1.5px solid var(--border); border-radius: 8px; padding: 8px; font-family: inherit; font-size: 14px; text-align: right; }
+.draw-line-input:focus { outline: none; border-color: var(--navy); }

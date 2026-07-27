@@ -1,3 +1,4 @@
+// URR Portal v135 — draw allocation, customer invoice PDF, Costs tab rename
 // ============================================================
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
@@ -129,6 +130,7 @@ let timeEntries = [];   // admin time clock — {id, project, start, end, note, 
 let editingTimeId = null;
 let costs = [];         // job costing entries — ADMIN ONLY, memory only
 let editingCostId = null;
+let draws = [];         // payment draws — {id, label, date, amount, visible, alloc:[{budgetId,desc,amount}]}
 let editingEstId = null;
 let estDraft = null;    // working copy while the builder modal is open
 let photoFolders = [];  // [{id, name, isSubUploads}]
@@ -172,6 +174,7 @@ function applyRemote(remote) {
   if (remote["urrCalcAccess"]) calcAccess = remote["urrCalcAccess"];
   if (remote["urrTimeClock"]) timeEntries = remote["urrTimeClock"];
   costs = remote[pkey("Costs")] || [];
+  draws = remote[pkey("Draws")] || [];
   if (remote[pkey("FolderGrants")]) folderGrants = remote[pkey("FolderGrants")];
   if (remote["urrSubs"]) subs = remote["urrSubs"];
   cacheSet(pkey("Schedule"), schedule);
@@ -191,6 +194,7 @@ async function loadState(initialData) {
   custInvoices = [];
   subBids = [];
   costs = [];
+  draws = [];
   folderGrants = {};
   subs = cacheGet("urrSubs") || [];
   if (initialData) { applyRemote(initialData); setSyncStatus("synced"); return; }
@@ -245,6 +249,7 @@ async function saveCalcAccess()  { pushCollection("urrCalcAccess", calcAccess); 
 async function saveTimeEntries() { pushCollection("urrTimeClock", timeEntries); }
 async function saveFolderGrants() { pushCollection(pkey("FolderGrants"), folderGrants); }
 async function saveCosts()        { pushCollection(pkey("Costs"), costs); }
+async function saveDraws()        { cacheSet(pkey("Draws"), draws); pushCollection(pkey("Draws"), draws); }
 
 // ---------- Categorization ----------
 const RULES = [
@@ -343,7 +348,7 @@ function renderProjectName() {
     selectedIds = new Set();
     subUploadsFolderId = null;
     schedule = []; budget = []; logs = []; folderPerms = {}; folderGrants = {};
-    invoices = []; estimates = []; custInvoices = []; subBids = []; costs = [];
+    invoices = []; estimates = []; custInvoices = []; subBids = []; costs = []; draws = [];
     buildTabs();
     render();       // swap the screen to the new project instantly
     loadFiles();    // start the (slow) Drive walk right away
@@ -870,7 +875,9 @@ function buildTabs() {
   tabs.forEach((t) => {
     const b = document.createElement("button");
     b.className = "tab" + (t === activeTab ? " active" : "");
-    b.textContent = t;
+    // Admin's "Materials" tab is really the job-cost log; label it "Costs".
+    // Subs keep "Materials" (they use it for material docs/receipts).
+    b.textContent = (t === "Materials" && isAdmin()) ? "Costs" : t;
     b.addEventListener("click", () => {
       activeTab = t;
       selectMode = false;
@@ -2091,6 +2098,8 @@ async function deleteCost() {
 function renderBudget() {
   const admin = isAdmin();
   $("add-budget-btn").classList.toggle("hidden", !admin);
+  $("log-draw-btn").classList.toggle("hidden", !admin);
+  renderDrawsHistory(admin);
 
   const total = budget.reduce((s, b) => s + (Number(b.amount) || 0), 0);
   const paid = budget.reduce((s, b) => s + (Number(b.paid) || 0), 0);
@@ -2189,6 +2198,202 @@ function renderBudgetRow(b, list, admin) {
     }
     list.appendChild(row);
   }
+}
+
+// ---------- Payment draws ----------
+let editingDrawId = null;
+
+// A draw allocation input accepts "50%" (percent of that line's contract)
+// or "500" (flat dollars). Returns dollars for a given line amount.
+function parseAllocInput(raw, lineAmount) {
+  const s = String(raw || "").trim();
+  if (!s) return 0;
+  if (s.endsWith("%")) {
+    const p = parseFloat(s.slice(0, -1));
+    if (!isFinite(p)) return 0;
+    return r2((Number(lineAmount) || 0) * p / 100);
+  }
+  const v = parseFloat(s);
+  return isFinite(v) ? r2(v) : 0;
+}
+
+function renderDrawsHistory(admin) {
+  const host = $("draws-history");
+  if (!host) return;
+  // Customers see only draws marked visible; admins see all.
+  const visible = draws.filter((d) => admin || d.visible);
+  if (!visible.length) { host.innerHTML = ""; host.classList.add("hidden"); return; }
+  host.classList.remove("hidden");
+  host.innerHTML = "<div class='draws-title'>Payment Draws</div>";
+  const wrap = document.createElement("div");
+  wrap.className = "draws-chips";
+  for (const d of visible) {
+    const chip = document.createElement("button");
+    chip.className = "draw-chip" + (d.visible ? "" : " draw-chip-hidden");
+    chip.innerHTML = "<b>" + escapeHtml(d.label || "Draw") + "</b>" +
+      "<span>" + fmtMoney(d.amount) + "</span>" +
+      (d.date ? "<em>" + escapeHtml(fmtDateLong(d.date)) + "</em>" : "");
+    if (admin) chip.addEventListener("click", () => openDrawModal(d.id));
+    wrap.appendChild(chip);
+  }
+  host.appendChild(wrap);
+}
+
+function updateDrawCounter() {
+  const draw = Number($("draw-amount").value) || 0;
+  let allocated = 0;
+  document.querySelectorAll("#draw-lines .draw-line-input").forEach((inp) => {
+    allocated = r2(allocated + parseAllocInput(inp.value, inp.dataset.amount));
+  });
+  const remaining = r2(draw - allocated);
+  const pctA = draw > 0 ? Math.round((allocated / draw) * 100) : 0;
+  const pctR = draw > 0 ? 100 - pctA : 0;
+  const el = $("draw-counter");
+  const over = remaining < -0.001;
+  const balanced = Math.abs(remaining) <= 0.001 && draw > 0;
+  el.className = "draw-counter" + (over ? " over" : balanced ? " balanced" : "");
+  el.innerHTML =
+    "<div><span>Draw</span><b>" + fmtMoney(draw) + "</b></div>" +
+    "<div><span>Allocated</span><b>" + fmtMoney(allocated) + " · " + pctA + "%</b></div>" +
+    "<div><span>Remaining</span><b>" + fmtMoney(remaining) + " · " + pctR + "%</b></div>";
+}
+
+function openDrawModal(id) {
+  editingDrawId = id || null;
+  const d = id ? draws.find((x) => x.id === id) : null;
+  $("draw-modal-title").textContent = d ? "Edit Draw" : "Log a Draw";
+  $("draw-label").value = d ? (d.label || "") : "";
+  $("draw-date").value = d ? (d.date || ymd(new Date())) : ymd(new Date());
+  $("draw-amount").value = d ? d.amount : "";
+  $("draw-visible").checked = d ? !!d.visible : false;
+  $("draw-delete").classList.toggle("hidden", !d);
+
+  // Prior allocations for this draw, so editing shows what it placed
+  const priorByBudget = {};
+  if (d) for (const a of (d.alloc || [])) priorByBudget[a.budgetId] = a.amount;
+
+  const host = $("draw-lines");
+  host.innerHTML = "";
+  const groups = [];
+  const seen = {};
+  for (const b of budget) {
+    const key = b.section || "";
+    if (!(key in seen)) { seen[key] = groups.length; groups.push({ name: key, items: [] }); }
+    groups[seen[key]].items.push(b);
+  }
+  for (const g of groups) {
+    if (g.name) {
+      const gh = document.createElement("div");
+      gh.className = "draw-sec-head";
+      gh.textContent = g.name;
+      host.appendChild(gh);
+    }
+    for (const b of g.items) {
+      const amt = Number(b.amount) || 0;
+      const already = Number(b.paid) || 0;
+      const row = document.createElement("div");
+      row.className = "draw-line";
+      const info = document.createElement("div");
+      info.className = "draw-line-info";
+      info.innerHTML = "<div class='draw-line-desc'>" + escapeHtml(b.desc || "") + "</div>" +
+        "<div class='draw-line-meta'>Contract " + fmtMoney(amt) +
+        " · Paid " + fmtMoney(already) + " (" + (amt > 0 ? Math.round(already / amt * 100) : 0) + "%)</div>";
+      const inWrap = document.createElement("div");
+      inWrap.className = "draw-line-in";
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.className = "draw-line-input";
+      inp.placeholder = "0";
+      inp.dataset.amount = amt;
+      if (d && priorByBudget[b.id]) {
+        // show the prior dollar allocation for this line
+        inp.value = String(priorByBudget[b.id]);
+      }
+      inp.addEventListener("input", updateDrawCounter);
+      inWrap.appendChild(inp);
+      row.appendChild(info);
+      row.appendChild(inWrap);
+      host.appendChild(row);
+      inp._budgetId = b.id;
+    }
+  }
+  $("draw-amount").oninput = updateDrawCounter;
+  updateDrawCounter();
+  $("draw-modal").classList.remove("hidden");
+}
+
+async function saveDraw() {
+  const label = $("draw-label").value.trim() || "Draw";
+  const date = $("draw-date").value || ymd(new Date());
+  const amount = r2(Number($("draw-amount").value) || 0);
+  const visible = $("draw-visible").checked;
+
+  // Gather allocations
+  const alloc = [];
+  let allocated = 0;
+  document.querySelectorAll("#draw-lines .draw-line-input").forEach((inp) => {
+    const dollars = parseAllocInput(inp.value, inp.dataset.amount);
+    if (dollars !== 0) {
+      const b = budget.find((x) => x.id === inp._budgetId);
+      alloc.push({ budgetId: inp._budgetId, desc: b ? b.desc : "", amount: dollars });
+      allocated = r2(allocated + dollars);
+    }
+  });
+
+  if (!alloc.length) { alert("Nothing allocated. Enter a percent or amount on at least one line."); return; }
+
+  const remaining = r2(amount - allocated);
+  if (Math.abs(remaining) > 0.001) {
+    const msg = remaining < 0
+      ? "You've allocated " + fmtMoney(allocated) + ", which is " + fmtMoney(-remaining) +
+        " OVER the draw amount of " + fmtMoney(amount) + ".\n\nSave anyway?"
+      : "You've allocated " + fmtMoney(allocated) + " of the " + fmtMoney(amount) +
+        " draw. " + fmtMoney(remaining) + " is still unallocated.\n\nSave anyway?";
+    if (!confirm(msg)) return;
+  }
+
+  // When editing, first roll back the prior allocations so we don't double-count
+  if (editingDrawId) {
+    const prev = draws.find((x) => x.id === editingDrawId);
+    if (prev) for (const a of (prev.alloc || [])) {
+      const b = budget.find((x) => x.id === a.budgetId);
+      if (b) b.paid = r2((Number(b.paid) || 0) - a.amount);
+    }
+  }
+
+  // Apply new allocations to each line's paid
+  for (const a of alloc) {
+    const b = budget.find((x) => x.id === a.budgetId);
+    if (b) b.paid = r2((Number(b.paid) || 0) + a.amount);
+  }
+
+  const record = { id: editingDrawId || ("dr" + Date.now()), label, date, amount, visible, alloc };
+  if (editingDrawId) {
+    const i = draws.findIndex((x) => x.id === editingDrawId);
+    if (i >= 0) draws[i] = record; else draws.push(record);
+  } else {
+    draws.push(record);
+  }
+
+  await saveBudget();
+  await saveDraws();
+  closeModal("draw-modal");
+  render();
+}
+
+async function deleteDraw() {
+  if (!editingDrawId) return;
+  if (!confirm("Delete this draw? The amounts it added to each line's paid total will be reversed.")) return;
+  const prev = draws.find((x) => x.id === editingDrawId);
+  if (prev) for (const a of (prev.alloc || [])) {
+    const b = budget.find((x) => x.id === a.budgetId);
+    if (b) b.paid = r2((Number(b.paid) || 0) - a.amount);
+  }
+  draws = draws.filter((x) => x.id !== editingDrawId);
+  await saveBudget();
+  await saveDraws();
+  closeModal("draw-modal");
+  render();
 }
 
 function fillCatDropdown() {
@@ -2632,12 +2837,16 @@ function openCustInvoiceView(id) {
   const inv = custInvoices.find((x) => x.id === id);
   if (!inv) return;
   viewingEstId = null;
+  viewingInvId = id;
   renderEstimateDoc(inv, $("ev-doc"), "INVOICE");
   $("ev-sign-row").classList.add("hidden");
   $("ev-approve").classList.add("hidden");
   $("ev-decline").classList.add("hidden");
+  $("ev-pdf").classList.remove("hidden");
   $("est-view-modal").classList.remove("hidden");
 }
+
+let viewingInvId = null;
 
 let previewInvId = null;
 
@@ -4668,6 +4877,7 @@ function openEstView(id) {
   const e = estimates.find((x) => x.id === id);
   if (!e) return;
   viewingEstId = id;
+  viewingInvId = null;
   renderEstimateDoc(e, $("ev-doc"));
   const open = e.status === "sent" && !isAdmin();
   $("ev-sign-row").classList.toggle("hidden", !open);
@@ -4675,7 +4885,28 @@ function openEstView(id) {
   $("ev-agree").checked = false;
   $("ev-approve").classList.toggle("hidden", !open);
   $("ev-decline").classList.toggle("hidden", !open);
+  $("ev-pdf").classList.remove("hidden");
   $("est-view-modal").classList.remove("hidden");
+}
+
+async function downloadViewedPdf() {
+  const isInv = !!viewingInvId;
+  const e = isInv ? custInvoices.find((x) => x.id === viewingInvId)
+                  : estimates.find((x) => x.id === viewingEstId);
+  if (!e) return;
+  const btn = $("ev-pdf");
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = "Building PDF…";
+  try {
+    await loadScript(JSPDF_URL);
+    await generateEstimatePdf(e, (msg) => { btn.textContent = msg; }, isInv ? "INVOICE" : "ESTIMATE");
+    btn.textContent = "✓ Downloaded";
+  } catch (err) {
+    console.warn("pdf failed", err);
+    btn.textContent = "✗ Failed — try again";
+  }
+  setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2500);
 }
 
 function escapeHtml(s) {
@@ -5678,7 +5909,7 @@ function closeLightbox() {
 // ---------- Modal plumbing ----------
 function closeModal(id) {
   $(id).classList.add("hidden");
-  editingTaskId = editingBudgetId = editingLogId = editingSubId = null;
+  editingTaskId = editingBudgetId = editingLogId = editingSubId = editingDrawId = null;
 }
 
 // ---------- Init ----------
@@ -5701,6 +5932,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("add-budget-btn").addEventListener("click", () => openBudgetModal(null));
   $("budget-cancel").addEventListener("click", () => closeModal("budget-modal"));
   $("budget-save").addEventListener("click", saveBudgetItem);
+  $("log-draw-btn").addEventListener("click", () => openDrawModal(null));
+  $("draw-cancel").addEventListener("click", () => closeModal("draw-modal"));
+  $("draw-save").addEventListener("click", saveDraw);
+  $("draw-delete").addEventListener("click", deleteDraw);
   $("budget-delete").addEventListener("click", deleteBudgetItem);
 
   // Logs
@@ -5757,7 +5992,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLightbox(); });
 
   // Click outside modal closes it
-  for (const id of ["task-modal", "budget-modal", "log-modal", "sub-modal", "task-view-modal", "est-modal", "est-view-modal", "est-preview-modal", "cost-modal", "time-modal", "ci-modal"]) {
+  for (const id of ["task-modal", "budget-modal", "draw-modal", "log-modal", "sub-modal", "task-view-modal", "est-modal", "est-view-modal", "est-preview-modal", "cost-modal", "time-modal", "ci-modal"]) {
     $(id).addEventListener("click", (e) => { if (e.target.id === id) closeModal(id); });
   }
 
@@ -5883,6 +6118,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("est-cancel").addEventListener("click", () => { estDraft = null; closeModal("est-modal"); });
   $("est-delete").addEventListener("click", deleteEstimate);
   $("ev-close").addEventListener("click", () => closeModal("est-view-modal"));
+  $("ev-pdf").addEventListener("click", downloadViewedPdf);
   $("ev-approve").addEventListener("click", () => respondEstimate("approved"));
   $("ev-decline").addEventListener("click", () => respondEstimate("declined"));
 

@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>URR Project Portal</title>
+  <!-- URR Portal v135 -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css?v=134" />
@@ -121,9 +122,11 @@
             <div class="bs-item"><span class="bs-label">Paid</span><span class="bs-val green" id="bs-paid">$0</span></div>
             <div class="bs-item"><span class="bs-label">Remaining</span><span class="bs-val red" id="bs-remaining">$0</span></div>
           </div>
+          <button id="log-draw-btn" class="add-task-btn hidden">＋ Log Draw</button>
           <button id="add-budget-btn" class="add-task-btn hidden">+ Add Line Item</button>
         </div>
         <div class="progress-bar"><div class="progress-fill green" id="budget-fill"></div></div>
+        <div id="draws-history" class="draws-history"></div>
         <div id="budget-list" class="budget-list"></div>
         <div id="budget-empty" class="status-msg hidden">No budget items yet.</div>
       </div>
@@ -347,6 +350,39 @@
       </div>
     </div>
 
+    <!-- ===== Draw allocation modal ===== -->
+    <div id="draw-modal" class="modal-overlay hidden">
+      <div class="modal draw-modal">
+        <h2 id="draw-modal-title">Log a Draw</h2>
+        <div class="draw-head">
+          <div class="draw-head-row">
+            <div class="draw-field">
+              <label>Label</label>
+              <input type="text" id="draw-label" placeholder="e.g. Deposit, Draw 2" />
+            </div>
+            <div class="draw-field draw-field-sm">
+              <label>Date</label>
+              <input type="date" id="draw-date" />
+            </div>
+          </div>
+          <div class="draw-field">
+            <label>Draw amount ($)</label>
+            <input type="number" id="draw-amount" min="0" step="0.01" placeholder="0.00" />
+          </div>
+          <div id="draw-counter" class="draw-counter"></div>
+          <label class="checkbox-row"><input type="checkbox" id="draw-visible" /> Visible to customer</label>
+          <p class="draw-hint">Type a percent (<b>50%</b>) or a dollar amount (<b>500</b>) on the lines this draw covers. Percent is of each line's contract amount. Blank lines get nothing. Amounts add to what's already paid.</p>
+        </div>
+        <div id="draw-lines" class="draw-lines"></div>
+        <div class="modal-actions">
+          <button id="draw-delete" class="btn-danger hidden">Delete Draw</button>
+          <span class="spacer"></span>
+          <button id="draw-cancel" class="btn-ghost">Cancel</button>
+          <button id="draw-save" class="btn-primary">Save Draw</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ===== Log modal ===== -->
     <div id="log-modal" class="modal-overlay hidden">
       <div class="modal">
@@ -524,6 +560,7 @@
         </div>
         <div class="modal-actions" id="ev-actions">
           <button id="ev-decline" class="btn-danger hidden">Decline</button>
+          <button id="ev-pdf" class="btn-ghost hidden">⬇ Download PDF</button>
           <span class="spacer"></span>
           <button id="ev-close" class="btn-ghost">Close</button>
           <button id="ev-approve" class="btn-primary hidden">✓ Approve &amp; Sign</button>
