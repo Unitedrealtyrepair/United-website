@@ -158,6 +158,16 @@ function applyRemote(remote) {
   estimates = remote[pkey("Estimates")] || []; // server pre-filters per role; memory only
   if (remote["urrTermsLibrary"]) termsLibrary = remote["urrTermsLibrary"];
   custInvoices = remote[pkey("CustInvoices")] || [];
+  // Migrate old "INV#_A" placeholders: keep the suffix, blank the number so
+  // the assign-number prompt resolves once a real number is typed.
+  for (const v of custInvoices) {
+    const n = String(v.number || "");
+    if (n.indexOf("#") !== -1) {
+      const m = /_([A-Z])\s*$/.exec(n);
+      if (m && !v.suffix) v.suffix = m[1];
+      v.number = "";
+    }
+  }
   subBids = remote[pkey("SubEstimates")] || [];
   if (remote["urrCalcAccess"]) calcAccess = remote["urrCalcAccess"];
   if (remote["urrTimeClock"]) timeEntries = remote["urrTimeClock"];
@@ -2406,6 +2416,16 @@ async function deleteLog() {
 }
 
 // ---------- Invoices (sub → admin office only) ----------
+// An invoice is "numbered" once you have typed something without a # in it
+function invIsNumbered(inv) {
+  const n = String(inv.number || "").trim();
+  return n !== "" && n.indexOf("#") === -1;
+}
+function invLabel(inv) {
+  if (invIsNumbered(inv)) return inv.number;
+  return "INV#" + (inv.suffix ? "_" + inv.suffix : "");
+}
+
 const CI_STATUS = (inv) => {
   const paid = (inv.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
   const total = inv.totals ? Number(inv.totals.total) || 0 : 0;
@@ -2437,8 +2457,8 @@ function renderCustInvoices(list) {
     head.className = "log-head";
     const t = document.createElement("div");
     t.className = "log-date";
-    t.textContent = (inv.number || "Invoice") + (inv.title ? " — " + inv.title : "");
-    if (/#/.test(String(inv.number || ""))) t.classList.add("inv-unnumbered");
+    t.textContent = invLabel(inv) + (inv.title ? " — " + inv.title : "");
+    if (!invIsNumbered(inv)) t.classList.add("inv-unnumbered");
     head.appendChild(t);
     const badge = document.createElement("span");
     badge.className = "status-badge " + st.cls;
@@ -2474,9 +2494,8 @@ function renderCustInvoices(list) {
       vis.textContent = inv.visible ? "🙈 Hide from customer" : "👤 Make visible to customer";
       vis.addEventListener("click", (e2) => {
         e2.stopPropagation();
-        if (!inv.visible && /#/.test(String(inv.number || ""))) {
-          if (!confirm("This invoice still has the placeholder number \"" + inv.number +
-            "\".\n\nPublish it anyway?")) return;
+        if (!inv.visible && !invIsNumbered(inv)) {
+          if (!confirm("This invoice has no number assigned yet.\n\nPublish it anyway?")) return;
         }
         custInvoiceAction(inv, { visible: !inv.visible });
       });
@@ -2510,7 +2529,9 @@ function openCustInvoiceEdit(id) {
   const inv = custInvoices.find((x) => x.id === id);
   if (!inv) return;
   editingCustInvId = id;
-  $("ci-number").value = inv.number || "";
+  $("ci-number").value = invIsNumbered(inv) ? inv.number : "";
+  const hint = $("ci-number-hint");
+  if (hint) hint.textContent = inv.suffix ? "Draw " + inv.suffix + " — e.g. INV-1042_" + inv.suffix : "";
   $("ci-date").value = inv.date || "";
   $("ci-title").value = inv.title || "";
   $("ci-due").value = inv.amountDue !== undefined ? inv.amountDue : (inv.totals ? inv.totals.total : 0);
@@ -4116,7 +4137,8 @@ async function convertToInvoice(estId) {
   const custCopy = estimateCustomerCopy(e);
   const inv = {
     id: "ci" + Date.now(),
-    number: "INV#_" + suffix,          // placeholder — you assign the number
+    number: "",                        // you assign this
+    suffix: suffix,                    // A, B, C for successive draws
     date: ymd(new Date()),
     title: e.title || "",
     customerName: e.customerName || "",
@@ -5033,7 +5055,7 @@ function renderCodes() {
 function renderCalc() {
   const frame = $("calc-frame");
   if (frame && !frame.getAttribute("src")) {
-    frame.setAttribute("src", "calc.html?v=133");
+    frame.setAttribute("src", "calc.html?v=134");
   }
 }
 

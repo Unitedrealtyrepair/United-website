@@ -6,7 +6,7 @@
   <title>URR Project Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=133" />
+  <link rel="stylesheet" href="styles.css?v=134" />
 </head>
 <body>
 
@@ -586,7 +586,11 @@
       <div class="modal">
         <h2>Edit Invoice</h2>
         <div class="est-head-grid">
-          <div><label>Invoice #</label><input type="text" id="ci-number" /></div>
+          <div>
+            <label>Invoice #</label>
+            <input type="text" id="ci-number" placeholder="not assigned yet" />
+            <div id="ci-number-hint" class="ci-hint"></div>
+          </div>
           <div><label>Date</label><input type="date" id="ci-date" /></div>
         </div>
         <label>Title</label>
@@ -634,6 +638,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=133"></script>
+  <script src="app.js?v=134"></script>
 </body>
 </html>
