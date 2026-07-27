@@ -4733,7 +4733,7 @@ function renderCodes() {
 function renderCalc() {
   const frame = $("calc-frame");
   if (frame && !frame.getAttribute("src")) {
-    frame.setAttribute("src", "calc.html?v=128");
+    frame.setAttribute("src", "calc.html?v=129");
   }
 }
 
