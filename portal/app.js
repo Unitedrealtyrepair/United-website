@@ -4052,9 +4052,10 @@ function nextCustInvNumber() {
   return "INV-" + String(max + 1).padStart(3, "0");
 }
 
-// Budget: one line per estimate ITEM, grouped by section. Any discount is
-// spread proportionally into the amounts so the budget still sums to the
-// contract total without showing a discount row.
+// Budget: one line per estimate ITEM at its full sell price, grouped by
+// section. Any estimate-level discount is added as a single line at the
+// bottom (matching how the estimate shows it) rather than spread into the
+// item amounts.
 async function convertToBudget(estId) {
   const e = estimates.find((x) => x.id === estId);
   if (!e) return;
@@ -4064,7 +4065,6 @@ async function convertToBudget(estId) {
       (existing === 1 ? "" : "s") + ".\n\nAdd another full set?")) return;
   }
   const c = calcEstimate(e);
-  const factor = c.subtotal > 0 ? (c.subtotal - c.discountAmt) / c.subtotal : 1;
   const custByItem = {};
   for (const L of c.lines) custByItem[L.item.id] = L.customer;
 
@@ -4073,7 +4073,7 @@ async function convertToBudget(estId) {
   const made = [];
   for (const s of (e.sections || [])) {
     for (const it of (s.items || [])) {
-      const amt = r2((custByItem[it.id] || 0) * factor);
+      const amt = r2(custByItem[it.id] || 0);   // full sell price, no discount
       if (amt === 0) continue;
       n++;
       const row = {
@@ -4092,15 +4092,24 @@ async function convertToBudget(estId) {
   }
 
   // Rounding each line independently leaves a cent or two of drift.
-  // Push the difference into the largest line so the budget matches the
-  // contract exactly.
-  const target = r2(c.subtotal - c.discountAmt);
+  // Push the difference into the largest line so the item lines sum to the
+  // pre-discount subtotal exactly.
+  const target = r2(c.subtotal);
   const built = made.reduce((s2, r) => r2(s2 + r.amount), 0);
   const drift = r2(target - built);
   if (drift !== 0 && made.length) {
     let big = made[0];
     for (const r of made) if (Math.abs(r.amount) > Math.abs(big.amount)) big = r;
     big.amount = r2(big.amount + drift);
+  }
+
+  // Discount shown once, as its own line near the total.
+  if (c.discountAmt) {
+    n++;
+    budget.push({
+      id: "b" + stamp + "_disc", section: "Discount", desc: "Discount",
+      cat: "Contract", amount: r2(-c.discountAmt), paid: 0, estId: e.id
+    });
   }
 
   if (c.tax) {
