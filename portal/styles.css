@@ -1797,3 +1797,9 @@ body {
   width: 100%; padding: 10px 12px; border: 1.5px solid #dde3ec;
   border-radius: 8px; font-family: inherit; font-size: 13px; box-sizing: border-box;
 }
+
+/* Estimate card convert actions (v131) */
+.est-card-actions {
+  display: flex; gap: 7px; flex-wrap: wrap; margin-top: 9px;
+}
+.est-card-actions .est-preview-btn { margin-top: 0; }

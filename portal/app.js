@@ -219,6 +219,7 @@ async function saveLogs()     { cacheSet(pkey("Logs"), logs); pushCollection(pke
 async function saveSubs()     { cacheSet("urrSubs", subs);            pushCollection("urrSubs", subs); }
 async function saveFolderPerms() { cacheSet(pkey("FolderPerms"), folderPerms); pushCollection(pkey("FolderPerms"), folderPerms); }
 async function saveEstimates()   { pushCollection(pkey("Estimates"), estimates); }
+async function saveCustInvoices() { pushCollection(pkey("CustInvoices"), custInvoices); }
 async function saveTermsLibrary() { pushCollection("urrTermsLibrary", termsLibrary); }
 async function saveCalcAccess()  { pushCollection("urrCalcAccess", calcAccess); }
 async function saveTimeEntries() { pushCollection("urrTimeClock", timeEntries); }
@@ -2950,11 +2951,29 @@ function renderEstimates() {
       card.appendChild(mg);
     }
     if (isAdmin()) {
+      const acts = document.createElement("div");
+      acts.className = "est-card-actions";
       const pv = document.createElement("button");
       pv.className = "btn-ghost est-preview-btn";
       pv.textContent = "👁 Preview / PDF";
       pv.addEventListener("click", (ev2) => { ev2.stopPropagation(); openEstPreview(e.id); });
-      card.appendChild(pv);
+      acts.appendChild(pv);
+      // Convert actions unlock once the customer has signed
+      if (e.status === "approved") {
+        const hasBudget = budget.some((b) => b.estId === e.id);
+        const invCount = custInvoices.filter((v) => v.estimateId === e.id).length;
+        const bb = document.createElement("button");
+        bb.className = (hasBudget ? "btn-ghost" : "btn-primary") + " est-preview-btn";
+        bb.textContent = hasBudget ? "✓ Budget built" : "→ Build Budget";
+        bb.addEventListener("click", (ev2) => { ev2.stopPropagation(); convertToBudget(e.id); });
+        acts.appendChild(bb);
+        const ib = document.createElement("button");
+        ib.className = (invCount ? "btn-ghost" : "btn-primary") + " est-preview-btn";
+        ib.textContent = invCount ? "＋ Invoice (" + invCount + ")" : "→ Create Invoice";
+        ib.addEventListener("click", (ev2) => { ev2.stopPropagation(); convertToInvoice(e.id); });
+        acts.appendChild(ib);
+      }
+      card.appendChild(acts);
     }
     card.addEventListener("click", () => {
       if (isAdmin()) openEstModal(e.id);
@@ -3954,6 +3973,139 @@ function renderEstimateDoc(e, host, kind) {
   host.appendChild(foot);
 }
 
+// ----- Convert an approved estimate into budget / invoice (client-side) -----
+function nextCustInvNumber() {
+  let max = 0;
+  for (const v of custInvoices) {
+    const m = /(\d+)/.exec(String(v.number || "").replace(/^INV-?/i, ""));
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return "INV-" + String(max + 1).padStart(3, "0");
+}
+
+// Budget: one line per estimate ITEM, grouped by section. Any discount is
+// spread proportionally into the amounts so the budget still sums to the
+// contract total without showing a discount row.
+async function convertToBudget(estId) {
+  const e = estimates.find((x) => x.id === estId);
+  if (!e) return;
+  const existing = budget.filter((b) => b.estId === estId).length;
+  if (existing) {
+    if (!confirm("This estimate already has " + existing + " budget line" +
+      (existing === 1 ? "" : "s") + ".\n\nAdd another full set?")) return;
+  }
+  const c = calcEstimate(e);
+  const factor = c.subtotal > 0 ? (c.subtotal - c.discountAmt) / c.subtotal : 1;
+  const custByItem = {};
+  for (const L of c.lines) custByItem[L.item.id] = L.customer;
+
+  let n = 0;
+  const stamp = Date.now();
+  for (const s of (e.sections || [])) {
+    for (const it of (s.items || [])) {
+      const amt = r2((custByItem[it.id] || 0) * factor);
+      if (amt === 0) continue;
+      n++;
+      budget.push({
+        id: "b" + stamp + "_" + n,
+        section: s.name || "General",
+        desc: it.desc || "Line item",
+        cat: "Contract",
+        amount: amt,
+        paid: 0,
+        estId: e.id
+      });
+    }
+  }
+  if (c.tax) {
+    budget.push({
+      id: "b" + stamp + "_tax", section: "Tax", desc: "Sales tax",
+      cat: "Contract", amount: c.tax, paid: 0, estId: e.id
+    });
+  }
+  await saveBudget();
+  render();
+  alert("Budget created — " + n + " line item" + (n === 1 ? "" : "s") +
+    (c.tax ? " plus tax" : "") + ".");
+}
+
+// Invoice: full estimate detail, with the deposit (or a chosen amount) due now
+async function convertToInvoice(estId) {
+  const e = estimates.find((x) => x.id === estId);
+  if (!e) return;
+  const c = calcEstimate(e);
+  const prior = custInvoices.filter((v) => v.estimateId === estId).length;
+  const suffix = String.fromCharCode(65 + prior);        // A, B, C…
+  const defaultDue = prior === 0 && c.depositAmt > 0 ? c.depositAmt : c.total;
+
+  const ask = prompt(
+    "Amount due on this invoice:\n\n" +
+    "Contract total: " + fmtMoney(c.total) +
+    (c.depositAmt ? "\nDeposit: " + fmtMoney(c.depositAmt) : ""),
+    String(defaultDue)
+  );
+  if (ask === null) return;
+  const due = parseFloat(ask);
+  if (!(due > 0)) { alert("Enter a dollar amount."); return; }
+
+  const custCopy = estimateCustomerCopy(e);
+  const inv = {
+    id: "ci" + Date.now(),
+    number: nextCustInvNumber() + "_" + suffix,
+    date: ymd(new Date()),
+    title: e.title || "",
+    customerName: e.customerName || "",
+    billingAddress: e.billingAddress || "",
+    serviceAddress: e.serviceAddress || "",
+    estimateId: e.id,
+    estimateNumber: e.number || "",
+    sections: custCopy.sections,
+    schedule: custCopy.schedule,
+    terms: e.terms || "",
+    customerNotes: e.customerNotes || "",
+    totals: { subtotal: c.subtotal, discount: c.discountAmt, tax: c.tax, total: c.total, deposit: c.depositAmt },
+    amountDue: r2(due),
+    payments: [],
+    visible: false
+  };
+  custInvoices.unshift(inv);
+  await saveCustInvoices();
+  render();
+  alert("Invoice " + inv.number + " created — hidden from the customer.\n\n" +
+    "Open the Invoices tab to edit it, then make it visible when you're ready.");
+}
+
+// Build the customer-facing shape locally (mirrors what the server sends)
+function estimateCustomerCopy(e) {
+  const c = calcEstimate(e);
+  const custByItem = {};
+  for (const L of c.lines) custByItem[L.item.id] = L.customer;
+  const disp = e.display || {};
+  const show = {
+    qty: disp.qty !== false, rate: disp.rate !== false,
+    amount: disp.amount !== false, sectionTotal: disp.sectionTotal === true
+  };
+  return {
+    sections: (e.sections || []).map((s) => {
+      const out = {
+        id: s.id, name: s.name,
+        items: (s.items || []).map((it) => {
+          const lineTotal = custByItem[it.id] || 0;
+          const qty = Number(it.qty) || 0;
+          const o = { id: it.id, desc: it.desc, notes: it.notes || "", photos: it.photos || [] };
+          if (show.qty) o.qty = qty;
+          if (show.rate) o.rate = qty > 0 ? r2(lineTotal / qty) : lineTotal;
+          if (show.amount) o.total = lineTotal;
+          return o;
+        })
+      };
+      if (show.sectionTotal) out.sectionTotal = c.bySection[s.id] || 0;
+      return out;
+    }),
+    schedule: (e.schedule || []).map((r) => ({ desc: r.desc, amount: schedAmount(r, c.total) }))
+  };
+}
+
 // ----- Admin preview + PDF -----
 let previewEstId = null;
 
@@ -4815,7 +4967,7 @@ function renderCodes() {
 function renderCalc() {
   const frame = $("calc-frame");
   if (frame && !frame.getAttribute("src")) {
-    frame.setAttribute("src", "calc.html?v=130");
+    frame.setAttribute("src", "calc.html?v=131");
   }
 }
 
