@@ -6,7 +6,7 @@
   <title>URR Project Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=129" />
+  <link rel="stylesheet" href="styles.css?v=130" />
 </head>
 <body>
 
@@ -581,6 +581,33 @@
       </div>
     </div>
 
+    <!-- ===== Customer invoice editor (admin) ===== -->
+    <div id="ci-modal" class="modal-overlay hidden">
+      <div class="modal">
+        <h2>Edit Invoice</h2>
+        <div class="est-head-grid">
+          <div><label>Invoice #</label><input type="text" id="ci-number" /></div>
+          <div><label>Date</label><input type="date" id="ci-date" /></div>
+        </div>
+        <label>Title</label>
+        <input type="text" id="ci-title" placeholder="e.g. Deposit — 2426 W State St" />
+        <label>Amount due now ($) <span class="lbl-hint">— the contract total still shows in full</span></label>
+        <input type="number" id="ci-due" min="0" step="0.01" />
+        <label>Notes to customer</label>
+        <input type="text" id="ci-notes" placeholder="e.g. due upon receipt to schedule" />
+        <label>Terms</label>
+        <div class="est-terms-bar">
+          <select id="ci-terms-select"></select>
+        </div>
+        <textarea id="ci-terms" rows="6" placeholder="Payment terms for this invoice"></textarea>
+        <div class="modal-actions">
+          <span class="spacer"></span>
+          <button id="ci-cancel" class="btn-ghost">Cancel</button>
+          <button id="ci-save" class="btn-primary">Save</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ===== Photo lightbox ===== -->
     <div id="lightbox" class="lightbox hidden">
       <button id="lightbox-close" class="lightbox-close">&times;</button>
@@ -607,6 +634,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=129"></script>
+  <script src="app.js?v=130"></script>
 </body>
 </html>

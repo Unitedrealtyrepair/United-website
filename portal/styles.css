@@ -1782,3 +1782,18 @@ body {
 .presence-off:hover { background: #a80d26 !important; }
 .presence-off:active { background: #8f0b20 !important; }
 .presence-off:disabled { opacity: .55 !important; }
+
+/* Budget section headers (v130) */
+.budget-sec-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  color: #0f2440; margin: 16px 0 7px; padding-bottom: 5px;
+  border-bottom: 2px solid #0f2440;
+}
+.budget-sec-head:first-child { margin-top: 0; }
+.budget-sec-head b { font-family: "Roboto Mono", monospace; letter-spacing: 0; font-size: 13px; }
+
+#ci-modal textarea {
+  width: 100%; padding: 10px 12px; border: 1.5px solid #dde3ec;
+  border-radius: 8px; font-family: inherit; font-size: 13px; box-sizing: border-box;
+}

@@ -2069,7 +2069,29 @@ function renderBudget() {
   list.innerHTML = "";
   $("budget-empty").classList.toggle("hidden", budget.length > 0);
 
+  // Group by section so the budget mirrors the estimate structure
+  const groups = [];
+  const seen = {};
   for (const b of budget) {
+    const key = b.section || "";
+    if (!(key in seen)) { seen[key] = groups.length; groups.push({ name: key, items: [] }); }
+    groups[seen[key]].items.push(b);
+  }
+
+  for (const g of groups) {
+    if (g.name) {
+      const gh = document.createElement("div");
+      gh.className = "budget-sec-head";
+      const gsum = g.items.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+      gh.innerHTML = "<span>" + escapeHtml(g.name) + "</span><b>" + fmtMoney(gsum) + "</b>";
+      list.appendChild(gh);
+    }
+    for (const b of g.items) renderBudgetRow(b, list, admin);
+  }
+}
+
+function renderBudgetRow(b, list, admin) {
+  {
     const row = document.createElement("div");
     row.className = "budget-row";
 
@@ -2400,9 +2422,11 @@ function renderCustInvoices(list) {
     card.appendChild(head);
     const meta = document.createElement("div");
     meta.className = "log-meta";
+    const due = inv.amountDue !== undefined ? Number(inv.amountDue) : st.total;
     meta.textContent = [
       inv.date ? fmtDateLong(inv.date) : null,
-      fmtMoney(st.total),
+      "Contract " + fmtMoney(st.total),
+      due !== st.total ? "Due now " + fmtMoney(due) : null,
       st.paid ? fmtMoney(st.paid) + " paid" : null
     ].filter(Boolean).join("  ·  ");
     card.appendChild(meta);
@@ -2415,6 +2439,11 @@ function renderCustInvoices(list) {
       pv.textContent = "👁 Preview / PDF";
       pv.addEventListener("click", (e2) => { e2.stopPropagation(); openCustInvoicePreview(inv.id); });
       row.appendChild(pv);
+      const ed = document.createElement("button");
+      ed.className = "btn-ghost inv-btn";
+      ed.textContent = "✎ Edit";
+      ed.addEventListener("click", (e2) => { e2.stopPropagation(); openCustInvoiceEdit(inv.id); });
+      row.appendChild(ed);
       const vis = document.createElement("button");
       vis.className = (inv.visible ? "btn-ghost" : "btn-primary") + " inv-btn";
       vis.textContent = inv.visible ? "🙈 Hide from customer" : "👤 Make visible to customer";
@@ -2441,6 +2470,59 @@ function renderCustInvoices(list) {
     wrap.appendChild(card);
   }
   if (sorted.length === 0) list.appendChild(wrap);
+}
+
+let editingCustInvId = null;
+
+function openCustInvoiceEdit(id) {
+  const inv = custInvoices.find((x) => x.id === id);
+  if (!inv) return;
+  editingCustInvId = id;
+  $("ci-number").value = inv.number || "";
+  $("ci-date").value = inv.date || "";
+  $("ci-title").value = inv.title || "";
+  $("ci-due").value = inv.amountDue !== undefined ? inv.amountDue : (inv.totals ? inv.totals.total : 0);
+  $("ci-notes").value = inv.customerNotes || "";
+  $("ci-terms").value = inv.terms || "";
+  const tsel = $("ci-terms-select");
+  tsel.innerHTML = "";
+  const none = document.createElement("option");
+  none.value = "";
+  none.textContent = "— keep current text —";
+  tsel.appendChild(none);
+  for (const t of termsLibrary) {
+    const o = document.createElement("option");
+    o.value = t.id;
+    o.textContent = (t.default ? "★ " : "") + t.name;
+    tsel.appendChild(o);
+  }
+  tsel.value = "";
+  $("ci-modal").classList.remove("hidden");
+}
+
+async function saveCustInvoiceEdit() {
+  const i = custInvoices.findIndex((x) => x.id === editingCustInvId);
+  if (i < 0) return;
+  const btn = $("ci-save");
+  btn.disabled = true;
+  const patch = {
+    number: $("ci-number").value.trim(),
+    date: $("ci-date").value,
+    title: $("ci-title").value.trim(),
+    amountDue: parseFloat($("ci-due").value) || 0,
+    customerNotes: $("ci-notes").value.trim(),
+    terms: $("ci-terms").value
+  };
+  try {
+    const out = await api({
+      action: "custInvoiceUpdate", email: SESSION.email, code: SESSION.code,
+      project: currentProject.name, invId: editingCustInvId, patch
+    });
+    if (out.ok && out.invoices) custInvoices = out.invoices;
+    closeModal("ci-modal");
+    render();
+  } catch (e) { alert("Couldn't save: " + e.message); }
+  btn.disabled = false;
 }
 
 async function custInvoiceAction(inv, payload) {
@@ -4733,7 +4815,7 @@ function renderCodes() {
 function renderCalc() {
   const frame = $("calc-frame");
   if (frame && !frame.getAttribute("src")) {
-    frame.setAttribute("src", "calc.html?v=129");
+    frame.setAttribute("src", "calc.html?v=130");
   }
 }
 
@@ -5426,7 +5508,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLightbox(); });
 
   // Click outside modal closes it
-  for (const id of ["task-modal", "budget-modal", "log-modal", "sub-modal", "task-view-modal", "est-modal", "est-view-modal", "est-preview-modal", "cost-modal", "time-modal"]) {
+  for (const id of ["task-modal", "budget-modal", "log-modal", "sub-modal", "task-view-modal", "est-modal", "est-view-modal", "est-preview-modal", "cost-modal", "time-modal", "ci-modal"]) {
     $(id).addEventListener("click", (e) => { if (e.target.id === id) closeModal(id); });
   }
 
@@ -5442,6 +5524,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     $("scan-upload-input").value = "";
   });
   $("scan-store-link").href = CUBICASA_APPSTORE;
+  $("ci-save").addEventListener("click", saveCustInvoiceEdit);
+  $("ci-cancel").addEventListener("click", () => closeModal("ci-modal"));
+  $("ci-terms-select").addEventListener("change", () => {
+    const t = termsLibrary.find((x) => x.id === $("ci-terms-select").value);
+    if (t) $("ci-terms").value = t.body;
+  });
+
   $("clock-btn").addEventListener("click", toggleClock);
   $("time-add-btn").addEventListener("click", () => openTimeModal(null));
   $("time-export-btn").addEventListener("click", exportTimeCsv);
