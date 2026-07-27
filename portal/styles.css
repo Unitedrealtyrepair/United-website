@@ -1,4 +1,4 @@
-/* URR Portal v135 */
+/* URR Portal v136 */
 :root {
   --navy: #0f2440;
   --navy-light: #1b3a63;
@@ -1853,3 +1853,21 @@ body {
 .draw-line-in { flex: 0 0 92px; }
 .draw-line-input { width: 100%; border: 1.5px solid var(--border); border-radius: 8px; padding: 8px; font-family: inherit; font-size: 14px; text-align: right; }
 .draw-line-input:focus { outline: none; border-color: var(--navy); }
+
+/* v135 — keep modal action bars clear of iOS Safari's bottom toolbar */
+.modal-actions {
+  bottom: 0;
+  padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+}
+.modal-wide .modal-actions {
+  position: sticky;
+  bottom: 0;
+  background: var(--card);
+  padding-top: 12px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -8px 16px -8px rgba(0,0,0,0.15);
+  z-index: 2;
+}
+@media (max-width: 640px) {
+  .modal-wide { max-height: 90vh; }
+}
