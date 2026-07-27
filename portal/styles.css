@@ -1803,3 +1803,10 @@ body {
   display: flex; gap: 7px; flex-wrap: wrap; margin-top: 9px;
 }
 .est-card-actions .est-preview-btn { margin-top: 0; }
+
+/* Unassigned invoice number (v132) */
+.inv-unnumbered { color: #8a5a00 !important; }
+.inv-unnumbered::after {
+  content: ' — assign number'; font-size: 11px; font-weight: 600;
+  color: #b07800; letter-spacing: 0;
+}

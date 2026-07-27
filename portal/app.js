@@ -1876,7 +1876,20 @@ function budgetLineIntel(b) {
   if (/^Sales tax\b/.test(desc)) { out.kind = "tax"; out.estCost = 0; return out; }
   if (/^Discount\b/.test(desc)) { out.kind = "discount"; out.estCost = 0; return out; }
   const est = estimates.find((x) => x.id === b.estId);
-  if (!est || est.totals) return out; // customer copies have no cost data
+  if (!est || est.totals) return out; // customer copies carry no cost data
+  // Per-item budget lines: look the item up directly
+  if (b.itemId) {
+    for (const s of (est.sections || [])) {
+      for (const it of (s.items || [])) {
+        if (it.id === b.itemId) {
+          out.estCost = r2((Number(it.qty) || 0) * (Number(it.rate) || 0));
+          return out;
+        }
+      }
+    }
+    return out;
+  }
+  // Legacy section-level lines
   const c = calcEstimate(est);
   for (const s of (est.sections || [])) {
     const label = (s.name || "") + " — ";
@@ -2415,6 +2428,7 @@ function renderCustInvoices(list) {
     const t = document.createElement("div");
     t.className = "log-date";
     t.textContent = (inv.number || "Invoice") + (inv.title ? " — " + inv.title : "");
+    if (/#/.test(String(inv.number || ""))) t.classList.add("inv-unnumbered");
     head.appendChild(t);
     const badge = document.createElement("span");
     badge.className = "status-badge " + st.cls;
@@ -2448,7 +2462,14 @@ function renderCustInvoices(list) {
       const vis = document.createElement("button");
       vis.className = (inv.visible ? "btn-ghost" : "btn-primary") + " inv-btn";
       vis.textContent = inv.visible ? "🙈 Hide from customer" : "👤 Make visible to customer";
-      vis.addEventListener("click", (e2) => { e2.stopPropagation(); custInvoiceAction(inv, { visible: !inv.visible }); });
+      vis.addEventListener("click", (e2) => {
+        e2.stopPropagation();
+        if (!inv.visible && /#/.test(String(inv.number || ""))) {
+          if (!confirm("This invoice still has the placeholder number \"" + inv.number +
+            "\".\n\nPublish it anyway?")) return;
+        }
+        custInvoiceAction(inv, { visible: !inv.visible });
+      });
       row.appendChild(vis);
       const pay = document.createElement("button");
       pay.className = "btn-primary inv-btn";
@@ -4001,22 +4022,39 @@ async function convertToBudget(estId) {
 
   let n = 0;
   const stamp = Date.now();
+  const made = [];
   for (const s of (e.sections || [])) {
     for (const it of (s.items || [])) {
       const amt = r2((custByItem[it.id] || 0) * factor);
       if (amt === 0) continue;
       n++;
-      budget.push({
+      const row = {
         id: "b" + stamp + "_" + n,
         section: s.name || "General",
         desc: it.desc || "Line item",
         cat: "Contract",
         amount: amt,
         paid: 0,
-        estId: e.id
-      });
+        estId: e.id,
+        itemId: it.id           // links back for admin-only cost lookup
+      };
+      made.push(row);
+      budget.push(row);
     }
   }
+
+  // Rounding each line independently leaves a cent or two of drift.
+  // Push the difference into the largest line so the budget matches the
+  // contract exactly.
+  const target = r2(c.subtotal - c.discountAmt);
+  const built = made.reduce((s2, r) => r2(s2 + r.amount), 0);
+  const drift = r2(target - built);
+  if (drift !== 0 && made.length) {
+    let big = made[0];
+    for (const r of made) if (Math.abs(r.amount) > Math.abs(big.amount)) big = r;
+    big.amount = r2(big.amount + drift);
+  }
+
   if (c.tax) {
     budget.push({
       id: "b" + stamp + "_tax", section: "Tax", desc: "Sales tax",
@@ -4051,7 +4089,7 @@ async function convertToInvoice(estId) {
   const custCopy = estimateCustomerCopy(e);
   const inv = {
     id: "ci" + Date.now(),
-    number: nextCustInvNumber() + "_" + suffix,
+    number: "INV#_" + suffix,          // placeholder — you assign the number
     date: ymd(new Date()),
     title: e.title || "",
     customerName: e.customerName || "",
@@ -4071,8 +4109,9 @@ async function convertToInvoice(estId) {
   custInvoices.unshift(inv);
   await saveCustInvoices();
   render();
-  alert("Invoice " + inv.number + " created — hidden from the customer.\n\n" +
-    "Open the Invoices tab to edit it, then make it visible when you're ready.");
+  alert("Invoice created as " + inv.number + " — hidden from the customer.\n\n" +
+    "Open the Invoices tab, tap Edit to assign the invoice number, then make " +
+    "it visible when you're ready.");
 }
 
 // Build the customer-facing shape locally (mirrors what the server sends)
@@ -4967,7 +5006,7 @@ function renderCodes() {
 function renderCalc() {
   const frame = $("calc-frame");
   if (frame && !frame.getAttribute("src")) {
-    frame.setAttribute("src", "calc.html?v=131");
+    frame.setAttribute("src", "calc.html?v=132");
   }
 }
 
