@@ -1,4 +1,4 @@
-// URR Portal v136 — draw allocation, customer invoice PDF, Costs tab rename, Safari footer fix
+// URR Portal v137 — sub schedule + daily log isolation (subs see only assigned tasks / own logs)
 // ============================================================
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
@@ -284,6 +284,8 @@ function categorize(file) {
 
 // ---------- Login ----------
 const isAdmin = () => SESSION && SESSION.role === "admin";
+const isSub = () => SESSION && SESSION.role === "sub";
+const isCustomer = () => SESSION && SESSION.role === "customer";
 
 async function doLogin() {
   const email = $("email-input").value.trim();
@@ -1629,6 +1631,23 @@ function subLabel(subId) {
   return subId; // legacy free-text value
 }
 
+// Which schedule tasks the current viewer may see.
+// Admin: all. Sub: ONLY tasks assigned to them (nothing until assigned).
+// Customer: all (their project schedule).
+// Tasks store the sub's RECORD id in t.sub, so map this sub's login email
+// to their sub record id(s) first.
+function mySubIds() {
+  const em = (currentUser.email || "").toLowerCase();
+  return subs.filter((s) => (s.email || "").toLowerCase() === em).map((s) => s.id);
+}
+function visibleSchedule() {
+  if (isSub()) {
+    const mine = mySubIds();
+    return schedule.filter((t) => t.sub && mine.includes(t.sub));
+  }
+  return schedule;
+}
+
 function renderCalendar() {
   const y = calMonth.getFullYear();
   const m = calMonth.getMonth();
@@ -1653,7 +1672,7 @@ function renderCalendar() {
     num.textContent = d.getDate();
     cell.appendChild(num);
 
-    for (const t of schedule) {
+    for (const t of visibleSchedule()) {
       if (dStr >= t.start && dStr <= t.end) {
         const st = taskStatus(t);
         const ev = document.createElement("div");
@@ -1671,7 +1690,7 @@ function renderCalendar() {
 function renderUpcoming() {
   const wrap = $("upcoming-list");
   wrap.innerHTML = "";
-  const sorted = [...schedule].sort((a, b) => a.start.localeCompare(b.start));
+  const sorted = [...visibleSchedule()].sort((a, b) => a.start.localeCompare(b.start));
   for (const t of sorted) {
     const item = document.createElement("div");
     item.className = "upcoming-item";
@@ -2456,8 +2475,14 @@ function canEditLog(l) { return isAdmin() || (l.author && l.author === currentUs
 function renderLogs() {
   $("add-log-btn").classList.toggle("hidden", !canWriteLogs());
 
+  // Admin sees all. Subs see ONLY logs they authored. Customers see
+  // non-internal logs (their project diary), never internal ones.
   const visible = logs
-    .filter((l) => !l.internal || isAdmin())
+    .filter((l) => {
+      if (isAdmin()) return true;
+      if (isSub()) return l.author && l.author === currentUser.email;
+      return !l.internal; // customer
+    })
     .sort((a, b) => b.date.localeCompare(a.date));
 
   const list = $("logs-list");
