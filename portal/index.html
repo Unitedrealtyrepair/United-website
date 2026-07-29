@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>URR Project Portal</title>
-  <!-- URR Portal v138 -->
+  <!-- URR Portal v139 -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css?v=134" />
@@ -194,6 +194,15 @@
         <div id="est-empty" class="status-msg hidden">No estimates yet.</div>
       </div>
 
+      <!-- ===== Selections (finish/fixture) — admin + customer ===== -->
+      <div id="selections-section" class="hidden">
+        <div class="section-toolbar">
+          <div class="section-title">Finish &amp; Fixture Selections</div>
+          <button id="add-selection-btn" class="add-task-btn hidden">+ Add Selection</button>
+        </div>
+        <div id="selections-list" class="selections-list"></div>
+      </div>
+
       <!-- ===== Scans (CubiCasa, ADMIN ONLY) ===== -->
       <div id="scans-section" class="hidden">
         <div class="scan-launcher">
@@ -379,6 +388,51 @@
           <span class="spacer"></span>
           <button id="draw-cancel" class="btn-ghost">Cancel</button>
           <button id="draw-save" class="btn-primary">Save Draw</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Selection item modal (admin) ===== -->
+    <div id="selection-modal" class="modal-overlay hidden">
+      <div class="modal">
+        <h2 id="sel-modal-title">New Selection</h2>
+        <label>Area</label>
+        <select id="sel-area"></select>
+        <input type="text" id="sel-area-custom" class="hidden" placeholder="New area name" style="margin-top:8px" />
+        <label>Title</label>
+        <input type="text" id="sel-title" placeholder="e.g. Kitchen faucet, Primary bath tile" />
+        <label>Allowance ($, optional)</label>
+        <input type="number" id="sel-allowance" min="0" step="0.01" placeholder="0.00" />
+        <label>Status (optional)</label>
+        <input type="text" id="sel-status" placeholder="e.g. Awaiting customer pick" />
+        <label class="checkbox-row"><input type="checkbox" id="sel-visible" /> Visible to customer</label>
+        <div class="modal-actions">
+          <button id="sel-delete" class="btn-danger hidden">Delete</button>
+          <span class="spacer"></span>
+          <button id="sel-cancel" class="btn-ghost">Cancel</button>
+          <button id="sel-save" class="btn-primary">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Selection option modal (admin or customer) ===== -->
+    <div id="option-modal" class="modal-overlay hidden">
+      <div class="modal">
+        <h2 id="option-modal-title">Add Option</h2>
+        <label>Name</label>
+        <input type="text" id="opt-name" placeholder="e.g. Delta Trinsic, matte black" />
+        <label>Image URL (optional)</label>
+        <input type="text" id="opt-img" placeholder="https://…/photo.jpg" />
+        <label>Product link (optional)</label>
+        <input type="text" id="opt-link" placeholder="https://…" />
+        <label>Price ($, optional)</label>
+        <input type="number" id="opt-price" min="0" step="0.01" placeholder="0.00" />
+        <label>Note (optional)</label>
+        <input type="text" id="opt-note" placeholder="e.g. finish, size, lead time" />
+        <div class="modal-actions">
+          <span class="spacer"></span>
+          <button id="opt-cancel" class="btn-ghost">Cancel</button>
+          <button id="opt-save" class="btn-primary">Save</button>
         </div>
       </div>
     </div>

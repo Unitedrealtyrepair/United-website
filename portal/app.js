@@ -1,4 +1,4 @@
-// URR Portal v138 — invoice "Due now" reflects payments; sub isolation (v137) included
+// URR Portal v139 — Finish/Fixture Selections tab (admin propose + customer pick, allowance flags)
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -20,8 +20,8 @@ const COMPANY = {
 };
 
 const ROLE_ACCESS = {
-  admin:    ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Scans", "Invoices", "Change Orders", "Estimates", "Materials", "Subs", "Calc", "Codes", "Time"],
-  customer: ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Invoices", "Change Orders", "Estimates"],
+  admin:    ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Scans", "Invoices", "Change Orders", "Estimates", "Selections", "Materials", "Subs", "Calc", "Codes", "Time"],
+  customer: ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Invoices", "Change Orders", "Estimates", "Selections"],
   sub:      ["Schedule", "Daily Logs", "Documents", "Photos", "Invoices", "Estimates", "Materials", "Codes"]
 };
 
@@ -122,6 +122,8 @@ let invoices = [];      // [{id, t, sub, number, amount, notes, fileId, fileName
 let estimates = [];     // [{id, number, title, date, status, taxRate, sections:[{id,name,items:[...]}], ...}]
 let termsLibrary = [];  // [{id, name, body, default}] — admin-only contract templates
 let custInvoices = [];  // customer invoices — memory only
+let selections = [];    // finish/fixture selections — {id, area, title, allowance, visible, status, finalOptId, options:[{id,name,img,link,price,note,by}]}
+let editingSelId = null;
 let folderGrants = {};  // { folderId: [sub emails granted access] } — admin-only
 let subBids = [];       // sub bid submissions — memory only
 let calcAccess = [];    // emails granted the Field Calc tab — admin-managed
@@ -159,6 +161,7 @@ function applyRemote(remote) {
   estimates = remote[pkey("Estimates")] || []; // server pre-filters per role; memory only
   if (remote["urrTermsLibrary"]) termsLibrary = remote["urrTermsLibrary"];
   custInvoices = remote[pkey("CustInvoices")] || [];
+  selections = remote[pkey("Selections")] || [];
   // Migrate old "INV#_A" placeholders: keep the suffix, blank the number so
   // the assign-number prompt resolves once a real number is typed.
   for (const v of custInvoices) {
@@ -191,6 +194,7 @@ async function loadState(initialData) {
   invoices = [];
   estimates = [];
   custInvoices = [];
+  selections = [];
   subBids = [];
   costs = [];
   draws = [];
@@ -249,6 +253,311 @@ async function saveTimeEntries() { pushCollection("urrTimeClock", timeEntries); 
 async function saveFolderGrants() { pushCollection(pkey("FolderGrants"), folderGrants); }
 async function saveCosts()        { pushCollection(pkey("Costs"), costs); }
 async function saveDraws()        { cacheSet(pkey("Draws"), draws); pushCollection(pkey("Draws"), draws); }
+async function saveSelections()   { cacheSet(pkey("Selections"), selections); pushCollection(pkey("Selections"), selections); }
+
+// ---------- Finish / Fixture Selections ----------
+// Default area buckets; admin can add items under any of these or type a new area.
+const SEL_AREAS = ["Kitchen", "Bath", "Flooring", "Lighting", "Paint",
+  "Door Style", "Hardware (Knobs/Pulls)", "Door Handles/Levers"];
+
+function selAllowanceState(item) {
+  const opt = (item.options || []).find((o) => o.id === item.finalOptId)
+           || (item.options || []).find((o) => o.id === item.pickedOptId);
+  if (!opt || !(Number(item.allowance) > 0) || !(Number(opt.price) > 0)) return null;
+  const diff = r2(Number(opt.price) - Number(item.allowance));
+  return { over: diff > 0, diff: Math.abs(diff), price: Number(opt.price) };
+}
+
+function renderSelections() {
+  const admin = isAdmin();
+  const host = $("selections-list");
+  if (!host) return;
+  $("add-selection-btn").classList.toggle("hidden", !admin);
+
+  // Customers only see items admin flagged visible.
+  const items = selections.filter((s) => admin || s.visible);
+  if (!items.length) {
+    host.innerHTML = "<p class='empty-hint'>" +
+      (admin ? "No selections yet. Add an item to propose finishes for the customer."
+             : "No selections have been shared with you yet.") + "</p>";
+    return;
+  }
+
+  // Group by area, preserving first-seen order.
+  const groups = [];
+  const seen = {};
+  for (const it of items) {
+    const a = it.area || "Other";
+    if (!(a in seen)) { seen[a] = groups.length; groups.push({ area: a, items: [] }); }
+    groups[seen[a]].items.push(it);
+  }
+
+  host.innerHTML = "";
+  for (const g of groups) {
+    const gh = document.createElement("div");
+    gh.className = "sel-area-head";
+    gh.textContent = g.area;
+    host.appendChild(gh);
+
+    for (const it of g.items) {
+      const card = document.createElement("div");
+      card.className = "sel-card";
+
+      // Header: title, allowance, visibility (admin), edit (admin)
+      const head = document.createElement("div");
+      head.className = "sel-card-head";
+      let headHtml = "<div class='sel-title'>" + escapeHtml(it.title || "Selection") + "</div>";
+      const meta = [];
+      if (Number(it.allowance) > 0) meta.push("Allowance " + fmtMoney(it.allowance));
+      if (admin) meta.push(it.visible ? "Visible to customer" : "Admin only");
+      if (it.status) meta.push(escapeHtml(it.status));
+      if (meta.length) headHtml += "<div class='sel-meta'>" + meta.join(" · ") + "</div>";
+      head.innerHTML = headHtml;
+      if (admin) {
+        const edit = document.createElement("button");
+        edit.className = "btn-ghost sel-edit";
+        edit.textContent = "✎ Edit";
+        edit.addEventListener("click", () => openSelectionModal(it.id));
+        head.appendChild(edit);
+      }
+      card.appendChild(head);
+
+      // Allowance flag if a pick/final exists
+      const st = selAllowanceState(it);
+      if (st) {
+        const flag = document.createElement("div");
+        flag.className = "sel-flag " + (st.over ? "over" : "under");
+        flag.textContent = st.over
+          ? "Over allowance by " + fmtMoney(st.diff)
+          : "Under allowance by " + fmtMoney(st.diff);
+        card.appendChild(flag);
+      }
+
+      // Options grid
+      const grid = document.createElement("div");
+      grid.className = "sel-options";
+      for (const o of (it.options || [])) {
+        const isFinal = o.id === it.finalOptId;
+        const isPicked = o.id === it.pickedOptId;
+        const opt = document.createElement("div");
+        opt.className = "sel-opt" + (isFinal ? " final" : isPicked ? " picked" : "");
+        let inner = "";
+        if (o.img) inner += "<div class='sel-opt-img'><img src='" + escapeAttr(o.img) + "' alt='' loading='lazy' onerror=\"this.parentNode.classList.add('noimg')\"></div>";
+        else inner += "<div class='sel-opt-img noimg'></div>";
+        inner += "<div class='sel-opt-body'>";
+        inner += "<div class='sel-opt-name'>" + escapeHtml(o.name || "Option") + "</div>";
+        if (o.note) inner += "<div class='sel-opt-note'>" + escapeHtml(o.note) + "</div>";
+        const line = [];
+        if (Number(o.price) > 0) line.push(fmtMoney(o.price));
+        if (o.by === "customer") line.push("proposed by customer");
+        if (line.length) inner += "<div class='sel-opt-meta'>" + line.join(" · ") + "</div>";
+        if (o.link) inner += "<a class='sel-opt-link' href='" + escapeAttr(o.link) + "' target='_blank' rel='noopener'>View product ↗</a>";
+        if (isFinal) inner += "<div class='sel-badge final'>✓ Final selection</div>";
+        else if (isPicked) inner += "<div class='sel-badge picked'>Customer's pick</div>";
+        inner += "</div>";
+        opt.innerHTML = inner;
+
+        // Action buttons
+        const acts = document.createElement("div");
+        acts.className = "sel-opt-acts";
+        if (admin) {
+          const mk = document.createElement("button");
+          mk.className = "btn-ghost sel-mini";
+          mk.textContent = isFinal ? "Unmark final" : "Mark final";
+          mk.addEventListener("click", () => setFinalOption(it.id, isFinal ? null : o.id));
+          acts.appendChild(mk);
+          const del = document.createElement("button");
+          del.className = "btn-ghost sel-mini danger";
+          del.textContent = "Remove";
+          del.addEventListener("click", () => removeOption(it.id, o.id));
+          acts.appendChild(del);
+        } else if (!it.finalOptId) {
+          // Customer may pick among options (until admin locks a final)
+          const pick = document.createElement("button");
+          pick.className = "btn-ghost sel-mini";
+          pick.textContent = isPicked ? "✓ Your pick" : "Pick this";
+          pick.disabled = isPicked;
+          pick.addEventListener("click", () => customerPickOption(it.id, o.id));
+          acts.appendChild(pick);
+        }
+        if (acts.childNodes.length) opt.appendChild(acts);
+        grid.appendChild(opt);
+      }
+      card.appendChild(grid);
+
+      // Add-option controls
+      const addRow = document.createElement("div");
+      addRow.className = "sel-add-row";
+      if (admin) {
+        const b = document.createElement("button");
+        b.className = "btn-ghost";
+        b.textContent = "＋ Add option";
+        b.addEventListener("click", () => openOptionModal(it.id, "admin"));
+        addRow.appendChild(b);
+      } else if (!it.finalOptId) {
+        const b = document.createElement("button");
+        b.className = "btn-ghost";
+        b.textContent = "＋ Suggest my own";
+        b.addEventListener("click", () => openOptionModal(it.id, "customer"));
+        addRow.appendChild(b);
+      }
+      if (addRow.childNodes.length) card.appendChild(addRow);
+
+      host.appendChild(card);
+    }
+  }
+}
+
+// ----- Admin: create/edit a selection item -----
+function openSelectionModal(id) {
+  editingSelId = id || null;
+  const it = id ? selections.find((x) => x.id === id) : null;
+  $("sel-modal-title").textContent = it ? "Edit Selection" : "New Selection";
+  const areaSel = $("sel-area");
+  areaSel.innerHTML = "";
+  const areas = SEL_AREAS.slice();
+  // include any custom areas already in use
+  selections.forEach((s) => { if (s.area && areas.indexOf(s.area) === -1) areas.push(s.area); });
+  areas.forEach((a) => {
+    const o = document.createElement("option");
+    o.value = a; o.textContent = a;
+    areaSel.appendChild(o);
+  });
+  const custom = document.createElement("option");
+  custom.value = "__custom__"; custom.textContent = "+ New area…";
+  areaSel.appendChild(custom);
+
+  areaSel.value = it ? (areas.indexOf(it.area) !== -1 ? it.area : "__custom__") : areas[0];
+  $("sel-area-custom").value = (it && areas.indexOf(it.area) === -1) ? it.area : "";
+  $("sel-area-custom").classList.toggle("hidden", areaSel.value !== "__custom__");
+  $("sel-title").value = it ? (it.title || "") : "";
+  $("sel-allowance").value = it && it.allowance ? it.allowance : "";
+  $("sel-status").value = it ? (it.status || "") : "";
+  $("sel-visible").checked = it ? !!it.visible : false;
+  $("sel-delete").classList.toggle("hidden", !it);
+  $("selection-modal").classList.remove("hidden");
+}
+
+async function saveSelectionItem() {
+  let area = $("sel-area").value;
+  if (area === "__custom__") area = $("sel-area-custom").value.trim() || "Other";
+  const title = $("sel-title").value.trim();
+  if (!title) { alert("Give this selection a title (e.g. Kitchen faucet)."); return; }
+  const rec = {
+    area,
+    title,
+    allowance: r2(Number($("sel-allowance").value) || 0),
+    status: $("sel-status").value.trim(),
+    visible: $("sel-visible").checked
+  };
+  if (editingSelId) {
+    const i = selections.findIndex((x) => x.id === editingSelId);
+    if (i >= 0) selections[i] = { ...selections[i], ...rec };
+  } else {
+    selections.push({ id: "sel" + Date.now(), options: [], finalOptId: null, pickedOptId: null, ...rec });
+  }
+  await saveSelections();
+  closeModal("selection-modal");
+  renderSelections();
+}
+
+async function deleteSelectionItem() {
+  if (!editingSelId) return;
+  if (!confirm("Delete this selection and all its options?")) return;
+  selections = selections.filter((x) => x.id !== editingSelId);
+  await saveSelections();
+  closeModal("selection-modal");
+  renderSelections();
+}
+
+// ----- Add an option (admin or customer) -----
+let optionTargetItem = null, optionTargetBy = "admin";
+function openOptionModal(itemId, by) {
+  optionTargetItem = itemId;
+  optionTargetBy = by;
+  $("opt-name").value = "";
+  $("opt-img").value = "";
+  $("opt-link").value = "";
+  $("opt-price").value = "";
+  $("opt-note").value = "";
+  $("option-modal-title").textContent = by === "customer" ? "Suggest an Option" : "Add Option";
+  $("option-modal").classList.remove("hidden");
+}
+
+async function saveOption() {
+  const it = selections.find((x) => x.id === optionTargetItem);
+  if (!it) return;
+  const name = $("opt-name").value.trim();
+  if (!name) { alert("Name this option."); return; }
+  const opt = {
+    id: "o" + Date.now(),
+    name,
+    img: $("opt-img").value.trim(),
+    link: $("opt-link").value.trim(),
+    price: r2(Number($("opt-price").value) || 0),
+    note: $("opt-note").value.trim(),
+    by: optionTargetBy
+  };
+  it.options = it.options || [];
+  it.options.push(opt);
+
+  if (isAdmin()) {
+    await saveSelections();
+  } else {
+    // Customer path: scoped server action, can only add to a visible item
+    await selectionRespond(it.id, { addOption: opt });
+  }
+  closeModal("option-modal");
+  renderSelections();
+}
+
+async function removeOption(itemId, optId) {
+  const it = selections.find((x) => x.id === itemId);
+  if (!it) return;
+  if (!confirm("Remove this option?")) return;
+  it.options = (it.options || []).filter((o) => o.id !== optId);
+  if (it.finalOptId === optId) it.finalOptId = null;
+  if (it.pickedOptId === optId) it.pickedOptId = null;
+  await saveSelections();
+  renderSelections();
+}
+
+async function setFinalOption(itemId, optId) {
+  const it = selections.find((x) => x.id === itemId);
+  if (!it) return;
+  it.finalOptId = optId;
+  await saveSelections();
+  renderSelections();
+}
+
+async function customerPickOption(itemId, optId) {
+  const it = selections.find((x) => x.id === itemId);
+  if (!it) return;
+  it.pickedOptId = optId;
+  await selectionRespond(it.id, { pickedOptId: optId });
+  renderSelections();
+}
+
+// Customer scoped server action (mirrors estimateRespond): can only add an
+// option or set their pick on a VISIBLE item; server enforces the rest.
+async function selectionRespond(selId, payload) {
+  try {
+    const out = await api({
+      action: "selectionRespond",
+      email: SESSION.email, code: SESSION.code,
+      project: currentProject.name, selId, ...payload
+    });
+    if (!out.ok) throw new Error(out.error || "failed");
+    if (out.selections) selections = out.selections;
+  } catch (e) {
+    alert("Couldn't save your selection: " + e.message);
+  }
+}
+
+function escapeAttr(s) {
+  return String(s || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 
 // ---------- Categorization ----------
 const RULES = [
@@ -349,7 +658,7 @@ function renderProjectName() {
     selectedIds = new Set();
     subUploadsFolderId = null;
     schedule = []; budget = []; logs = []; folderPerms = {}; folderGrants = {};
-    invoices = []; estimates = []; custInvoices = []; subBids = []; costs = []; draws = [];
+    invoices = []; estimates = []; custInvoices = []; subBids = []; costs = []; draws = []; selections = [];
     buildTabs();
     render();       // swap the screen to the new project instantly
     loadFiles();    // start the (slow) Drive walk right away
@@ -1054,6 +1363,7 @@ function render() {
     "subs-section":     activeTab === "Subs",
     "invoices-section": activeTab === "Invoices",
     "estimates-section": activeTab === "Estimates",
+    "selections-section": activeTab === "Selections",
     "calc-section": activeTab === "Calc" &&
       (isAdmin() || calcAccess.indexOf(String(SESSION.email).toLowerCase()) !== -1),
     "codes-section": activeTab === "Codes",
@@ -1082,6 +1392,7 @@ function render() {
   if (activeTab === "Subs") renderSubs();
   if (activeTab === "Invoices") renderInvoices();
   if (activeTab === "Estimates") renderEstimates();
+  if (activeTab === "Selections") renderSelections();
   if (activeTab === "Calc") renderCalc();
   if (activeTab === "Codes") renderCodes();
   if (activeTab === "Time" && isAdmin()) renderTime();
@@ -5963,6 +6274,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("draw-cancel").addEventListener("click", () => closeModal("draw-modal"));
   $("draw-save").addEventListener("click", saveDraw);
   $("draw-delete").addEventListener("click", deleteDraw);
+  $("add-selection-btn").addEventListener("click", () => openSelectionModal(null));
+  $("sel-cancel").addEventListener("click", () => closeModal("selection-modal"));
+  $("sel-save").addEventListener("click", saveSelectionItem);
+  $("sel-delete").addEventListener("click", deleteSelectionItem);
+  $("sel-area").addEventListener("change", (e) => {
+    $("sel-area-custom").classList.toggle("hidden", e.target.value !== "__custom__");
+  });
+  $("opt-cancel").addEventListener("click", () => closeModal("option-modal"));
+  $("opt-save").addEventListener("click", saveOption);
   $("budget-delete").addEventListener("click", deleteBudgetItem);
 
   // Logs
@@ -6019,7 +6339,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLightbox(); });
 
   // Click outside modal closes it
-  for (const id of ["task-modal", "budget-modal", "draw-modal", "log-modal", "sub-modal", "task-view-modal", "est-modal", "est-view-modal", "est-preview-modal", "cost-modal", "time-modal", "ci-modal"]) {
+  for (const id of ["task-modal", "budget-modal", "draw-modal", "selection-modal", "option-modal", "log-modal", "sub-modal", "task-view-modal", "est-modal", "est-view-modal", "est-preview-modal", "cost-modal", "time-modal", "ci-modal"]) {
     $(id).addEventListener("click", (e) => { if (e.target.id === id) closeModal(id); });
   }
 
