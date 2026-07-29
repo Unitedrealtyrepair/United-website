@@ -1,4 +1,4 @@
-// URR Portal v139 — Finish/Fixture Selections tab (admin propose + customer pick, allowance flags)
+// URR Portal v140 — Selections: editable options + customer Approve button
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -353,7 +353,7 @@ function renderSelections() {
         if (line.length) inner += "<div class='sel-opt-meta'>" + line.join(" · ") + "</div>";
         if (o.link) inner += "<a class='sel-opt-link' href='" + escapeAttr(o.link) + "' target='_blank' rel='noopener'>View product ↗</a>";
         if (isFinal) inner += "<div class='sel-badge final'>✓ Final selection</div>";
-        else if (isPicked) inner += "<div class='sel-badge picked'>Customer's pick</div>";
+        else if (isPicked) inner += "<div class='sel-badge picked'>✓ Approved by customer</div>";
         inner += "</div>";
         opt.innerHTML = inner;
 
@@ -361,6 +361,11 @@ function renderSelections() {
         const acts = document.createElement("div");
         acts.className = "sel-opt-acts";
         if (admin) {
+          const ed = document.createElement("button");
+          ed.className = "btn-ghost sel-mini";
+          ed.textContent = "✎ Edit";
+          ed.addEventListener("click", () => openOptionModal(it.id, "admin", o.id));
+          acts.appendChild(ed);
           const mk = document.createElement("button");
           mk.className = "btn-ghost sel-mini";
           mk.textContent = isFinal ? "Unmark final" : "Mark final";
@@ -372,10 +377,10 @@ function renderSelections() {
           del.addEventListener("click", () => removeOption(it.id, o.id));
           acts.appendChild(del);
         } else if (!it.finalOptId) {
-          // Customer may pick among options (until admin locks a final)
+          // Customer may approve one option (until admin locks a final)
           const pick = document.createElement("button");
-          pick.className = "btn-ghost sel-mini";
-          pick.textContent = isPicked ? "✓ Your pick" : "Pick this";
+          pick.className = isPicked ? "btn-ghost sel-mini" : "btn-primary sel-mini";
+          pick.textContent = isPicked ? "✓ Approved" : "Approve";
           pick.disabled = isPicked;
           pick.addEventListener("click", () => customerPickOption(it.id, o.id));
           acts.appendChild(pick);
@@ -470,17 +475,22 @@ async function deleteSelectionItem() {
   renderSelections();
 }
 
-// ----- Add an option (admin or customer) -----
-let optionTargetItem = null, optionTargetBy = "admin";
-function openOptionModal(itemId, by) {
+// ----- Add or edit an option (admin or customer) -----
+let optionTargetItem = null, optionTargetBy = "admin", editingOptId = null;
+function openOptionModal(itemId, by, optId) {
   optionTargetItem = itemId;
   optionTargetBy = by;
-  $("opt-name").value = "";
-  $("opt-img").value = "";
-  $("opt-link").value = "";
-  $("opt-price").value = "";
-  $("opt-note").value = "";
-  $("option-modal-title").textContent = by === "customer" ? "Suggest an Option" : "Add Option";
+  editingOptId = optId || null;
+  const it = selections.find((x) => x.id === itemId);
+  const o = (it && optId) ? (it.options || []).find((x) => x.id === optId) : null;
+  $("opt-name").value = o ? (o.name || "") : "";
+  $("opt-img").value = o ? (o.img || "") : "";
+  $("opt-link").value = o ? (o.link || "") : "";
+  $("opt-price").value = o && o.price ? o.price : "";
+  $("opt-note").value = o ? (o.note || "") : "";
+  $("option-modal-title").textContent = o
+    ? "Edit Option"
+    : (by === "customer" ? "Suggest an Option" : "Add Option");
   $("option-modal").classList.remove("hidden");
 }
 
@@ -489,23 +499,26 @@ async function saveOption() {
   if (!it) return;
   const name = $("opt-name").value.trim();
   if (!name) { alert("Name this option."); return; }
-  const opt = {
-    id: "o" + Date.now(),
+  const fields = {
     name,
     img: $("opt-img").value.trim(),
     link: $("opt-link").value.trim(),
     price: r2(Number($("opt-price").value) || 0),
-    note: $("opt-note").value.trim(),
-    by: optionTargetBy
+    note: $("opt-note").value.trim()
   };
   it.options = it.options || [];
-  it.options.push(opt);
+  if (editingOptId) {
+    const i = it.options.findIndex((o) => o.id === editingOptId);
+    if (i >= 0) it.options[i] = { ...it.options[i], ...fields };
+  } else {
+    it.options.push({ id: "o" + Date.now(), by: optionTargetBy, ...fields });
+  }
 
   if (isAdmin()) {
     await saveSelections();
   } else {
-    // Customer path: scoped server action, can only add to a visible item
-    await selectionRespond(it.id, { addOption: opt });
+    // Customer path: scoped server action (add only; customers can't edit)
+    await selectionRespond(it.id, { addOption: it.options[it.options.length - 1] });
   }
   closeModal("option-modal");
   renderSelections();
