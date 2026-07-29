@@ -1,5 +1,4 @@
-// URR Portal v137 — sub schedule + daily log isolation (subs see only assigned tasks / own logs)
-// ============================================================
+// URR Portal v138 — invoice "Due now" reflects payments; sub isolation (v137) included
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -2697,11 +2696,14 @@ function renderCustInvoices(list) {
     card.appendChild(head);
     const meta = document.createElement("div");
     meta.className = "log-meta";
-    const due = inv.amountDue !== undefined ? Number(inv.amountDue) : st.total;
+    // "Due now" is the current milestone (e.g. deposit). Reduce it by what's
+    // already been paid so it reflects the live remaining, and drop it once met.
+    const milestone = inv.amountDue !== undefined ? Number(inv.amountDue) : st.total;
+    const dueNow = r2(Math.max(0, milestone - st.paid));
     meta.textContent = [
       inv.date ? fmtDateLong(inv.date) : null,
       "Contract " + fmtMoney(st.total),
-      due !== st.total ? "Due now " + fmtMoney(due) : null,
+      (dueNow > 0 && milestone !== st.total) ? "Due now " + fmtMoney(dueNow) : null,
       st.paid ? fmtMoney(st.paid) + " paid" : null
     ].filter(Boolean).join("  ·  ");
     card.appendChild(meta);
