@@ -1,4 +1,4 @@
-// URR Portal v141 — Calc tab open to subs + customers; selections edit/approve (v140) included
+// URR Portal v142 — desktop estimate row fix (hide mobile field labels)
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 

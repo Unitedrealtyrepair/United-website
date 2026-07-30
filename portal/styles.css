@@ -1,5 +1,4 @@
-/* URR Portal v141 */
-:root {
+/* URR Portal v142 */
   --navy: #0f2440;
   --navy-light: #1b3a63;
   --red: #c8102e;
@@ -1411,6 +1410,11 @@ body {
   padding: 0 2px 4px;
 }
 .est-item-num { display: none; }
+
+/* Per-field labels are the stacked MOBILE layout only. On desktop the
+   column header row (.est-colhead) shows the labels, so hide these inline
+   spans — otherwise they dump "Item Cost / Qty / Tax…" into each row. */
+.est-field-lbl { display: none; }
 
 @media (max-width: 720px) {
   .est-colhead { display: none !important; }
