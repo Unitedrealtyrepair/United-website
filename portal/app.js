@@ -1,4 +1,4 @@
-// URR Portal v140 — Selections: editable options + customer Approve button
+// URR Portal v141 — Calc tab open to subs + customers; selections edit/approve (v140) included
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -21,8 +21,8 @@ const COMPANY = {
 
 const ROLE_ACCESS = {
   admin:    ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Scans", "Invoices", "Change Orders", "Estimates", "Selections", "Materials", "Subs", "Calc", "Codes", "Time"],
-  customer: ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Invoices", "Change Orders", "Estimates", "Selections"],
-  sub:      ["Schedule", "Daily Logs", "Documents", "Photos", "Invoices", "Estimates", "Materials", "Codes"]
+  customer: ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Invoices", "Change Orders", "Estimates", "Selections", "Calc"],
+  sub:      ["Schedule", "Daily Logs", "Documents", "Photos", "Invoices", "Estimates", "Materials", "Codes", "Calc"]
 };
 
 let SESSION = null; // { email, code, role, projects, apiKey }
@@ -1377,8 +1377,7 @@ function render() {
     "invoices-section": activeTab === "Invoices",
     "estimates-section": activeTab === "Estimates",
     "selections-section": activeTab === "Selections",
-    "calc-section": activeTab === "Calc" &&
-      (isAdmin() || calcAccess.indexOf(String(SESSION.email).toLowerCase()) !== -1),
+    "calc-section": activeTab === "Calc",
     "codes-section": activeTab === "Codes",
     "time-section": activeTab === "Time" && isAdmin()
   };
@@ -5645,8 +5644,18 @@ function renderCodes() {
 // ---------- Field Calc ----------
 function renderCalc() {
   const frame = $("calc-frame");
-  if (frame && !frame.getAttribute("src")) {
-    frame.setAttribute("src", "calc.html?v=134");
+  if (!frame) return;
+  // Set src once; bump the version to bust the iOS Safari cache.
+  if (!frame.getAttribute("src")) {
+    frame.setAttribute("src", "calc.html?v=140");
+  }
+  // If the section was hidden when the iframe first mounted, some mobile
+  // browsers leave it blank until it's reflowed — nudge it on show.
+  const sec = $("calc-section");
+  if (sec && !sec.classList.contains("hidden")) {
+    requestAnimationFrame(() => {
+      if (!frame.getAttribute("src")) frame.setAttribute("src", "calc.html?v=140");
+    });
   }
 }
 
