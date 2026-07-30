@@ -1,4 +1,4 @@
-// URR Portal v143 — estimate notes textarea spans full width on desktop
+// URR Portal v144 — real force-logout (kick) for customers/subs
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -684,7 +684,16 @@ function renderProjectName() {
 function startPresence() {
   if (presenceTimer) clearInterval(presenceTimer);
   const beat = async () => {
-    try { await api({ action: "ping", email: SESSION.email, code: SESSION.code, project: currentProject.name }); } catch (e) {}
+    try {
+      const pong = await api({ action: "ping", email: SESSION.email, code: SESSION.code, project: currentProject.name });
+      if (pong && pong.kicked) {
+        // Admin logged this user off — end the session immediately.
+        if (presenceTimer) { clearInterval(presenceTimer); presenceTimer = null; }
+        alert("You've been signed out by the administrator.");
+        logout();
+        return;
+      }
+    } catch (e) {}
     try {
       const out = await api({ action: "inbox", email: SESSION.email, code: SESSION.code });
       if (out.ok) {
