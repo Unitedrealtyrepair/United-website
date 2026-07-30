@@ -1,4 +1,4 @@
-/* URR Portal v142 */
+/* URR Portal v143 */
 :root {
   --navy: #0f2440;
   --navy-light: #1b3a63;
@@ -1160,6 +1160,10 @@ body {
 .est-line-total { font-weight: 700; font-size: 13.5px; text-align: right; color: #0f2440; }
 .est-row-extra { display: flex; gap: 10px; align-items: center; margin: 0 0 10px; padding-left: 4px; }
 .est-item-notes { flex: 1; padding: 6px 8px; border: 1px dashed #dde3ec; border-radius: 7px; font-family: inherit; font-size: 12.5px; color: #5a6b84; }
+/* The notes textarea is a direct child of the .est-row grid. On desktop it
+   must span the whole width on its own line under the description — otherwise
+   it drops into the QTY column and blows the row height out. */
+.est-row > .est-item-notes { grid-column: 1 / -1; margin-top: 4px; }
 .est-thumb-strip { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0; }
 .est-thumb-wrap { position: relative; display: inline-block; }
 .est-thumb { width: 62px; height: 62px; object-fit: cover; border-radius: 8px; border: 1px solid #dde3ec; cursor: pointer; }

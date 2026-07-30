@@ -1,4 +1,4 @@
-// URR Portal v142 — desktop estimate row fix (hide mobile field labels)
+// URR Portal v143 — estimate notes textarea spans full width on desktop
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
