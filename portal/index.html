@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>URR Project Portal</title>
-  <!-- URR Portal v144 -->
+  <!-- URR Portal v146 -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css?v=134" />
@@ -21,12 +21,12 @@
         <h1>United Realty Repair</h1>
         <p class="tagline">Project Portal</p>
       </div>
-      <label for="email-input">Email</label>
-      <input type="email" id="email-input" placeholder="you@example.com" autocomplete="email" />
+      <label for="email-input">Username</label>
+      <input type="text" id="email-input" placeholder="Username" autocomplete="username" autocapitalize="none" spellcheck="false" />
       <label for="code-input">Access code</label>
       <input type="password" id="code-input" placeholder="Provided by United Realty Repair" autocomplete="current-password" />
       <button id="login-btn">Login</button>
-      <p id="login-error" class="error hidden">Access denied. Check your email and access code, or contact United Realty Repair.</p>
+      <p id="login-error" class="error hidden">Access denied. Check your username and access code, or contact United Realty Repair.</p>
       <p id="login-wait" class="hidden" style="text-align:center;color:#6b7687;font-size:14px;margin-top:12px;">Checking…</p>
     </div>
   </div>
@@ -277,6 +277,31 @@
         </div>
         <div id="time-list" class="tc-list"></div>
         <div id="time-empty" class="status-msg hidden">No time logged yet. Tap Clock In to start.</div>
+
+        <!-- ===== Mileage ===== -->
+        <div class="tc-totals" style="margin-top:22px">
+          <div class="tc-tot"><span>Miles today</span><b id="mile-today">0 mi</b></div>
+          <div class="tc-tot"><span>Miles this week</span><b id="mile-week">0 mi</b></div>
+        </div>
+        <div id="mile-by-project"></div>
+        <div class="section-toolbar tc-toolbar">
+          <div class="section-title">Mileage</div>
+          <button id="mile-add-btn" class="btn-ghost">+ Log trip</button>
+        </div>
+        <div id="mile-list" class="tc-list"></div>
+        <div id="mile-empty" class="status-msg hidden">No mileage logged yet.</div>
+
+        <!-- ===== Gas receipts ===== -->
+        <div class="tc-totals" style="margin-top:22px">
+          <div class="tc-tot"><span>Gas this week</span><b id="fuel-week">$0</b></div>
+        </div>
+        <div id="fuel-by-project"></div>
+        <div class="section-toolbar tc-toolbar">
+          <div class="section-title">Gas Receipts</div>
+          <button id="fuel-add-btn" class="btn-ghost">+ Add receipt</button>
+        </div>
+        <div id="fuel-list" class="tc-list"></div>
+        <div id="fuel-empty" class="status-msg hidden">No gas receipts yet.</div>
       </div>
 
       <div id="loading" class="status-msg">Loading project files…</div>
@@ -421,7 +446,10 @@
         <h2 id="option-modal-title">Add Option</h2>
         <label>Name</label>
         <input type="text" id="opt-name" placeholder="e.g. Delta Trinsic, matte black" />
-        <label>Image URL (optional)</label>
+        <label>Upload photo <span class="lbl-hint">— shows as thumbnail</span></label>
+        <input type="file" id="opt-file" accept="image/*" />
+        <div id="opt-file-status" class="lbl-hint"></div>
+        <label>…or Image URL (optional)</label>
         <input type="text" id="opt-img" placeholder="https://…/photo.jpg" />
         <label>Product link (optional)</label>
         <input type="text" id="opt-link" placeholder="https://…" />
@@ -668,6 +696,67 @@
           <span class="spacer"></span>
           <button id="time-cancel" class="btn-ghost">Cancel</button>
           <button id="time-save" class="btn-primary">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Mileage modal (admin) ===== -->
+    <div id="mileage-modal" class="modal-overlay hidden">
+      <div class="modal">
+        <h2 id="mile-modal-title">Log Mileage</h2>
+        <label>Date</label>
+        <input type="date" id="mile-date" />
+        <label>Property</label>
+        <select id="mile-project"></select>
+        <div class="mile-odo-row">
+          <div class="mile-odo-col">
+            <label>Odometer start</label>
+            <input type="number" id="mile-odo-start" min="0" step="1" placeholder="0" />
+          </div>
+          <div class="mile-odo-col">
+            <label>Odometer end</label>
+            <input type="number" id="mile-odo-end" min="0" step="1" placeholder="0" />
+          </div>
+        </div>
+        <div id="mile-preview" class="mile-preview">0 mi</div>
+        <label>Stops / route <span class="lbl-hint">— add each location</span></label>
+        <div id="mile-stops"></div>
+        <button id="mile-add-stop" class="btn-ghost sel-mini" style="margin-top:6px">＋ Add stop</button>
+        <label style="margin-top:10px">Note (optional)</label>
+        <input type="text" id="mile-note" placeholder="e.g. material run, dump run" />
+        <div class="modal-actions">
+          <button id="mile-delete" class="btn-danger hidden">Delete</button>
+          <span class="spacer"></span>
+          <button id="mile-cancel" class="btn-ghost">Cancel</button>
+          <button id="mile-save" class="btn-primary">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Gas receipt modal (admin) ===== -->
+    <div id="fuel-modal" class="modal-overlay hidden">
+      <div class="modal">
+        <h2 id="fuel-modal-title">Add Gas Receipt</h2>
+        <label>Date</label>
+        <input type="date" id="fuel-date" />
+        <label>Property</label>
+        <select id="fuel-project"></select>
+        <label>Amount ($)</label>
+        <input type="number" id="fuel-amount" min="0" step="0.01" placeholder="0.00" />
+        <label>Gallons (optional)</label>
+        <input type="number" id="fuel-gallons" min="0" step="0.001" placeholder="0" />
+        <label>Station / vendor (optional)</label>
+        <input type="text" id="fuel-vendor" placeholder="e.g. Chevron, Costco" />
+        <label>Receipt photo <span class="lbl-hint">— saved to admin-only folder</span></label>
+        <input type="file" id="fuel-file" accept="image/*,application/pdf" />
+        <div id="fuel-file-status" class="lbl-hint"></div>
+        <label>Note (optional)</label>
+        <input type="text" id="fuel-note" placeholder="e.g. truck, generator fuel" />
+        <div class="modal-actions">
+          <button id="fuel-delete" class="btn-danger hidden">Delete</button>
+          <span class="spacer"></span>
+          <button id="fuel-cancel" class="btn-ghost">Cancel</button>
+          <button id="fuel-save" class="btn-primary">Save</button>
         </div>
       </div>
     </div>

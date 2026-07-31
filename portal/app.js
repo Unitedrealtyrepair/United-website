@@ -1,4 +1,4 @@
-// URR Portal v144 — real force-logout (kick) for customers/subs
+// URR Portal v146 — Vehicle section, username login, selection photo upload+thumbnails
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -129,6 +129,10 @@ let subBids = [];       // sub bid submissions — memory only
 let calcAccess = [];    // emails granted the Field Calc tab — admin-managed
 let timeEntries = [];   // admin time clock — {id, project, start, end, note, rate, costId}
 let editingTimeId = null;
+let mileage = [];       // admin mileage — {id, date, project, odoStart, odoEnd, stops:[], note}
+let editingMileId = null;
+let fuelReceipts = [];  // admin gas receipts — {id, date, project, amount, gallons, vendor, note, fileId, fileName}
+let editingFuelId = null;
 let costs = [];         // job costing entries — ADMIN ONLY, memory only
 let editingCostId = null;
 let draws = [];         // payment draws — {id, label, date, amount, visible, alloc:[{budgetId,desc,amount}]}
@@ -175,6 +179,8 @@ function applyRemote(remote) {
   subBids = remote[pkey("SubEstimates")] || [];
   if (remote["urrCalcAccess"]) calcAccess = remote["urrCalcAccess"];
   if (remote["urrTimeClock"]) timeEntries = remote["urrTimeClock"];
+  if (remote["urrMileage"]) mileage = remote["urrMileage"];
+  if (remote["urrFuel"]) fuelReceipts = remote["urrFuel"];
   costs = remote[pkey("Costs")] || [];
   draws = remote[pkey("Draws")] || [];
   if (remote[pkey("FolderGrants")]) folderGrants = remote[pkey("FolderGrants")];
@@ -250,6 +256,8 @@ async function saveCustInvoices() {
 async function saveTermsLibrary() { pushCollection("urrTermsLibrary", termsLibrary); }
 async function saveCalcAccess()  { pushCollection("urrCalcAccess", calcAccess); }
 async function saveTimeEntries() { pushCollection("urrTimeClock", timeEntries); }
+async function saveMileage()      { pushCollection("urrMileage", mileage); }
+async function saveFuel()         { pushCollection("urrFuel", fuelReceipts); }
 async function saveFolderGrants() { pushCollection(pkey("FolderGrants"), folderGrants); }
 async function saveCosts()        { pushCollection(pkey("Costs"), costs); }
 async function saveDraws()        { cacheSet(pkey("Draws"), draws); pushCollection(pkey("Draws"), draws); }
@@ -343,6 +351,7 @@ function renderSelections() {
         opt.className = "sel-opt" + (isFinal ? " final" : isPicked ? " picked" : "");
         let inner = "";
         if (o.img) inner += "<div class='sel-opt-img'><img src='" + escapeAttr(o.img) + "' alt='' loading='lazy' onerror=\"this.parentNode.classList.add('noimg')\"></div>";
+        else if (o.imgFileId) inner += "<div class='sel-opt-img' data-imgfile='" + escapeAttr(o.imgFileId) + "'></div>";
         else inner += "<div class='sel-opt-img noimg'></div>";
         inner += "<div class='sel-opt-body'>";
         inner += "<div class='sel-opt-name'>" + escapeHtml(o.name || "Option") + "</div>";
@@ -411,6 +420,22 @@ function renderSelections() {
       host.appendChild(card);
     }
   }
+
+  // Load uploaded-photo thumbnails through the backend (Drive bytes).
+  host.querySelectorAll(".sel-opt-img[data-imgfile]").forEach(async (box) => {
+    const fid = box.getAttribute("data-imgfile");
+    if (!fid || box.dataset.loaded) return;
+    box.dataset.loaded = "1";
+    try {
+      const blob = await fetchFileBlob({ id: fid });
+      const url = URL.createObjectURL(blob);
+      const img = document.createElement("img");
+      img.src = url; img.loading = "lazy"; img.alt = "";
+      box.appendChild(img);
+    } catch (e) {
+      box.classList.add("noimg");
+    }
+  });
 }
 
 // ----- Admin: create/edit a selection item -----
@@ -485,6 +510,13 @@ function openOptionModal(itemId, by, optId) {
   const o = (it && optId) ? (it.options || []).find((x) => x.id === optId) : null;
   $("opt-name").value = o ? (o.name || "") : "";
   $("opt-img").value = o ? (o.img || "") : "";
+  $("opt-file").value = "";
+  // Photo upload is admin-only (saves to admin Drive folder). Customers use URL.
+  const fileRow = $("opt-file");
+  const showUpload = isAdmin();
+  fileRow.style.display = showUpload ? "" : "none";
+  if (fileRow.previousElementSibling) fileRow.previousElementSibling.style.display = showUpload ? "" : "none";
+  $("opt-file-status").textContent = o && o.imgFileName ? ("Current: " + o.imgFileName) : "";
   $("opt-link").value = o ? (o.link || "") : "";
   $("opt-price").value = o && o.price ? o.price : "";
   $("opt-note").value = o ? (o.note || "") : "";
@@ -506,6 +538,26 @@ async function saveOption() {
     price: r2(Number($("opt-price").value) || 0),
     note: $("opt-note").value.trim()
   };
+
+  // Upload a chosen photo → admin-only office/Selection Photos folder
+  const fileInput = $("opt-file");
+  const btn = $("opt-save");
+  if (fileInput && fileInput.files && fileInput.files[0]) {
+    btn.disabled = true;
+    const orig = btn.textContent;
+    btn.textContent = "Uploading photo…";
+    try {
+      const out = await uploadOne(fileInput.files[0], { destArea: "office", destFolderName: "Selection Photos", notify: [] });
+      if (out.ok) { fields.imgFileId = out.fileId; fields.imgFileName = out.fileName; }
+      else throw new Error(out.error || "upload failed");
+    } catch (e) {
+      btn.disabled = false; btn.textContent = orig;
+      alert("Photo upload failed: " + e.message);
+      return;
+    }
+    btn.disabled = false; btn.textContent = orig;
+  }
+
   it.options = it.options || [];
   if (editingOptId) {
     const i = it.options.findIndex((o) => o.id === editingOptId);
@@ -5438,6 +5490,302 @@ function renderTime() {
     row.addEventListener("click", () => openTimeModal(e.id));
     list.appendChild(row);
   }
+
+  renderMileage();
+  renderFuel();
+}
+
+// ---------- Mileage ----------
+function tripMiles(m) {
+  const s = Number(m.odoStart), e = Number(m.odoEnd);
+  if (isFinite(s) && isFinite(e) && e >= s) return r2(e - s);
+  return 0;
+}
+
+function renderMileage() {
+  const now = new Date();
+  const todayKey = now.toDateString();
+  const ws = weekStart(now);
+  let todayM = 0, weekM = 0;
+  const byProject = {};
+  for (const m of mileage) {
+    const mi = tripMiles(m);
+    const d = new Date(m.date + "T12:00:00");
+    if (d.toDateString() === todayKey) todayM += mi;
+    if (d >= ws) { weekM += mi; byProject[m.project] = (byProject[m.project] || 0) + mi; }
+  }
+  $("mile-today").textContent = fmtMiles(todayM);
+  $("mile-week").textContent = fmtMiles(weekM);
+
+  const bp = $("mile-by-project");
+  bp.innerHTML = "";
+  const keys = Object.keys(byProject).sort((a, b) => byProject[b] - byProject[a]);
+  if (keys.length) {
+    const t = document.createElement("div");
+    t.className = "tc-sub-title";
+    t.textContent = "This week by property";
+    bp.appendChild(t);
+    for (const k of keys) {
+      const row = document.createElement("div");
+      row.className = "tc-proj-row";
+      row.innerHTML = "<span>" + escapeHtml(shortProject(k)) + "</span><b>" + fmtMiles(byProject[k]) + "</b>";
+      bp.appendChild(row);
+    }
+  }
+
+  const list = $("mile-list");
+  list.innerHTML = "";
+  const sorted = mileage.slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  $("mile-empty").classList.toggle("hidden", sorted.length > 0);
+  for (const m of sorted) {
+    const row = document.createElement("div");
+    row.className = "tc-row";
+    const left = document.createElement("div");
+    left.className = "tc-left";
+    const p = document.createElement("div");
+    p.className = "tc-proj";
+    p.textContent = fmtDateShort(m.date) + "  ·  " + shortProject(m.project);
+    left.appendChild(p);
+    const t = document.createElement("div");
+    t.className = "tc-times";
+    const parts = [];
+    if (m.odoStart || m.odoEnd) parts.push(m.odoStart + " → " + m.odoEnd);
+    if (m.stops && m.stops.length) parts.push(m.stops.join(" → "));
+    if (m.note) parts.push(m.note);
+    t.textContent = parts.join("  ·  ");
+    left.appendChild(t);
+    row.appendChild(left);
+    const h = document.createElement("div");
+    h.className = "tc-hours";
+    h.textContent = fmtMiles(tripMiles(m));
+    row.appendChild(h);
+    row.addEventListener("click", () => openMileageModal(m.id));
+    list.appendChild(row);
+  }
+}
+
+function fmtMiles(n) { return (Math.round((Number(n) || 0) * 10) / 10) + " mi"; }
+function fmtDateShort(d) {
+  if (!d) return "";
+  const dt = new Date(d + "T12:00:00");
+  return dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function openMileageModal(id) {
+  editingMileId = id || null;
+  const m = id ? mileage.find((x) => x.id === id) : null;
+  $("mile-modal-title").textContent = m ? "Edit Trip" : "Log Mileage";
+  $("mile-date").value = m ? m.date : ymd(new Date());
+  fillProjectSelect($("mile-project"), m ? m.project : currentProject.name);
+  $("mile-odo-start").value = m ? (m.odoStart || "") : "";
+  $("mile-odo-end").value = m ? (m.odoEnd || "") : "";
+  $("mile-note").value = m ? (m.note || "") : "";
+  // Stops
+  const host = $("mile-stops");
+  host.innerHTML = "";
+  const stops = (m && m.stops && m.stops.length) ? m.stops.slice() : [""];
+  stops.forEach((s) => addStopRow(s));
+  $("mile-delete").classList.toggle("hidden", !m);
+  updateMilePreview();
+  $("mileage-modal").classList.remove("hidden");
+}
+
+function addStopRow(val) {
+  const host = $("mile-stops");
+  const row = document.createElement("div");
+  row.className = "mile-stop-row";
+  const inp = document.createElement("input");
+  inp.type = "text";
+  inp.className = "mile-stop-input";
+  inp.placeholder = "Stop / location";
+  inp.value = val || "";
+  const x = document.createElement("button");
+  x.className = "btn-ghost sel-mini danger";
+  x.textContent = "✕";
+  x.addEventListener("click", () => { row.remove(); });
+  row.appendChild(inp);
+  row.appendChild(x);
+  host.appendChild(row);
+}
+
+function updateMilePreview() {
+  const s = Number($("mile-odo-start").value), e = Number($("mile-odo-end").value);
+  const mi = (isFinite(s) && isFinite(e) && e >= s) ? r2(e - s) : 0;
+  $("mile-preview").textContent = fmtMiles(mi);
+}
+
+async function saveMileageEntry() {
+  const date = $("mile-date").value || ymd(new Date());
+  const odoStart = Number($("mile-odo-start").value) || 0;
+  const odoEnd = Number($("mile-odo-end").value) || 0;
+  if (odoEnd < odoStart) { alert("Ending odometer can't be less than the start."); return; }
+  const stops = Array.from(document.querySelectorAll("#mile-stops .mile-stop-input"))
+    .map((i) => i.value.trim()).filter(Boolean);
+  const rec = {
+    date,
+    project: $("mile-project").value,
+    odoStart, odoEnd, stops,
+    note: $("mile-note").value.trim()
+  };
+  if (editingMileId) {
+    const i = mileage.findIndex((x) => x.id === editingMileId);
+    if (i >= 0) mileage[i] = { ...mileage[i], ...rec };
+  } else {
+    mileage.push({ id: "mi" + Date.now(), ...rec });
+  }
+  await saveMileage();
+  closeModal("mileage-modal");
+  renderTime();
+}
+
+async function deleteMileageEntry() {
+  if (!editingMileId) return;
+  if (!confirm("Delete this trip?")) return;
+  mileage = mileage.filter((x) => x.id !== editingMileId);
+  await saveMileage();
+  closeModal("mileage-modal");
+  renderTime();
+}
+
+// ---------- Gas receipts ----------
+function renderFuel() {
+  const now = new Date();
+  const ws = weekStart(now);
+  let weekAmt = 0;
+  const byProject = {};
+  for (const f of fuelReceipts) {
+    const d = new Date(f.date + "T12:00:00");
+    if (d >= ws) { weekAmt += Number(f.amount) || 0; byProject[f.project] = (byProject[f.project] || 0) + (Number(f.amount) || 0); }
+  }
+  $("fuel-week").textContent = fmtMoney(weekAmt);
+
+  const bp = $("fuel-by-project");
+  bp.innerHTML = "";
+  const keys = Object.keys(byProject).sort((a, b) => byProject[b] - byProject[a]);
+  if (keys.length) {
+    const t = document.createElement("div");
+    t.className = "tc-sub-title";
+    t.textContent = "This week by property";
+    bp.appendChild(t);
+    for (const k of keys) {
+      const row = document.createElement("div");
+      row.className = "tc-proj-row";
+      row.innerHTML = "<span>" + escapeHtml(shortProject(k)) + "</span><b>" + fmtMoney(byProject[k]) + "</b>";
+      bp.appendChild(row);
+    }
+  }
+
+  const list = $("fuel-list");
+  list.innerHTML = "";
+  const sorted = fuelReceipts.slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  $("fuel-empty").classList.toggle("hidden", sorted.length > 0);
+  for (const f of sorted) {
+    const row = document.createElement("div");
+    row.className = "tc-row";
+    const left = document.createElement("div");
+    left.className = "tc-left";
+    const p = document.createElement("div");
+    p.className = "tc-proj";
+    p.textContent = fmtDateShort(f.date) + "  ·  " + shortProject(f.project);
+    left.appendChild(p);
+    const t = document.createElement("div");
+    t.className = "tc-times";
+    const parts = [];
+    if (f.vendor) parts.push(f.vendor);
+    if (f.gallons) parts.push(f.gallons + " gal");
+    if (f.fileName) parts.push("📎 receipt");
+    if (f.note) parts.push(f.note);
+    t.textContent = parts.join("  ·  ");
+    left.appendChild(t);
+    row.appendChild(left);
+    const h = document.createElement("div");
+    h.className = "tc-hours";
+    h.textContent = fmtMoney(f.amount);
+    row.appendChild(h);
+    row.addEventListener("click", () => openFuelModal(f.id));
+    list.appendChild(row);
+  }
+}
+
+function openFuelModal(id) {
+  editingFuelId = id || null;
+  const f = id ? fuelReceipts.find((x) => x.id === id) : null;
+  $("fuel-modal-title").textContent = f ? "Edit Gas Receipt" : "Add Gas Receipt";
+  $("fuel-date").value = f ? f.date : ymd(new Date());
+  fillProjectSelect($("fuel-project"), f ? f.project : currentProject.name);
+  $("fuel-amount").value = f ? (f.amount || "") : "";
+  $("fuel-gallons").value = f ? (f.gallons || "") : "";
+  $("fuel-vendor").value = f ? (f.vendor || "") : "";
+  $("fuel-note").value = f ? (f.note || "") : "";
+  $("fuel-file").value = "";
+  $("fuel-file-status").textContent = f && f.fileName ? ("Current: " + f.fileName) : "";
+  $("fuel-delete").classList.toggle("hidden", !f);
+  $("fuel-modal").classList.remove("hidden");
+}
+
+async function saveFuelEntry() {
+  const amount = r2(Number($("fuel-amount").value) || 0);
+  if (!(amount > 0)) { alert("Enter the receipt amount."); return; }
+  const rec = {
+    date: $("fuel-date").value || ymd(new Date()),
+    project: $("fuel-project").value,
+    amount,
+    gallons: Number($("fuel-gallons").value) || 0,
+    vendor: $("fuel-vendor").value.trim(),
+    note: $("fuel-note").value.trim()
+  };
+
+  // Upload receipt image if one was chosen → admin-only office/Gas Receipts folder
+  const fileInput = $("fuel-file");
+  const btn = $("fuel-save");
+  if (fileInput.files && fileInput.files[0]) {
+    btn.disabled = true;
+    const orig = btn.textContent;
+    btn.textContent = "Uploading receipt…";
+    try {
+      const out = await uploadOne(fileInput.files[0], { destArea: "office", destFolderName: "Gas Receipts", notify: [] });
+      if (out.ok) { rec.fileId = out.fileId; rec.fileName = out.fileName; }
+      else throw new Error(out.error || "upload failed");
+    } catch (e) {
+      btn.disabled = false; btn.textContent = orig;
+      alert("Receipt upload failed: " + e.message);
+      return;
+    }
+    btn.disabled = false; btn.textContent = orig;
+  }
+
+  if (editingFuelId) {
+    const i = fuelReceipts.findIndex((x) => x.id === editingFuelId);
+    if (i >= 0) fuelReceipts[i] = { ...fuelReceipts[i], ...rec, fileId: rec.fileId || fuelReceipts[i].fileId, fileName: rec.fileName || fuelReceipts[i].fileName };
+  } else {
+    fuelReceipts.push({ id: "gf" + Date.now(), ...rec });
+  }
+  await saveFuel();
+  closeModal("fuel-modal");
+  renderTime();
+}
+
+async function deleteFuelEntry() {
+  if (!editingFuelId) return;
+  if (!confirm("Delete this gas receipt? (The uploaded image stays in Drive.)")) return;
+  fuelReceipts = fuelReceipts.filter((x) => x.id !== editingFuelId);
+  await saveFuel();
+  closeModal("fuel-modal");
+  renderTime();
+}
+
+// Small helper to fill a <select> with the admin's projects
+function fillProjectSelect(sel, selected) {
+  if (!sel) return;
+  sel.innerHTML = "";
+  const names = (SESSION.projects || []).map((p) => p.name);
+  if (!names.length && currentProject) names.push(currentProject.name);
+  names.forEach((n) => {
+    const o = document.createElement("option");
+    o.value = n; o.textContent = shortProject(n);
+    sel.appendChild(o);
+  });
+  if (selected) sel.value = selected;
 }
 
 function tickClock() {
@@ -6370,7 +6718,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLightbox(); });
 
   // Click outside modal closes it
-  for (const id of ["task-modal", "budget-modal", "draw-modal", "selection-modal", "option-modal", "log-modal", "sub-modal", "task-view-modal", "est-modal", "est-view-modal", "est-preview-modal", "cost-modal", "time-modal", "ci-modal"]) {
+  for (const id of ["task-modal", "budget-modal", "draw-modal", "selection-modal", "option-modal", "mileage-modal", "fuel-modal", "log-modal", "sub-modal", "task-view-modal", "est-modal", "est-view-modal", "est-preview-modal", "cost-modal", "time-modal", "ci-modal"]) {
     $(id).addEventListener("click", (e) => { if (e.target.id === id) closeModal(id); });
   }
 
@@ -6401,6 +6749,19 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("time-delete").addEventListener("click", deleteTimeEntry);
   $("time-start").addEventListener("input", updateTimeModalHours);
   $("time-end").addEventListener("input", updateTimeModalHours);
+  // Mileage
+  $("mile-add-btn").addEventListener("click", () => openMileageModal(null));
+  $("mile-save").addEventListener("click", saveMileageEntry);
+  $("mile-cancel").addEventListener("click", () => closeModal("mileage-modal"));
+  $("mile-delete").addEventListener("click", deleteMileageEntry);
+  $("mile-add-stop").addEventListener("click", () => addStopRow(""));
+  $("mile-odo-start").addEventListener("input", updateMilePreview);
+  $("mile-odo-end").addEventListener("input", updateMilePreview);
+  // Gas receipts
+  $("fuel-add-btn").addEventListener("click", () => openFuelModal(null));
+  $("fuel-save").addEventListener("click", saveFuelEntry);
+  $("fuel-cancel").addEventListener("click", () => closeModal("fuel-modal"));
+  $("fuel-delete").addEventListener("click", deleteFuelEntry);
 
   $("add-cost-btn").addEventListener("click", () => openCostModal(null));
   $("cost-save").addEventListener("click", saveCost);

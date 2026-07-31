@@ -1,4 +1,4 @@
-/* URR Portal v144 */
+/* URR Portal v146 */
 :root {
   --navy: #0f2440;
   --navy-light: #1b3a63;
@@ -1913,3 +1913,10 @@ body {
 .sel-mini { font-size: 12px; padding: 5px 9px; }
 .sel-mini.danger { color: var(--red); }
 .sel-add-row { margin-top: 12px; display: flex; gap: 8px; }
+
+/* ===== Mileage / Gas receipts ===== */
+.mile-odo-row { display: flex; gap: 10px; }
+.mile-odo-col { flex: 1; display: flex; flex-direction: column; }
+.mile-preview { font-size: 18px; font-weight: 800; color: var(--navy); text-align: right; margin: 6px 0 2px; }
+.mile-stop-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+.mile-stop-input { flex: 1; }
