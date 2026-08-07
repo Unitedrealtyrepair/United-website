@@ -1,4 +1,4 @@
-// URR Portal v146 — Vehicle section, username login, selection photo upload+thumbnails
+// URR Portal v147 — job costs allow negative amounts (returns/credits)
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -2453,7 +2453,8 @@ function openCostModal(id) {
 async function saveCost() {
   const desc = $("cost-desc").value.trim();
   const amount = parseFloat($("cost-amount").value) || 0;
-  if (!desc || !(amount > 0)) { $("cost-receipt-hint").textContent = "Enter a description and amount."; return; }
+  // Allow negatives so returns/credits can be logged; only zero is invalid.
+  if (!desc || amount === 0) { $("cost-receipt-hint").textContent = "Enter a description and a non-zero amount (use a minus sign for a return/credit)."; return; }
   const btn = $("cost-save");
   btn.disabled = true;
   let receiptId = null, receiptName = null;
