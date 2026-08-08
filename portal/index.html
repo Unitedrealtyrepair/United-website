@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>URR Project Portal</title>
-  <!-- URR Portal v147 -->
+  <!-- URR Portal v148 -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css?v=134" />
@@ -201,6 +201,15 @@
           <button id="add-selection-btn" class="add-task-btn hidden">+ Add Selection</button>
         </div>
         <div id="selections-list" class="selections-list"></div>
+      </div>
+
+      <!-- ===== Change Orders — admin builder + customer approval ===== -->
+      <div id="co-section" class="hidden">
+        <div class="section-toolbar">
+          <div class="section-title">Change Orders</div>
+          <button id="add-co-btn" class="add-task-btn hidden">+ New Change Order</button>
+        </div>
+        <div id="co-list" class="co-list"></div>
       </div>
 
       <!-- ===== Scans (CubiCasa, ADMIN ONLY) ===== -->
@@ -461,6 +470,63 @@
           <span class="spacer"></span>
           <button id="opt-cancel" class="btn-ghost">Cancel</button>
           <button id="opt-save" class="btn-primary">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Change Order builder (admin) ===== -->
+    <div id="co-modal" class="modal-overlay hidden">
+      <div class="modal modal-wide">
+        <h2 id="co-modal-title">New Change Order</h2>
+        <div class="co-modal-row">
+          <div class="draw-field draw-field-sm">
+            <label>Date</label>
+            <input type="date" id="co-date" />
+          </div>
+          <div class="draw-field">
+            <label>Title</label>
+            <input type="text" id="co-title" placeholder="e.g. Contingency overage, added scope" />
+          </div>
+        </div>
+
+        <label>Pull from budget</label>
+        <div class="co-modal-row">
+          <select id="co-budget-pick" style="flex:1"></select>
+          <button id="co-budget-add" class="btn-ghost">＋ Add</button>
+        </div>
+        <p class="draw-hint">Adds the budget item as an editable variance line. Enter the amount over/under (use a minus for a credit). When approved & added to budget, that budget item is adjusted by this amount.</p>
+
+        <label style="margin-top:8px">Line items</label>
+        <div id="co-draft-lines"></div>
+        <button id="co-add-line" class="btn-ghost sel-mini" style="margin-top:6px">＋ Add custom line</button>
+
+        <div class="co-total-row">Change order total: <b id="co-total-preview">$0</b></div>
+        <label class="checkbox-row"><input type="checkbox" id="co-visible" /> Visible to customer (sends for approval)</label>
+
+        <div class="modal-actions">
+          <button id="co-delete" class="btn-danger hidden">Delete</button>
+          <span class="spacer"></span>
+          <button id="co-cancel" class="btn-ghost">Cancel</button>
+          <button id="co-save" class="btn-primary">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Change Order sign (customer) ===== -->
+    <div id="co-sign-modal" class="modal-overlay hidden">
+      <div class="modal">
+        <h2>Approve Change Order</h2>
+        <div class="co-sign-head">
+          <div id="co-sign-title" class="co-num"></div>
+          <div class="co-meta">Total: <b id="co-sign-total"></b></div>
+        </div>
+        <label class="checkbox-row"><input type="checkbox" id="co-sign-agree" /> I approve this change order and authorize the additional work and cost.</label>
+        <label>Sign by typing your full legal name</label>
+        <input type="text" id="co-sign-name" placeholder="Your full name" />
+        <div class="modal-actions">
+          <span class="spacer"></span>
+          <button id="co-sign-cancel" class="btn-ghost">Cancel</button>
+          <button id="co-sign-save" class="btn-primary">✓ Approve &amp; Sign</button>
         </div>
       </div>
     </div>

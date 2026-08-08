@@ -1,4 +1,4 @@
-/* URR Portal v147 */
+/* URR Portal v148 */
 :root {
   --navy: #0f2440;
   --navy-light: #1b3a63;
@@ -1920,3 +1920,28 @@ body {
 .mile-preview { font-size: 18px; font-weight: 800; color: var(--navy); text-align: right; margin: 6px 0 2px; }
 .mile-stop-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
 .mile-stop-input { flex: 1; }
+
+/* ===== Change Orders ===== */
+.co-list { margin-top: 8px; }
+.co-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+.co-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.co-num { font-size: 16px; font-weight: 700; color: var(--navy); }
+.co-meta { font-size: 13px; color: #6b7a90; margin-top: 2px; }
+.co-badge { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; padding: 4px 9px; border-radius: 6px; background: var(--bg); color: #6b7a90; white-space: nowrap; }
+.co-badge.co-sent { background: #fff4e5; color: #b26a00; }
+.co-badge.co-approved { background: #eaf7ef; color: #1a7f45; }
+.co-badge.co-declined { background: #fdecef; color: var(--red); }
+.co-lines { margin: 10px 0; border-top: 1px solid var(--border); }
+.co-line { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+.co-line b { color: var(--navy); }
+.co-src { font-size: 11px; color: #8a96a8; font-style: italic; }
+.co-signed { font-size: 13px; color: #1a7f45; font-weight: 600; margin: 6px 0; }
+.co-acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.co-check { font-size: 13px; font-weight: 600; color: var(--navy); display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.co-modal-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 8px; }
+.co-draft-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+.co-draft-desc { flex: 1; }
+.co-draft-amt { width: 110px; }
+.co-total-row { text-align: right; font-size: 16px; font-weight: 700; color: var(--navy); margin: 12px 0 8px; }
+.co-total-row b { font-size: 18px; }
+.co-sign-head { background: var(--bg); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }

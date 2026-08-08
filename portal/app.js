@@ -1,4 +1,4 @@
-// URR Portal v147 — job costs allow negative amounts (returns/credits)
+// URR Portal v148 — Change Order builder: budget-linked + custom lines, customer sign, contract/budget/invoice push
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -124,6 +124,8 @@ let termsLibrary = [];  // [{id, name, body, default}] — admin-only contract t
 let custInvoices = [];  // customer invoices — memory only
 let selections = [];    // finish/fixture selections — {id, area, title, allowance, visible, status, finalOptId, options:[{id,name,img,link,price,note,by}]}
 let editingSelId = null;
+let changeOrders = [];  // {id, number, date, title, visible, status, signedName, respondedAt, lines:[{id,desc,amount,budgetId}], inContract, budgeted, invoiced}
+let editingCoId = null;
 let folderGrants = {};  // { folderId: [sub emails granted access] } — admin-only
 let subBids = [];       // sub bid submissions — memory only
 let calcAccess = [];    // emails granted the Field Calc tab — admin-managed
@@ -166,6 +168,7 @@ function applyRemote(remote) {
   if (remote["urrTermsLibrary"]) termsLibrary = remote["urrTermsLibrary"];
   custInvoices = remote[pkey("CustInvoices")] || [];
   selections = remote[pkey("Selections")] || [];
+  changeOrders = remote[pkey("ChangeOrders")] || [];
   // Migrate old "INV#_A" placeholders: keep the suffix, blank the number so
   // the assign-number prompt resolves once a real number is typed.
   for (const v of custInvoices) {
@@ -201,6 +204,7 @@ async function loadState(initialData) {
   estimates = [];
   custInvoices = [];
   selections = [];
+  changeOrders = [];
   subBids = [];
   costs = [];
   draws = [];
@@ -262,6 +266,7 @@ async function saveFolderGrants() { pushCollection(pkey("FolderGrants"), folderG
 async function saveCosts()        { pushCollection(pkey("Costs"), costs); }
 async function saveDraws()        { cacheSet(pkey("Draws"), draws); pushCollection(pkey("Draws"), draws); }
 async function saveSelections()   { cacheSet(pkey("Selections"), selections); pushCollection(pkey("Selections"), selections); }
+async function saveChangeOrders() { cacheSet(pkey("ChangeOrders"), changeOrders); pushCollection(pkey("ChangeOrders"), changeOrders); }
 
 // ---------- Finish / Fixture Selections ----------
 // Default area buckets; admin can add items under any of these or type a new area.
@@ -624,6 +629,354 @@ function escapeAttr(s) {
     .replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+// ---------- Change Orders ----------
+function coTotal(co) {
+  return r2((co.lines || []).reduce((s, l) => s + (Number(l.amount) || 0), 0));
+}
+function nextCoNumber() {
+  let max = 0;
+  changeOrders.forEach((c) => {
+    const m = /(\d+)$/.exec(c.number || "");
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  });
+  return "CO-" + ("00" + (max + 1)).slice(-3);
+}
+const CO_STATUS = {
+  draft: { label: "Draft", cls: "" },
+  sent: { label: "Sent — awaiting approval", cls: "co-sent" },
+  approved: { label: "Approved", cls: "co-approved" },
+  declined: { label: "Declined", cls: "co-declined" }
+};
+
+function renderChangeOrders() {
+  const admin = isAdmin();
+  const host = $("co-list");
+  if (!host) return;
+  $("add-co-btn").classList.toggle("hidden", !admin);
+
+  const list = changeOrders
+    .filter((c) => admin || (c.visible && c.status !== "draft"))
+    .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+  if (!list.length) {
+    host.innerHTML = "<p class='empty-hint'>" +
+      (admin ? "No change orders yet. Create one to bill a variance or add scope."
+             : "No change orders to review right now.") + "</p>";
+    return;
+  }
+
+  host.innerHTML = "";
+  for (const co of list) {
+    const st = CO_STATUS[co.status || "draft"] || CO_STATUS.draft;
+    const card = document.createElement("div");
+    card.className = "co-card";
+
+    const head = document.createElement("div");
+    head.className = "co-head";
+    head.innerHTML =
+      "<div><div class='co-num'>" + escapeHtml(co.number || "CO") + (co.title ? " — " + escapeHtml(co.title) : "") + "</div>" +
+      "<div class='co-meta'>" + (co.date ? fmtDateLong(co.date) : "") +
+        "  ·  " + fmtMoney(coTotal(co)) + "</div></div>" +
+      "<span class='co-badge " + st.cls + "'>" + st.label + "</span>";
+    card.appendChild(head);
+
+    // Lines
+    const lines = document.createElement("div");
+    lines.className = "co-lines";
+    for (const l of (co.lines || [])) {
+      const row = document.createElement("div");
+      row.className = "co-line";
+      const tag = l.budgetId ? " <span class='co-src'>· from budget</span>" : "";
+      row.innerHTML = "<span>" + escapeHtml(l.desc || "") + tag + "</span><b>" + fmtMoney(l.amount) + "</b>";
+      lines.appendChild(row);
+    }
+    card.appendChild(lines);
+
+    if (co.status === "approved" && co.signedName) {
+      const sig = document.createElement("div");
+      sig.className = "co-signed";
+      sig.textContent = "✓ Approved" + (co.respondedAt ? " " + fmtDateLong(co.respondedAt.slice(0, 10)) : "") + " — signed: " + co.signedName;
+      card.appendChild(sig);
+    }
+
+    // Admin controls
+    if (admin) {
+      const acts = document.createElement("div");
+      acts.className = "co-acts";
+
+      const edit = document.createElement("button");
+      edit.className = "btn-ghost sel-mini";
+      edit.textContent = "✎ Edit";
+      edit.addEventListener("click", () => openCoModal(co.id));
+      acts.appendChild(edit);
+
+      // Visible-to-customer toggle
+      const vis = document.createElement("button");
+      vis.className = "btn-ghost sel-mini";
+      vis.textContent = co.visible ? "🙈 Hide from customer" : "👁 Make visible";
+      vis.addEventListener("click", async () => {
+        co.visible = !co.visible;
+        if (co.visible && co.status === "draft") co.status = "sent";
+        await saveChangeOrders(); renderChangeOrders();
+      });
+      acts.appendChild(vis);
+
+      // Post-approval controls
+      if (co.status === "approved") {
+        const cc = document.createElement("label");
+        cc.className = "co-check";
+        cc.innerHTML = "<input type='checkbox' " + (co.inContract ? "checked" : "") + "> Add to contract total";
+        cc.querySelector("input").addEventListener("change", async (e) => {
+          co.inContract = e.target.checked;
+          await saveChangeOrders(); renderChangeOrders(); renderPL && renderPL();
+        });
+        acts.appendChild(cc);
+
+        const bud = document.createElement("button");
+        bud.className = "btn-ghost sel-mini";
+        bud.textContent = co.budgeted ? "✓ Added to budget" : "Add to budget";
+        bud.disabled = !!co.budgeted;
+        bud.addEventListener("click", () => addCoToBudget(co.id));
+        acts.appendChild(bud);
+
+        const inv = document.createElement("button");
+        inv.className = "btn-ghost sel-mini";
+        inv.textContent = co.invoiced ? "✓ Invoice created" : "Generate invoice";
+        inv.disabled = !!co.invoiced;
+        inv.addEventListener("click", () => generateCoInvoice(co.id));
+        acts.appendChild(inv);
+      }
+
+      const del = document.createElement("button");
+      del.className = "btn-ghost sel-mini danger";
+      del.textContent = "Delete";
+      del.addEventListener("click", async () => {
+        if (!confirm("Delete this change order?")) return;
+        changeOrders = changeOrders.filter((x) => x.id !== co.id);
+        await saveChangeOrders(); renderChangeOrders();
+      });
+      acts.appendChild(del);
+      card.appendChild(acts);
+    } else if (co.status === "sent") {
+      // Customer approve/decline
+      const acts = document.createElement("div");
+      acts.className = "co-acts";
+      const ap = document.createElement("button");
+      ap.className = "btn-primary sel-mini";
+      ap.textContent = "✓ Approve & Sign";
+      ap.addEventListener("click", () => openCoSignModal(co.id));
+      acts.appendChild(ap);
+      const dc = document.createElement("button");
+      dc.className = "btn-danger sel-mini";
+      dc.textContent = "Decline";
+      dc.addEventListener("click", () => respondChangeOrder(co.id, "declined", ""));
+      acts.appendChild(dc);
+      card.appendChild(acts);
+    }
+
+    host.appendChild(card);
+  }
+}
+
+// ----- Admin: build/edit a CO -----
+function openCoModal(id) {
+  editingCoId = id || null;
+  const co = id ? changeOrders.find((x) => x.id === id) : null;
+  $("co-modal-title").textContent = co ? "Edit Change Order" : "New Change Order";
+  $("co-date").value = co ? co.date : ymd(new Date());
+  $("co-title").value = co ? (co.title || "") : "";
+  $("co-visible").checked = co ? !!co.visible : false;
+  // Build lines
+  coDraftLines = co ? JSON.parse(JSON.stringify(co.lines || [])) : [];
+  renderCoDraftLines();
+  // Populate budget-line picker
+  const sel = $("co-budget-pick");
+  sel.innerHTML = "<option value=''>— pick a budget item to pull —</option>";
+  for (const b of budget) {
+    const o = document.createElement("option");
+    o.value = b.id;
+    o.textContent = (b.section ? b.section + " · " : "") + (b.desc || "") + " (" + fmtMoney(b.amount) + ")";
+    sel.appendChild(o);
+  }
+  $("co-delete").classList.toggle("hidden", !co);
+  $("co-modal").classList.remove("hidden");
+}
+
+let coDraftLines = [];
+function renderCoDraftLines() {
+  const host = $("co-draft-lines");
+  host.innerHTML = "";
+  coDraftLines.forEach((l, idx) => {
+    const row = document.createElement("div");
+    row.className = "co-draft-row";
+    const d = document.createElement("input");
+    d.type = "text"; d.className = "co-draft-desc"; d.placeholder = "Description";
+    d.value = l.desc || "";
+    d.addEventListener("input", () => { l.desc = d.value; });
+    const a = document.createElement("input");
+    a.type = "number"; a.className = "co-draft-amt"; a.step = "0.01"; a.placeholder = "0.00";
+    a.value = (l.amount !== undefined && l.amount !== "") ? l.amount : "";
+    a.addEventListener("input", () => { l.amount = Number(a.value) || 0; updateCoTotal(); });
+    const x = document.createElement("button");
+    x.className = "btn-ghost sel-mini danger"; x.textContent = "✕";
+    x.addEventListener("click", () => { coDraftLines.splice(idx, 1); renderCoDraftLines(); updateCoTotal(); });
+    if (l.budgetId) {
+      const tag = document.createElement("span");
+      tag.className = "co-src"; tag.textContent = "budget";
+      row.appendChild(tag);
+    }
+    row.appendChild(d); row.appendChild(a); row.appendChild(x);
+    host.appendChild(row);
+  });
+  updateCoTotal();
+}
+function updateCoTotal() {
+  const t = r2(coDraftLines.reduce((s, l) => s + (Number(l.amount) || 0), 0));
+  $("co-total-preview").textContent = fmtMoney(t);
+}
+
+async function saveCoItem() {
+  const lines = coDraftLines
+    .map((l) => ({ id: l.id || ("col" + Date.now() + Math.random().toString(36).slice(2, 6)), desc: (l.desc || "").trim(), amount: r2(Number(l.amount) || 0), budgetId: l.budgetId || null }))
+    .filter((l) => l.desc && l.amount !== 0);
+  if (!lines.length) { alert("Add at least one line with a description and non-zero amount."); return; }
+  const rec = {
+    date: $("co-date").value || ymd(new Date()),
+    title: $("co-title").value.trim(),
+    visible: $("co-visible").checked,
+    lines
+  };
+  if (editingCoId) {
+    const i = changeOrders.findIndex((x) => x.id === editingCoId);
+    if (i >= 0) changeOrders[i] = { ...changeOrders[i], ...rec, status: changeOrders[i].status === "draft" && rec.visible ? "sent" : changeOrders[i].status };
+  } else {
+    changeOrders.push({
+      id: "co" + Date.now(), number: nextCoNumber(),
+      status: rec.visible ? "sent" : "draft",
+      inContract: false, budgeted: false, invoiced: false,
+      ...rec
+    });
+  }
+  await saveChangeOrders();
+  closeModal("co-modal");
+  renderChangeOrders();
+}
+
+async function deleteCoItem() {
+  if (!editingCoId) return;
+  if (!confirm("Delete this change order?")) return;
+  changeOrders = changeOrders.filter((x) => x.id !== editingCoId);
+  await saveChangeOrders();
+  closeModal("co-modal");
+  renderChangeOrders();
+}
+
+// Add a budget line into the CO draft (as an editable variance line)
+function addBudgetLineToCo() {
+  const id = $("co-budget-pick").value;
+  if (!id) return;
+  const b = budget.find((x) => x.id === id);
+  if (!b) return;
+  coDraftLines.push({ desc: (b.desc || "Budget item") + " — variance", amount: 0, budgetId: b.id });
+  $("co-budget-pick").value = "";
+  renderCoDraftLines();
+}
+
+// ----- Approve: adds CO total to contract, adjusts pulled budget lines -----
+async function addCoToBudget(id) {
+  const co = changeOrders.find((x) => x.id === id);
+  if (!co || co.budgeted) return;
+  if (!confirm("Add this change order to the budget?\n\n• Creates line items under a \"Change Orders\" section\n• Adjusts any budget item you pulled from")) return;
+
+  const stamp = Date.now();
+  let n = 0;
+  for (const l of (co.lines || [])) {
+    if (l.budgetId) {
+      // Adjust the pulled budget line's contract amount by the variance
+      const b = budget.find((x) => x.id === l.budgetId);
+      if (b) b.amount = r2((Number(b.amount) || 0) + Number(l.amount || 0));
+    } else {
+      // New custom line → its own budget row in a Change Orders section
+      n++;
+      budget.push({
+        id: "b" + stamp + "_co" + n,
+        section: "Change Orders",
+        desc: (co.number || "CO") + ": " + (l.desc || "Item"),
+        cat: "Contract",
+        amount: r2(Number(l.amount) || 0),
+        paid: 0,
+        coId: co.id
+      });
+    }
+  }
+  co.budgeted = true;
+  await saveBudget();
+  await saveChangeOrders();
+  renderChangeOrders();
+  alert("Added to budget.");
+}
+
+async function generateCoInvoice(id) {
+  const co = changeOrders.find((x) => x.id === id);
+  if (!co || co.invoiced) return;
+  const total = coTotal(co);
+  if (!confirm("Generate a customer invoice for " + fmtMoney(total) + "?")) return;
+  const inv = {
+    id: "ci" + Date.now(),
+    number: "",
+    date: ymd(new Date()),
+    title: (co.number || "CO") + (co.title ? " — " + co.title : ""),
+    serviceAddress: currentProject.name,
+    sections: [{ id: "sco", name: co.number || "Change Order", items: (co.lines || []).map((l, i) => ({ id: "ico" + i, desc: l.desc, qty: 1, rate: l.amount, total: l.amount })) }],
+    totals: { subtotal: total, discount: 0, tax: 0, total: total, deposit: 0 },
+    amountDue: total,
+    payments: [],
+    visible: false,
+    coId: co.id
+  };
+  custInvoices.unshift(inv);
+  co.invoiced = true;
+  await saveChangeOrders();
+  await pushCollection(pkey("CustInvoices"), custInvoices);
+  renderChangeOrders();
+  alert("Invoice created (hidden from customer until you make it visible in the Invoices tab).");
+}
+
+// ----- Customer sign / respond -----
+let coSignId = null;
+function openCoSignModal(id) {
+  coSignId = id;
+  const co = changeOrders.find((x) => x.id === id);
+  $("co-sign-title").textContent = (co.number || "Change Order") + (co.title ? " — " + co.title : "");
+  $("co-sign-total").textContent = fmtMoney(coTotal(co));
+  $("co-sign-name").value = "";
+  $("co-sign-agree").checked = false;
+  $("co-sign-modal").classList.remove("hidden");
+}
+async function submitCoSign() {
+  const name = $("co-sign-name").value.trim();
+  if (!$("co-sign-agree").checked) { alert("Please check the agreement box."); return; }
+  if (!name) { alert("Type your full name to sign."); return; }
+  await respondChangeOrder(coSignId, "approved", name);
+  closeModal("co-sign-modal");
+}
+
+async function respondChangeOrder(id, response, signature) {
+  try {
+    const out = await api({
+      action: "changeOrderRespond",
+      email: SESSION.email, code: SESSION.code,
+      project: currentProject.name, coId: id, response, signature
+    });
+    if (!out.ok) throw new Error(out.error || "failed");
+    if (out.changeOrders) changeOrders = out.changeOrders;
+    renderChangeOrders();
+  } catch (e) {
+    alert("Couldn't submit: " + e.message);
+  }
+}
+
+
 // ---------- Categorization ----------
 const RULES = [
   { tab: "Invoices",      match: (n) => /\binvoice|\binv[\s\-_]?\d/.test(n) },
@@ -723,7 +1076,7 @@ function renderProjectName() {
     selectedIds = new Set();
     subUploadsFolderId = null;
     schedule = []; budget = []; logs = []; folderPerms = {}; folderGrants = {};
-    invoices = []; estimates = []; custInvoices = []; subBids = []; costs = []; draws = []; selections = [];
+    invoices = []; estimates = []; custInvoices = []; subBids = []; costs = []; draws = []; selections = []; changeOrders = [];
     buildTabs();
     render();       // swap the screen to the new project instantly
     loadFiles();    // start the (slow) Drive walk right away
@@ -1438,6 +1791,7 @@ function render() {
     "invoices-section": activeTab === "Invoices",
     "estimates-section": activeTab === "Estimates",
     "selections-section": activeTab === "Selections",
+    "co-section": activeTab === "Change Orders",
     "calc-section": activeTab === "Calc",
     "codes-section": activeTab === "Codes",
     "time-section": activeTab === "Time" && isAdmin()
@@ -1466,6 +1820,7 @@ function render() {
   if (activeTab === "Invoices") renderInvoices();
   if (activeTab === "Estimates") renderEstimates();
   if (activeTab === "Selections") renderSelections();
+  if (activeTab === "Change Orders") renderChangeOrders();
   if (activeTab === "Calc") renderCalc();
   if (activeTab === "Codes") renderCodes();
   if (activeTab === "Time" && isAdmin()) renderTime();
@@ -2342,6 +2697,12 @@ function renderPL() {
   // costs not linked to any budget line still count against the job
   for (const c of costs) {
     if (!c.budgetId || !budget.some((b) => b.id === c.budgetId)) actual = r2(actual + (Number(c.amount) || 0));
+  }
+  // Approved change orders flagged "add to contract" raise the contract total.
+  // Once a CO has been pushed into the budget, its amount already lives in the
+  // budget lines above, so only add COs that are flagged but not yet budgeted.
+  for (const co of changeOrders) {
+    if (co.inContract && !co.budgeted) contract = r2(contract + coTotal(co));
   }
   const estProfit = estKnown ? r2(contract - estCost) : null;
   const profitNow = r2(contract - actual);
@@ -6663,6 +7024,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   $("opt-cancel").addEventListener("click", () => closeModal("option-modal"));
   $("opt-save").addEventListener("click", saveOption);
+  // Change Orders
+  $("add-co-btn").addEventListener("click", () => openCoModal(null));
+  $("co-cancel").addEventListener("click", () => closeModal("co-modal"));
+  $("co-save").addEventListener("click", saveCoItem);
+  $("co-delete").addEventListener("click", deleteCoItem);
+  $("co-budget-add").addEventListener("click", addBudgetLineToCo);
+  $("co-add-line").addEventListener("click", () => { coDraftLines.push({ desc: "", amount: 0 }); renderCoDraftLines(); });
+  $("co-sign-cancel").addEventListener("click", () => closeModal("co-sign-modal"));
+  $("co-sign-save").addEventListener("click", submitCoSign);
   $("budget-delete").addEventListener("click", deleteBudgetItem);
 
   // Logs
@@ -6719,7 +7089,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLightbox(); });
 
   // Click outside modal closes it
-  for (const id of ["task-modal", "budget-modal", "draw-modal", "selection-modal", "option-modal", "mileage-modal", "fuel-modal", "log-modal", "sub-modal", "task-view-modal", "est-modal", "est-view-modal", "est-preview-modal", "cost-modal", "time-modal", "ci-modal"]) {
+  for (const id of ["task-modal", "budget-modal", "draw-modal", "selection-modal", "option-modal", "co-modal", "co-sign-modal", "mileage-modal", "fuel-modal", "log-modal", "sub-modal", "task-view-modal", "est-modal", "est-view-modal", "est-preview-modal", "cost-modal", "time-modal", "ci-modal"]) {
     $(id).addEventListener("click", (e) => { if (e.target.id === id) closeModal(id); });
   }
 
