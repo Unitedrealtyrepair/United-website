@@ -1,4 +1,4 @@
-// URR Portal v150 — sub multi-login + change order line shows which budget item you are adjusting
+// URR Portal v151 — Change Order PDF download (branded), admin + customer
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -710,6 +710,12 @@ function renderChangeOrders() {
       edit.addEventListener("click", () => openCoModal(co.id));
       acts.appendChild(edit);
 
+      const pdf = document.createElement("button");
+      pdf.className = "btn-ghost sel-mini";
+      pdf.textContent = "⬇ Download PDF";
+      pdf.addEventListener("click", () => downloadCoPdf(co.id, pdf));
+      acts.appendChild(pdf);
+
       // Visible-to-customer toggle
       const vis = document.createElement("button");
       vis.className = "btn-ghost sel-mini";
@@ -771,6 +777,11 @@ function renderChangeOrders() {
       dc.textContent = "Decline";
       dc.addEventListener("click", () => respondChangeOrder(co.id, "declined", ""));
       acts.appendChild(dc);
+      const cpdf = document.createElement("button");
+      cpdf.className = "btn-ghost sel-mini";
+      cpdf.textContent = "⬇ Download PDF";
+      cpdf.addEventListener("click", () => downloadCoPdf(co.id, cpdf));
+      acts.appendChild(cpdf);
       card.appendChild(acts);
     }
 
@@ -5591,7 +5602,126 @@ async function generateEstimatePdf(e, progress, kind) {
   doc.save(name);
 }
 
-// Push (or re-push) an estimate to the customer: flips status to "sent",
+// ---- Change Order PDF (branded, standalone) ----
+async function generateChangeOrderPdf(co, progress) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "letter" });
+  const W = 215.9, H = 279.4, M = 14, FOOT = 14;
+  const NAVY = [15, 36, 64], RED = [200, 16, 46], SLATE = [64, 80, 106], GRAY = [138, 150, 168], LINE = [228, 233, 241];
+  let y = M;
+  const ensure = (need) => { if (y + need > H - M - FOOT) { doc.addPage(); y = M; } };
+  const money = (v) => "$" + (Number(v) || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+
+  // Header: logo + company
+  let logoH = 0;
+  try {
+    progress && progress("Loading logo…");
+    const logo = await urlToDataUrl(COMPANY.logo);
+    const fmt = /png/i.test(logo.type) ? "PNG" : "JPEG";
+    const lw = 42, lh = lw * 402 / 720;
+    doc.addImage(logo.data, fmt, M, y, lw, lh);
+    logoH = lh;
+  } catch (err) {
+    doc.setFont("helvetica", "bold").setFontSize(16).setTextColor(...NAVY);
+    doc.text(COMPANY.name, M, y + 8);
+    logoH = 12;
+  }
+  doc.setFontSize(9).setTextColor(...SLATE).setFont("helvetica", "normal");
+  const co1 = [COMPANY.name, COMPANY.address, COMPANY.cityState, COMPANY.email];
+  let cy = y + logoH + 5;
+  co1.forEach((t, i) => {
+    if (i === 0) doc.setFont("helvetica", "bold").setTextColor(...NAVY);
+    else doc.setFont("helvetica", "normal").setTextColor(...SLATE);
+    doc.text(t, M, cy); cy += 4.5;
+  });
+
+  // Title block (right)
+  doc.setFont("helvetica", "bold").setFontSize(20).setTextColor(...NAVY);
+  doc.text("CHANGE ORDER", W - M, y + 8, { align: "right" });
+  doc.setFontSize(10).setTextColor(...SLATE).setFont("helvetica", "normal");
+  doc.text(co.number || "CO", W - M, y + 15, { align: "right" });
+  if (co.date) doc.text(fmtDateLong(co.date), W - M, y + 20, { align: "right" });
+  if (co.title) doc.text(String(co.title), W - M, y + 25, { align: "right" });
+
+  y = Math.max(cy, y + 30) + 4;
+  doc.setDrawColor(...RED).setLineWidth(0.8).line(M, y, W - M, y);
+  y += 8;
+
+  // Line items header
+  doc.setFont("helvetica", "bold").setFontSize(9).setTextColor(...GRAY);
+  doc.text("DESCRIPTION", M, y);
+  doc.text("AMOUNT", W - M, y, { align: "right" });
+  y += 3;
+  doc.setDrawColor(...LINE).setLineWidth(0.3).line(M, y, W - M, y);
+  y += 5;
+
+  let total = 0;
+  doc.setFontSize(10);
+  (co.lines || []).forEach((l) => {
+    const amt = Number(l.amount) || 0;
+    total += amt;
+    const descW = W - M - M - 34;
+    const wrapped = doc.splitTextToSize(String(l.desc || "Line item"), descW);
+    const need = wrapped.length * 5 + 3;
+    ensure(need);
+    doc.setFont("helvetica", "normal").setTextColor(...NAVY);
+    doc.text(wrapped, M, y);
+    doc.setFont("helvetica", "bold");
+    doc.text(money(amt), W - M, y, { align: "right" });
+    y += need;
+    doc.setDrawColor(...LINE).setLineWidth(0.2).line(M, y - 2, W - M, y - 2);
+  });
+
+  // Total
+  ensure(16);
+  y += 4;
+  doc.setDrawColor(...NAVY).setLineWidth(0.5).line(W - M - 70, y, W - M, y);
+  y += 7;
+  doc.setFont("helvetica", "bold").setFontSize(13).setTextColor(...NAVY);
+  doc.text("Change Order Total", W - M - 70, y);
+  doc.setTextColor(...RED);
+  doc.text(money(total), W - M, y, { align: "right" });
+  y += 12;
+
+  // Signature block
+  if (co.status === "approved" && co.signedName) {
+    ensure(20);
+    doc.setFont("helvetica", "normal").setFontSize(10).setTextColor(...SLATE);
+    doc.text("Approved & signed by: " + co.signedName, M, y);
+    if (co.respondedAt) doc.text("Date: " + fmtDateLong(co.respondedAt.slice(0, 10)), M, y + 5);
+  } else {
+    ensure(24);
+    doc.setDrawColor(...GRAY).setLineWidth(0.3);
+    doc.line(M, y + 10, M + 80, y + 10);
+    doc.line(W - M - 60, y + 10, W - M, y + 10);
+    doc.setFontSize(8).setTextColor(...GRAY);
+    doc.text("Customer signature", M, y + 14);
+    doc.text("Date", W - M - 60, y + 14);
+  }
+
+  // Footer
+  doc.setFontSize(8).setTextColor(...GRAY).setFont("helvetica", "normal");
+  doc.text(COMPANY.name + " · " + COMPANY.email, W / 2, H - 8, { align: "center" });
+
+  const name = safeName((co.number || "ChangeOrder") + (co.title ? " - " + co.title : "")) + ".pdf";
+  doc.save(name);
+}
+
+async function downloadCoPdf(coId, btn) {
+  const co = changeOrders.find((x) => x.id === coId);
+  if (!co) return;
+  const orig = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "Building PDF…"; }
+  try {
+    await loadScript(JSPDF_URL);
+    await generateChangeOrderPdf(co, (m) => { if (btn) btn.textContent = m; });
+    if (btn) btn.textContent = "✓ Downloaded";
+  } catch (e) {
+    console.warn("CO pdf failed", e);
+    if (btn) btn.textContent = "✗ Failed";
+  }
+  if (btn) setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2500);
+}
 // clears any prior response so they can sign the revision, and notifies them.
 async function sendEstimateToCustomer() {
   if (!previewEstId) return;
