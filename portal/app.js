@@ -1,4 +1,4 @@
-// URR Portal v153 — CO line descriptions support multi-line (Enter) in editor, card, and PDF
+// URR Portal v154 — CO line title/description split (shaded title), divider no longer crosses amounts
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -686,9 +686,13 @@ function renderChangeOrders() {
     for (const l of (co.lines || [])) {
       const row = document.createElement("div");
       row.className = "co-line";
+      const parts = String(l.desc || "").split(/\r?\n/);
+      const titleText = (parts.shift() || "").trim();
+      const bodyText = parts.join("\n").trim();
       const tag = l.budgetId ? " <span class='co-src'>· from budget</span>" : "";
-      const descHtml = escapeHtml(l.desc || "").replace(/\r?\n/g, "<br>");
-      row.innerHTML = "<span>" + descHtml + tag + "</span><b>" + fmtMoney(l.amount) + "</b>";
+      let left = "<div class='co-line-title'>" + escapeHtml(titleText) + tag + "</div>";
+      if (bodyText) left += "<div class='co-line-body'>" + escapeHtml(bodyText).replace(/\r?\n/g, "<br>") + "</div>";
+      row.innerHTML = "<div class='co-line-left'>" + left + "</div><b>" + fmtMoney(l.amount) + "</b>";
       lines.appendChild(row);
     }
     card.appendChild(lines);
@@ -5662,23 +5666,61 @@ async function generateChangeOrderPdf(co, progress) {
   y += 5;
 
   let total = 0;
-  doc.setFontSize(10);
+  const amtColW = 34;              // reserved width for the AMOUNT column
+  const descW = W - M - M - amtColW;
+  const descRight = W - M - amtColW - 4; // where description text must stop
   (co.lines || []).forEach((l) => {
     const amt = Number(l.amount) || 0;
     total += amt;
-    const descW = W - M - M - 34;
-    // Honor manual line breaks (Enter), then word-wrap each line to width.
-    const raw = String(l.desc || "Line item").split(/\r?\n/);
-    let wrapped = [];
-    raw.forEach((ln) => { wrapped = wrapped.concat(doc.splitTextToSize(ln || " ", descW)); });
-    const need = wrapped.length * 5 + 3;
-    ensure(need);
-    doc.setFont("helvetica", "normal").setTextColor(...NAVY);
-    doc.text(wrapped, M, y);
-    doc.setFont("helvetica", "bold");
-    doc.text(money(amt), W - M, y, { align: "right" });
-    y += need;
-    doc.setDrawColor(...LINE).setLineWidth(0.2).line(M, y - 2, W - M, y - 2);
+
+    // First line (before the first Enter) = title; the rest = description.
+    const parts = String(l.desc || "Line item").split(/\r?\n/);
+    const titleText = (parts.shift() || "").trim();
+    const bodyLines = parts.join("\n").trim();
+
+    // Wrap title and body to the description column width.
+    const titleWrapped = doc.setFont("helvetica", "bold").setFontSize(10.5)
+      .splitTextToSize(titleText || " ", descRight - M);
+    let bodyWrapped = [];
+    if (bodyLines) {
+      doc.setFont("helvetica", "normal").setFontSize(9.5);
+      bodyLines.split(/\r?\n/).forEach((ln) => {
+        bodyWrapped = bodyWrapped.concat(doc.splitTextToSize(ln || " ", descW));
+      });
+    }
+
+    const titleH = titleWrapped.length * 5.2;
+    const bodyH = bodyWrapped.length * 4.6;
+    const rowH = titleH + (bodyWrapped.length ? bodyH + 1.5 : 0) + 5;
+    ensure(rowH + 4);
+
+    const rowTop = y - 3;
+
+    // Shaded title band (light translucent navy) behind the title only.
+    doc.setFillColor(235, 239, 245); // subtle navy tint
+    doc.rect(M - 2, rowTop, descRight - M + 4, titleH + 3, "F");
+
+    // Title text
+    doc.setFont("helvetica", "bold").setFontSize(10.5).setTextColor(...NAVY);
+    doc.text(titleWrapped, M, y + 1.5);
+
+    // Amount (aligned to the title's first line, right column)
+    doc.setFont("helvetica", "bold").setFontSize(10.5).setTextColor(...NAVY);
+    doc.text(money(amt), W - M, y + 1.5, { align: "right" });
+
+    let yy = y + titleH + 1;
+
+    // Description body, plain
+    if (bodyWrapped.length) {
+      doc.setFont("helvetica", "normal").setFontSize(9.5).setTextColor(...SLATE);
+      doc.text(bodyWrapped, M, yy + 3);
+      yy += bodyH + 3;
+    }
+
+    y = yy + 4;
+    // Divider stops before the amount column so it never crosses the number.
+    doc.setDrawColor(...LINE).setLineWidth(0.2).line(M, y - 2, descRight, y - 2);
+    y += 1;
   });
 
   // Total

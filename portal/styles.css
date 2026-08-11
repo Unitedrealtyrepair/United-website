@@ -1,4 +1,4 @@
-/* URR Portal v153 */
+/* URR Portal v154 */
 :root {
   --navy: #0f2440;
   --navy-light: #1b3a63;
@@ -1932,7 +1932,10 @@ body {
 .co-badge.co-approved { background: #eaf7ef; color: #1a7f45; }
 .co-badge.co-declined { background: #fdecef; color: var(--red); }
 .co-lines { margin: 10px 0; border-top: 1px solid var(--border); }
-.co-line { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+.co-line { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 0 0 10px; margin-bottom: 8px; border-bottom: 1px solid var(--border); font-size: 14px; }
+.co-line-left { flex: 1; min-width: 0; }
+.co-line-title { font-weight: 700; color: var(--navy); background: rgba(15,36,64,0.07); border-radius: 5px; padding: 4px 7px; display: inline-block; margin-bottom: 4px; }
+.co-line-body { color: #40506a; font-size: 13px; line-height: 1.4; padding: 0 2px; white-space: pre-wrap; }
 .co-line b { color: var(--navy); }
 .co-src { font-size: 11px; color: #8a96a8; font-style: italic; margin-bottom: 3px; }
 .co-signed { font-size: 13px; color: #1a7f45; font-weight: 600; margin: 6px 0; }
