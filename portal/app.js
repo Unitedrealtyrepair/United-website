@@ -1,4 +1,4 @@
-// URR Portal v152 — CO PDF shows revised contract total (original invoice + change order)
+// URR Portal v153 — CO line descriptions support multi-line (Enter) in editor, card, and PDF
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -687,7 +687,8 @@ function renderChangeOrders() {
       const row = document.createElement("div");
       row.className = "co-line";
       const tag = l.budgetId ? " <span class='co-src'>· from budget</span>" : "";
-      row.innerHTML = "<span>" + escapeHtml(l.desc || "") + tag + "</span><b>" + fmtMoney(l.amount) + "</b>";
+      const descHtml = escapeHtml(l.desc || "").replace(/\r?\n/g, "<br>");
+      row.innerHTML = "<span>" + descHtml + tag + "</span><b>" + fmtMoney(l.amount) + "</b>";
       lines.appendChild(row);
     }
     card.appendChild(lines);
@@ -833,10 +834,15 @@ function renderCoDraftLines() {
     const fields = document.createElement("div");
     fields.className = "co-draft-fields";
 
-    const d = document.createElement("input");
-    d.type = "text"; d.className = "co-draft-desc"; d.placeholder = "Description";
+    const d = document.createElement("textarea");
+    d.className = "co-draft-desc"; d.placeholder = "Description (press Enter for a new line)";
+    d.rows = 2;
     d.value = l.desc || "";
-    d.addEventListener("input", () => { l.desc = d.value; });
+    d.addEventListener("input", () => {
+      l.desc = d.value;
+      d.style.height = "auto";
+      d.style.height = d.scrollHeight + "px";
+    });
 
     const a = document.createElement("input");
     a.type = "number"; a.className = "co-draft-amt"; a.step = "0.01"; a.placeholder = "0.00";
@@ -5661,7 +5667,10 @@ async function generateChangeOrderPdf(co, progress) {
     const amt = Number(l.amount) || 0;
     total += amt;
     const descW = W - M - M - 34;
-    const wrapped = doc.splitTextToSize(String(l.desc || "Line item"), descW);
+    // Honor manual line breaks (Enter), then word-wrap each line to width.
+    const raw = String(l.desc || "Line item").split(/\r?\n/);
+    let wrapped = [];
+    raw.forEach((ln) => { wrapped = wrapped.concat(doc.splitTextToSize(ln || " ", descW)); });
     const need = wrapped.length * 5 + 3;
     ensure(need);
     doc.setFont("helvetica", "normal").setTextColor(...NAVY);
