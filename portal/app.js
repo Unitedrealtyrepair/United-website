@@ -1,4 +1,4 @@
-// URR Portal v151 — Change Order PDF download (branded), admin + customer
+// URR Portal v152 — CO PDF shows revised contract total (original invoice + change order)
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -5682,6 +5682,32 @@ async function generateChangeOrderPdf(co, progress) {
   doc.setTextColor(...RED);
   doc.text(money(total), W - M, y, { align: "right" });
   y += 12;
+
+  // Contract summary: original contract (from the customer invoice) + this CO
+  // = revised contract total, so the customer sees the new number.
+  const contractTotal = custInvoices.reduce((mx, iv) => {
+    const t = iv.totals ? Number(iv.totals.total) || 0 : 0;
+    return t > mx ? t : mx;
+  }, 0);
+  if (contractTotal > 0) {
+    ensure(26);
+    doc.setDrawColor(...LINE).setLineWidth(0.3).line(W - M - 90, y, W - M, y);
+    y += 6;
+    doc.setFont("helvetica", "normal").setFontSize(10).setTextColor(...SLATE);
+    doc.text("Original contract total", W - M - 90, y);
+    doc.text(money(contractTotal), W - M, y, { align: "right" });
+    y += 6;
+    doc.text("This change order", W - M - 90, y);
+    doc.text((total < 0 ? "-" : "+") + money(Math.abs(total)), W - M, y, { align: "right" });
+    y += 3;
+    doc.setDrawColor(...NAVY).setLineWidth(0.5).line(W - M - 90, y, W - M, y);
+    y += 6;
+    doc.setFont("helvetica", "bold").setFontSize(12).setTextColor(...NAVY);
+    doc.text("Revised contract total", W - M - 90, y);
+    doc.setTextColor(...RED);
+    doc.text(money(contractTotal + total), W - M, y, { align: "right" });
+    y += 12;
+  }
 
   // Signature block
   if (co.status === "approved" && co.signedName) {
