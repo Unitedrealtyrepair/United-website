@@ -1,4 +1,4 @@
-// URR Portal v148 — Change Order builder: budget-linked + custom lines, customer sign, contract/budget/invoice push
+// URR Portal v149 — link multiple portal logins to a sub; assign task to sub, all linked logins see it
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -2374,9 +2374,16 @@ function subLabel(subId) {
 // Customer: all (their project schedule).
 // Tasks store the sub's RECORD id in t.sub, so map this sub's login email
 // to their sub record id(s) first.
+// A sub record can link multiple portal logins (emails). Collect them all.
+function subEmails(s) {
+  const out = [];
+  if (s.email) out.push(String(s.email).toLowerCase());
+  if (Array.isArray(s.emails)) s.emails.forEach((e) => { if (e) out.push(String(e).toLowerCase()); });
+  return Array.from(new Set(out));
+}
 function mySubIds() {
   const em = (currentUser.email || "").toLowerCase();
-  return subs.filter((s) => (s.email || "").toLowerCase() === em).map((s) => s.id);
+  return subs.filter((s) => subEmails(s).includes(em)).map((s) => s.id);
 }
 function visibleSchedule() {
   if (isSub()) {
@@ -6589,9 +6596,39 @@ function openSubModal(id) {
   $("sub-trade").value = s ? (s.trade || TRADES[0]) : TRADES[0];
   $("sub-phone").value = s ? (s.phone || "") : "";
   $("sub-email").value = s ? (s.email || "") : "";
+  buildSubLoginChecks(s);
   $("sub-notes").value = s ? (s.notes || "") : "";
   $("sub-delete").classList.toggle("hidden", !s);
   $("sub-modal").classList.remove("hidden");
+}
+
+// Checkbox list of portal login users (subs) to link to this sub record.
+// Whoever is checked will see tasks assigned to this sub on their calendar.
+function buildSubLoginChecks(s) {
+  const host = $("sub-logins");
+  if (!host) return;
+  host.innerHTML = "";
+  const linked = s ? subEmails(s) : [];
+  const members = (SESSION.members || [])
+    .filter((m) => m.role === "sub")
+    .sort((a, b) => a.email.localeCompare(b.email));
+  if (!members.length) {
+    host.innerHTML = "<div class='lbl-hint'>No sub logins found. Add them in your Users sheet first.</div>";
+    return;
+  }
+  for (const m of members) {
+    const row = document.createElement("label");
+    row.className = "sub-login-row";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.value = m.email;
+    if (linked.includes(m.email.toLowerCase())) cb.checked = true;
+    const span = document.createElement("span");
+    span.textContent = m.email;
+    row.appendChild(cb);
+    row.appendChild(span);
+    host.appendChild(row);
+  }
 }
 
 async function saveSub() {
@@ -6603,6 +6640,7 @@ async function saveSub() {
     trade: $("sub-trade").value,
     phone: $("sub-phone").value.trim(),
     email: $("sub-email").value.trim(),
+    emails: Array.from(document.querySelectorAll("#sub-logins input:checked")).map((c) => c.value.toLowerCase()),
     notes: $("sub-notes").value.trim()
   };
   if (editingSubId) {

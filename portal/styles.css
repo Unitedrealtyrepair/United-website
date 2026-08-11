@@ -1,4 +1,4 @@
-/* URR Portal v148 */
+/* URR Portal v149 */
 :root {
   --navy: #0f2440;
   --navy-light: #1b3a63;
@@ -1945,3 +1945,8 @@ body {
 .co-total-row { text-align: right; font-size: 16px; font-weight: 700; color: var(--navy); margin: 12px 0 8px; }
 .co-total-row b { font-size: 18px; }
 .co-sign-head { background: var(--bg); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
+
+/* ===== Sub portal-login checkboxes ===== */
+.sub-logins { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 8px; margin-bottom: 4px; }
+.sub-login-row { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--navy); cursor: pointer; }
+.sub-login-row input { width: auto; margin: 0; }
