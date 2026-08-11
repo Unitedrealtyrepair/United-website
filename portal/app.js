@@ -1,4 +1,4 @@
-// URR Portal v149 — link multiple portal logins to a sub; assign task to sub, all linked logins see it
+// URR Portal v150 — sub multi-login + change order line shows which budget item you are adjusting
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -809,23 +809,35 @@ function renderCoDraftLines() {
   coDraftLines.forEach((l, idx) => {
     const row = document.createElement("div");
     row.className = "co-draft-row";
+
+    // Label line: shows the source (budget item name) so you can see what
+    // you're adjusting.
+    if (l.budgetId || l.desc) {
+      const tag = document.createElement("div");
+      tag.className = "co-src";
+      tag.textContent = l.budgetId ? ("Adjusting: " + (l.desc || "budget item")) : "Custom line";
+      row.appendChild(tag);
+    }
+
+    const fields = document.createElement("div");
+    fields.className = "co-draft-fields";
+
     const d = document.createElement("input");
     d.type = "text"; d.className = "co-draft-desc"; d.placeholder = "Description";
     d.value = l.desc || "";
     d.addEventListener("input", () => { l.desc = d.value; });
+
     const a = document.createElement("input");
     a.type = "number"; a.className = "co-draft-amt"; a.step = "0.01"; a.placeholder = "0.00";
     a.value = (l.amount !== undefined && l.amount !== "") ? l.amount : "";
     a.addEventListener("input", () => { l.amount = Number(a.value) || 0; updateCoTotal(); });
+
     const x = document.createElement("button");
     x.className = "btn-ghost sel-mini danger"; x.textContent = "✕";
     x.addEventListener("click", () => { coDraftLines.splice(idx, 1); renderCoDraftLines(); updateCoTotal(); });
-    if (l.budgetId) {
-      const tag = document.createElement("span");
-      tag.className = "co-src"; tag.textContent = "budget";
-      row.appendChild(tag);
-    }
-    row.appendChild(d); row.appendChild(a); row.appendChild(x);
+
+    fields.appendChild(d); fields.appendChild(a); fields.appendChild(x);
+    row.appendChild(fields);
     host.appendChild(row);
   });
   updateCoTotal();

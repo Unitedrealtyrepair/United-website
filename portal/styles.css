@@ -1,4 +1,4 @@
-/* URR Portal v149 */
+/* URR Portal v150 */
 :root {
   --navy: #0f2440;
   --navy-light: #1b3a63;
@@ -1934,14 +1934,15 @@ body {
 .co-lines { margin: 10px 0; border-top: 1px solid var(--border); }
 .co-line { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
 .co-line b { color: var(--navy); }
-.co-src { font-size: 11px; color: #8a96a8; font-style: italic; }
+.co-src { font-size: 11px; color: #8a96a8; font-style: italic; margin-bottom: 3px; }
 .co-signed { font-size: 13px; color: #1a7f45; font-weight: 600; margin: 6px 0; }
 .co-acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
 .co-check { font-size: 13px; font-weight: 600; color: var(--navy); display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .co-modal-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 8px; }
-.co-draft-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
-.co-draft-desc { flex: 1; }
-.co-draft-amt { width: 110px; }
+.co-draft-row { display: flex; flex-direction: column; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.co-draft-fields { display: flex; gap: 6px; align-items: center; }
+.co-draft-desc { flex: 1; min-width: 0; }
+.co-draft-amt { width: 110px; flex: 0 0 110px; }
 .co-total-row { text-align: right; font-size: 16px; font-weight: 700; color: var(--navy); margin: 12px 0 8px; }
 .co-total-row b { font-size: 18px; }
 .co-sign-head { background: var(--bg); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
