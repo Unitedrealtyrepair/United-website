@@ -1,4 +1,4 @@
-// URR Portal v154 — CO line title/description split (shaded title), divider no longer crosses amounts
+// URR Portal v155 — CO PDF long descriptions paginate across pages instead of cutting off
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -5690,9 +5690,8 @@ async function generateChangeOrderPdf(co, progress) {
     }
 
     const titleH = titleWrapped.length * 5.2;
-    const bodyH = bodyWrapped.length * 4.6;
-    const rowH = titleH + (bodyWrapped.length ? bodyH + 1.5 : 0) + 5;
-    ensure(rowH + 4);
+    // Keep the title with at least its first 2 body lines (avoid orphan title).
+    ensure(titleH + 3 + Math.min(bodyWrapped.length, 2) * 4.6 + 6);
 
     const rowTop = y - 3;
 
@@ -5710,14 +5709,21 @@ async function generateChangeOrderPdf(co, progress) {
 
     let yy = y + titleH + 1;
 
-    // Description body, plain
+    // Description body — render line by line so long scopes flow onto the
+    // next page instead of being cut off at the bottom margin.
     if (bodyWrapped.length) {
       doc.setFont("helvetica", "normal").setFontSize(9.5).setTextColor(...SLATE);
-      doc.text(bodyWrapped, M, yy + 3);
-      yy += bodyH + 3;
+      yy += 3;
+      const lineH = 4.6;
+      for (const ln of bodyWrapped) {
+        if (yy > H - M - FOOT) { doc.addPage(); yy = M; }
+        doc.text(ln, M, yy);
+        yy += lineH;
+      }
     }
 
     y = yy + 4;
+    if (y > H - M - FOOT) { doc.addPage(); y = M; }
     // Divider stops before the amount column so it never crosses the number.
     doc.setDrawColor(...LINE).setLineWidth(0.2).line(M, y - 2, descRight, y - 2);
     y += 1;
