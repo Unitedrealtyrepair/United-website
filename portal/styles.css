@@ -1,4 +1,4 @@
-/* URR Portal v155 */
+/* URR Portal v157 */
 :root {
   --navy: #0f2440;
   --navy-light: #1b3a63;
@@ -245,6 +245,7 @@ body {
   max-width: 460px;
   box-shadow: 0 24px 70px rgba(0,0,0,0.4);
   max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -658,7 +659,8 @@ body {
   .bs-val { font-size: 19px; }
   .file-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
   .file-thumb { height: 110px; }
-  .modal { max-width: 100%; padding: 20px 16px; }
+  .modal-overlay { align-items: flex-start; padding: 12px; }
+  .modal { max-width: 100%; padding: 20px 16px; max-height: calc(100dvh - 24px); }
   .photos-toolbar { gap: 8px; }
   .section-toolbar { gap: 10px; }
 }
