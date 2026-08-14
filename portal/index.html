@@ -7,7 +7,7 @@
   <!-- URR Portal v148 -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=157" />
+  <link rel="stylesheet" href="styles.css?v=158" />
 </head>
 <body>
 
@@ -455,8 +455,9 @@
         <h2 id="option-modal-title">Add Option</h2>
         <label>Name</label>
         <input type="text" id="opt-name" placeholder="e.g. Delta Trinsic, matte black" />
-        <label>Upload photo <span class="lbl-hint">— shows as thumbnail</span></label>
-        <input type="file" id="opt-file" accept="image/*" />
+        <label>Upload photo <span class="lbl-hint">— shows as thumbnail (add several)</span></label>
+        <input type="file" id="opt-file" accept="image/*" multiple />
+        <div id="opt-photos" class="opt-photos"></div>
         <div id="opt-file-status" class="lbl-hint"></div>
         <label>…or Image URL (optional)</label>
         <input type="text" id="opt-img" placeholder="https://…/photo.jpg" />
@@ -886,6 +887,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=157"></script>
+  <script src="app.js?v=158"></script>
 </body>
 </html>

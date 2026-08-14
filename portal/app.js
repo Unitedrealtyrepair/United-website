@@ -1,4 +1,4 @@
-// URR Portal v157 — modal fix: use dynamic viewport height so inputs stay above iOS keyboard
+// URR Portal v158 — selection options support multiple photos (upload several, thumbnails)
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -355,9 +355,21 @@ function renderSelections() {
         const opt = document.createElement("div");
         opt.className = "sel-opt" + (isFinal ? " final" : isPicked ? " picked" : "");
         let inner = "";
-        if (o.img) inner += "<div class='sel-opt-img'><img src='" + escapeAttr(o.img) + "' alt='' loading='lazy' onerror=\"this.parentNode.classList.add('noimg')\"></div>";
-        else if (o.imgFileId) inner += "<div class='sel-opt-img' data-imgfile='" + escapeAttr(o.imgFileId) + "'></div>";
-        else inner += "<div class='sel-opt-img noimg'></div>";
+        // Collect all photo sources: new photoIds array, legacy imgFileId, or URL.
+        const photoList = [];
+        if (Array.isArray(o.photoIds)) o.photoIds.forEach((p) => photoList.push({ fid: (p && p.id) || p }));
+        if (o.imgFileId && !photoList.some((x) => x.fid === o.imgFileId)) photoList.push({ fid: o.imgFileId });
+        if (o.img) photoList.unshift({ url: o.img });
+        if (photoList.length) {
+          inner += "<div class='sel-opt-imgs'>";
+          photoList.forEach((p) => {
+            if (p.url) inner += "<div class='sel-opt-img'><img src='" + escapeAttr(p.url) + "' alt='' loading='lazy' onerror=\"this.parentNode.classList.add('noimg')\"></div>";
+            else inner += "<div class='sel-opt-img' data-imgfile='" + escapeAttr(p.fid) + "'></div>";
+          });
+          inner += "</div>";
+        } else {
+          inner += "<div class='sel-opt-img noimg'></div>";
+        }
         inner += "<div class='sel-opt-body'>";
         inner += "<div class='sel-opt-name'>" + escapeHtml(o.name || "Option") + "</div>";
         if (o.note) inner += "<div class='sel-opt-note'>" + escapeHtml(o.note) + "</div>";
@@ -507,6 +519,7 @@ async function deleteSelectionItem() {
 
 // ----- Add or edit an option (admin or customer) -----
 let optionTargetItem = null, optionTargetBy = "admin", editingOptId = null;
+let optPhotos = []; // [{id, name}] existing photos while editing
 function openOptionModal(itemId, by, optId) {
   optionTargetItem = itemId;
   optionTargetBy = by;
@@ -516,12 +529,19 @@ function openOptionModal(itemId, by, optId) {
   $("opt-name").value = o ? (o.name || "") : "";
   $("opt-img").value = o ? (o.img || "") : "";
   $("opt-file").value = "";
+  // Gather existing photos (new array + legacy single) into optPhotos.
+  optPhotos = [];
+  if (o) {
+    if (Array.isArray(o.photoIds)) o.photoIds.forEach((p) => optPhotos.push({ id: (p && p.id) || p, name: (p && p.name) || "" }));
+    if (o.imgFileId && !optPhotos.some((x) => x.id === o.imgFileId)) optPhotos.push({ id: o.imgFileId, name: o.imgFileName || "" });
+  }
   // Photo upload is admin-only (saves to admin Drive folder). Customers use URL.
   const fileRow = $("opt-file");
   const showUpload = isAdmin();
   fileRow.style.display = showUpload ? "" : "none";
   if (fileRow.previousElementSibling) fileRow.previousElementSibling.style.display = showUpload ? "" : "none";
-  $("opt-file-status").textContent = o && o.imgFileName ? ("Current: " + o.imgFileName) : "";
+  renderOptPhotoChips();
+  $("opt-file-status").textContent = "";
   $("opt-link").value = o ? (o.link || "") : "";
   $("opt-price").value = o && o.price ? o.price : "";
   $("opt-note").value = o ? (o.note || "") : "";
@@ -529,6 +549,23 @@ function openOptionModal(itemId, by, optId) {
     ? "Edit Option"
     : (by === "customer" ? "Suggest an Option" : "Add Option");
   $("option-modal").classList.remove("hidden");
+}
+
+function renderOptPhotoChips() {
+  const host = $("opt-photos");
+  if (!host) return;
+  host.innerHTML = "";
+  if (!optPhotos.length) return;
+  optPhotos.forEach((p, idx) => {
+    const chip = document.createElement("div");
+    chip.className = "opt-photo-chip";
+    chip.textContent = "📎 " + (p.name || ("Photo " + (idx + 1)));
+    const x = document.createElement("button");
+    x.type = "button"; x.className = "opt-photo-x"; x.textContent = "✕";
+    x.addEventListener("click", () => { optPhotos.splice(idx, 1); renderOptPhotoChips(); });
+    chip.appendChild(x);
+    host.appendChild(chip);
+  });
 }
 
 async function saveOption() {
@@ -544,24 +581,33 @@ async function saveOption() {
     note: $("opt-note").value.trim()
   };
 
-  // Upload a chosen photo → admin-only office/Selection Photos folder
+  // Upload any chosen photos → admin-only office/Selection Photos folder.
+  // Supports multiple files; appends to the option's photo list.
   const fileInput = $("opt-file");
   const btn = $("opt-save");
-  if (fileInput && fileInput.files && fileInput.files[0]) {
+  const files = (fileInput && fileInput.files) ? Array.from(fileInput.files) : [];
+  if (files.length) {
     btn.disabled = true;
     const orig = btn.textContent;
-    btn.textContent = "Uploading photo…";
-    try {
-      const out = await uploadOne(fileInput.files[0], { destArea: "office", destFolderName: "Selection Photos", notify: [] });
-      if (out.ok) { fields.imgFileId = out.fileId; fields.imgFileName = out.fileName; }
-      else throw new Error(out.error || "upload failed");
-    } catch (e) {
-      btn.disabled = false; btn.textContent = orig;
-      alert("Photo upload failed: " + e.message);
-      return;
+    let n = 0, failed = 0;
+    for (const f of files) {
+      n++;
+      btn.textContent = "Uploading " + n + "/" + files.length + "…";
+      try {
+        const toSend = await compressImageSafe(f, 1600, 0.8);
+        const out = await uploadOne(toSend, { destArea: "office", destFolderName: "Selection Photos", notify: [] });
+        if (out.ok && out.fileId) optPhotos.push({ id: out.fileId, name: out.fileName || f.name });
+        else failed++;
+      } catch (e) { failed++; console.warn("option photo failed", e); }
     }
     btn.disabled = false; btn.textContent = orig;
+    if (failed) alert(failed + " photo(s) failed to upload. The rest were saved.");
   }
+
+  // Persist the photo list. Keep first as legacy imgFileId for back-compat.
+  fields.photoIds = optPhotos.map((p) => ({ id: p.id, name: p.name }));
+  fields.imgFileId = optPhotos.length ? optPhotos[0].id : "";
+  fields.imgFileName = optPhotos.length ? (optPhotos[0].name || "") : "";
 
   it.options = it.options || [];
   if (editingOptId) {
@@ -1700,6 +1746,35 @@ async function loadFolderTree() {
     const out = await api({ action: "folders", email: SESSION.email, code: SESSION.code, project: currentProject.name });
     if (out.ok) projectFolderTree = out.areas || {};
   } catch (e) { console.warn("folders load failed", e); }
+}
+
+// Shrink/convert images before upload (fixes webp + large-photo upload fails).
+// HEIC/HEIF pass through untouched (canvas can't reliably encode them).
+async function compressImageSafe(file, maxDim, quality) {
+  maxDim = maxDim || 1600; quality = quality || 0.8;
+  if (!file || !/^image\//i.test(file.type) || /heic|heif/i.test(file.type)) return file;
+  try {
+    const dataUrl = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result); r.onerror = () => rej(new Error("read"));
+      r.readAsDataURL(file);
+    });
+    const img = await new Promise((res, rej) => {
+      const im = new Image();
+      im.onload = () => res(im); im.onerror = () => rej(new Error("decode"));
+      im.src = dataUrl;
+    });
+    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+    if (scale === 1 && file.size < 900 * 1024 && /jpe?g/i.test(file.type)) return file;
+    const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+    const blob = await new Promise((res) => canvas.toBlob(res, "image/jpeg", quality));
+    if (!blob) return file;
+    const outName = (file.name || "photo").replace(/\.(heic|heif|png|webp)$/i, ".jpg");
+    return new File([blob], outName, { type: "image/jpeg" });
+  } catch (e) { console.warn("compress failed", e); return file; }
 }
 
 async function uploadOne(file, dest) {

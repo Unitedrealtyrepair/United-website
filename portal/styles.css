@@ -1,4 +1,4 @@
-/* URR Portal v157 */
+/* URR Portal v158 */
 :root {
   --navy: #0f2440;
   --navy-light: #1b3a63;
@@ -1956,3 +1956,11 @@ body {
 .sub-logins { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 8px; margin-bottom: 4px; }
 .sub-login-row { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--navy); cursor: pointer; }
 .sub-login-row input { width: auto; margin: 0; }
+
+/* ===== Selection option: multiple photos ===== */
+.sel-opt-imgs { display: flex; gap: 3px; overflow-x: auto; }
+.sel-opt-imgs .sel-opt-img { flex: 0 0 auto; width: 60%; max-width: 180px; aspect-ratio: 4/3; border-radius: 6px; }
+.sel-opt-imgs .sel-opt-img:only-child { width: 100%; max-width: none; }
+.opt-photos { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; }
+.opt-photo-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 12.5px; color: var(--navy); }
+.opt-photo-x { background: none; border: none; color: var(--red); font-size: 13px; cursor: pointer; padding: 0; width: auto; }
