@@ -1,4 +1,4 @@
-/* URR Portal v168 */
+/* URR Portal v170 */
 :root {
   --navy: #0f2440;
   --navy-light: #1b3a63;
@@ -1997,3 +1997,4 @@ body {
 .doc-co { display: flex; justify-content: space-between; color: var(--red); font-weight: 600; padding: 2px 0; }
 .doc-updated { border-top: 1.5px solid var(--navy); }
 .ev-topbar { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 8px; background: var(--card); padding: 4px 0 10px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+.co-doc-sig { font-size: 12.5px; color: #1a7f45; padding: 8px 0 2px; }

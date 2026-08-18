@@ -1,4 +1,4 @@
-// URR Portal v168 — fix invoice PDF totals label/amount overlap (updated contract total)
+// URR Portal v170 — invoice inherits estimate signature (top banner + bottom + initials); CO keeps its own
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -4936,6 +4936,20 @@ function nl2brHtml(s) {
 }
 
 function normalizeEstDoc(e) {
+  // Signature fallback: an invoice created from an approved estimate should
+  // display that estimate's signature even if the invoice itself wasn't
+  // separately signed. Prefer the doc's own signature; else the source estimate's.
+  let sigName = e.signedName || "";
+  let sigAt = e.respondedAt || "";
+  let sigStatus = e.status;
+  if ((!sigName) && e.estimateId && typeof estimates !== "undefined") {
+    const src = estimates.find((x) => x.id === e.estimateId);
+    if (src && src.status === "approved" && src.signedName) {
+      sigName = src.signedName;
+      sigAt = src.respondedAt || "";
+      sigStatus = "approved";
+    }
+  }
   let totals, custByItem = {}, secTotals = {};
   if (e.totals) {
     totals = { subtotal: e.totals.subtotal, discountAmt: e.totals.discount, tax: e.totals.tax, total: e.totals.total, depositAmt: e.totals.deposit };
@@ -4956,7 +4970,7 @@ function normalizeEstDoc(e) {
     },
     secTotals,
     number: e.number || "", title: e.title || "", date: e.date || "", expires: e.expires || "",
-    status: e.status, signedName: e.signedName || "", respondedAt: e.respondedAt || "",
+    status: sigStatus, signedName: sigName, respondedAt: sigAt,
     customerName: e.customerName || "", billingAddress: e.billingAddress || "",
     serviceAddress: e.serviceAddress || "", customerNotes: e.customerNotes || "",
     terms: e.terms || "", photos: e.photos || [], attachments: e.attachments || [],
@@ -4966,7 +4980,9 @@ function normalizeEstDoc(e) {
       const co = (typeof changeOrders !== "undefined" ? changeOrders : []).find((x) => x.id === c.coId);
       return {
         number: c.number, amount: c.amount, title: co ? (co.title || "") : "",
-        lines: co ? (co.lines || []).map((l) => ({ desc: l.desc, amount: l.amount })) : []
+        lines: co ? (co.lines || []).map((l) => ({ desc: l.desc, amount: l.amount })) : [],
+        signedName: co && co.status === "approved" ? (co.signedName || "") : "",
+        respondedAt: co ? (co.respondedAt || "") : ""
       };
     }),
     sections: (e.sections || []).map((s) => ({
@@ -5045,8 +5061,13 @@ function renderEstimateDoc(e, host, kind) {
   if (n.status === "approved" && n.signedName) {
     const ap = document.createElement("div");
     ap.className = "doc-approved";
-    ap.textContent = "✓ Approved — signed by " + n.signedName +
-      (n.respondedAt ? " on " + new Date(n.respondedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "");
+    let when = "";
+    if (n.respondedAt) {
+      const dt = new Date(n.respondedAt);
+      when = " on " + dt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) +
+        " at " + dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    }
+    ap.textContent = "✓ Approved — signed by " + n.signedName + when;
     host.appendChild(ap);
   }
 
@@ -5174,6 +5195,14 @@ function renderEstimateDoc(e, host, kind) {
         tot.className = "co-doc-row co-doc-totalrow";
         tot.innerHTML = "<div class='co-doc-left'><b>" + escapeHtml(c.number || "Change Order") + " total</b></div><div class='co-doc-amt'><b>" + fmtMoney(c.amount) + "</b></div>";
         host.appendChild(tot);
+        if (c.signedName) {
+          const sig = document.createElement("div");
+          sig.className = "co-doc-sig";
+          const dt = c.respondedAt ? new Date(c.respondedAt) : null;
+          const stamp = dt ? dt.toLocaleDateString("en-US") + " " + dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
+          sig.innerHTML = "✓ Change order accepted &amp; signed: <b>" + escapeHtml(c.signedName) + "</b>" + (stamp ? " · " + stamp : "");
+          host.appendChild(sig);
+        }
       }
     }
   }
@@ -5740,6 +5769,26 @@ async function generateEstimatePdf(e, progress, kind) {
       doc.setTextColor(...RED);
       doc.text(money(c.amount), colAmt, y, { align: "right" });
       y += 8;
+
+      // Change order's own approval signature (approved separately from invoice).
+      if (c.signedName) {
+        ensure(20);
+        doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(...SLATE);
+        doc.text("Change order accepted and agreed:", M, y);
+        y += 8;
+        doc.setFont("helvetica", "bolditalic").setFontSize(12).setTextColor(...NAVY);
+        doc.text(c.signedName, M, y);
+        doc.setDrawColor(...SLATE).setLineWidth(0.3);
+        doc.line(M, y + 2, M + 80, y + 2);
+        doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(...GRAY);
+        doc.text("Signature", M, y + 6);
+        if (c.respondedAt) {
+          const dt = new Date(c.respondedAt);
+          const stamp = dt.toLocaleDateString("en-US") + " " + dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+          doc.text("Signed " + stamp, M + 90, y);
+        }
+        y += 10;
+      }
     }
   }
 
@@ -5791,7 +5840,7 @@ async function generateEstimatePdf(e, progress, kind) {
 
   // ---- Signature block ----
   if (n.status === "approved" && n.signedName) {
-    ensure(20);
+    ensure(24);
     doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(...SLATE);
     doc.text("Accepted and agreed:", M, y);
     y += 8;
@@ -5801,10 +5850,18 @@ async function generateEstimatePdf(e, progress, kind) {
     doc.line(M, y + 2, M + 80, y + 2);
     doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(...GRAY);
     doc.text("Signature", M, y + 6);
-    if (n.respondedAt) doc.text(new Date(n.respondedAt).toLocaleDateString("en-US"), M + 90, y);
+    if (n.respondedAt) {
+      const dt = new Date(n.respondedAt);
+      const stamp = dt.toLocaleDateString("en-US") + " " + dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+      doc.text("Signed " + stamp, M + 90, y);
+    }
   }
 
   // ---- Footer on EVERY page ----
+  const initials = (n.status === "approved" && n.signedName)
+    ? n.signedName.trim().split(/\s+/).map((w) => w[0] ? w[0].toUpperCase() : "").join("")
+    : "";
+  const signedStamp = n.respondedAt ? new Date(n.respondedAt).toLocaleDateString("en-US") : "";
   const pages = doc.getNumberOfPages();
   for (let p = 1; p <= pages; p++) {
     doc.setPage(p);
@@ -5813,6 +5870,12 @@ async function generateEstimatePdf(e, progress, kind) {
     doc.line(M, fy - 5, W - M, fy - 5);
     doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(...GRAY);
     doc.text(COMPANY.name + " · " + COMPANY.email, M, fy);
+    // Auto-initials (centered) show the customer initialed every page on approval.
+    if (initials) {
+      doc.setFont("helvetica", "bolditalic").setFontSize(8.5).setTextColor(...SLATE);
+      doc.text("Initialed: " + initials + (signedStamp ? " · " + signedStamp : ""), W / 2, fy, { align: "center" });
+      doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(...GRAY);
+    }
     doc.text("Page " + p + " of " + pages, W - M, fy, { align: "right" });
   }
 
