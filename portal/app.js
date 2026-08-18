@@ -1,4 +1,4 @@
-// URR Portal v166 — CO invoice section aligned+readable, top PDF button, card shows next draw + remaining to bill
+// URR Portal v167 — recent files open in-portal viewer, not raw Google Drive link
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -2436,12 +2436,15 @@ function renderOverview() {
     rf.appendChild(ovEmpty("No files yet"));
   } else {
     for (const f of recent) {
-      const a = document.createElement("a");
+      const a = document.createElement("button");
       a.className = "ov-file-row";
-      a.href = f.webViewLink || "#";
-      a.target = "_blank";
-      a.rel = "noopener";
+      a.type = "button";
       a.textContent = iconFor(f) + "  " + f.name;
+      a.addEventListener("click", () => {
+        lightboxList = [f];
+        lightboxIndex = 0;
+        openLightbox(f);
+      });
       rf.appendChild(a);
     }
   }

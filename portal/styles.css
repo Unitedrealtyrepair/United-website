@@ -1,4 +1,4 @@
-/* URR Portal v166 */
+/* URR Portal v167 */
 :root {
   --navy: #0f2440;
   --navy-light: #1b3a63;
@@ -338,9 +338,15 @@ body {
 .ov-log-notes { font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
 .ov-file-row {
   display: block;
-  padding: 8px 0;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
   border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  padding: 8px 0;
   font-size: 14px;
+  font-family: inherit;
   color: var(--text);
   text-decoration: none;
   overflow: hidden;
