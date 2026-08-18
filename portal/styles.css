@@ -1,4 +1,4 @@
-/* URR Portal v160 */
+/* URR Portal v161 */
 :root {
   --navy: #0f2440;
   --navy-light: #1b3a63;
@@ -1974,3 +1974,4 @@ body {
 .coinv-label span { color: #6b7687; font-size: 12px; }
 .coinv-amt { width: 120px; flex: 0 0 120px; }
 .coinv-counter { display: flex; justify-content: space-between; font-size: 14px; color: var(--navy); margin: 12px 0 4px; padding-top: 8px; border-top: 1px solid var(--border); }
+.coinv-inv-head { font-size: 12px; font-weight: 700; color: #6b7687; text-transform: uppercase; margin: 10px 0 4px; }

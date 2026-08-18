@@ -1,4 +1,4 @@
-// URR Portal v160 — CO invoice button re-openable so you can spread across draws after deleting standalone
+// URR Portal v161 — CO spread shows contract draw milestones from the invoice to disperse across
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -923,43 +923,46 @@ async function generateCoInvoice(id) {
   openCoInvoiceModal(co);
 }
 
-// Remaining draw invoices = customer invoices not fully paid (deposit already
-// paid stays out). Sorted oldest first so you fill them in order.
-function remainingDrawInvoices() {
+// Find the contract invoice(s) that carry a draw milestone schedule.
+function contractInvoicesWithSchedule() {
   return custInvoices
-    .filter((iv) => {
-      if (iv.coId) return false; // don't spread a CO onto another CO's invoice
-      const st = CI_STATUS(iv);
-      return st.total > 0 && st.paid < st.total; // not fully paid
-    })
+    .filter((iv) => !iv.coId && Array.isArray(iv.schedule) && iv.schedule.length)
     .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
 }
 
 function openCoInvoiceModal(co) {
   const total = coTotal(co);
   $("coinv-total").textContent = fmtMoney(total);
-  const rem = remainingDrawInvoices();
   const host = $("coinv-draws");
   host.innerHTML = "";
-  if (!rem.length) {
-    host.innerHTML = "<div class='lbl-hint'>No remaining unpaid draws found. You can still create a standalone invoice below.</div>";
+  const invs = contractInvoicesWithSchedule();
+  if (!invs.length) {
+    host.innerHTML = "<div class='lbl-hint'>No contract draw schedule found on your invoices. You can still create a standalone invoice above.</div>";
   } else {
-    rem.forEach((iv) => {
-      const st = CI_STATUS(iv);
-      const due = r2(st.total - st.paid);
-      const row = document.createElement("div");
-      row.className = "coinv-row";
-      const label = document.createElement("div");
-      label.className = "coinv-label";
-      label.innerHTML = "<b>" + escapeHtml(iv.number || iv.title || "Draw") + "</b><span>" +
-        fmtMoney(due) + " due" + (iv.date ? " · " + escapeHtml(fmtDateLong(iv.date)) : "") + "</span>";
-      const inp = document.createElement("input");
-      inp.type = "number"; inp.step = "0.01"; inp.className = "coinv-amt";
-      inp.placeholder = "0.00"; inp.dataset.invid = iv.id;
-      inp.addEventListener("input", updateCoInvoiceCounter);
-      row.appendChild(label);
-      row.appendChild(inp);
-      host.appendChild(row);
+    invs.forEach((iv) => {
+      if (invs.length > 1) {
+        const h = document.createElement("div");
+        h.className = "coinv-inv-head";
+        h.textContent = iv.number || iv.title || "Invoice";
+        host.appendChild(h);
+      }
+      (iv.schedule || []).forEach((m, mi) => {
+        const row = document.createElement("div");
+        row.className = "coinv-row";
+        const label = document.createElement("div");
+        label.className = "coinv-label";
+        label.innerHTML = "<b>" + escapeHtml(m.desc || ("Draw " + (mi + 1))) + "</b><span>" +
+          "current " + fmtMoney(m.amount) + "</span>";
+        const inp = document.createElement("input");
+        inp.type = "number"; inp.step = "0.01"; inp.className = "coinv-amt";
+        inp.placeholder = "0.00";
+        inp.dataset.invid = iv.id;
+        inp.dataset.mindex = mi;
+        inp.addEventListener("input", updateCoInvoiceCounter);
+        row.appendChild(label);
+        row.appendChild(inp);
+        host.appendChild(row);
+      });
     });
   }
   updateCoInvoiceCounter();
@@ -1006,34 +1009,39 @@ async function coInvoiceSpread() {
   let assigned = 0;
   document.querySelectorAll("#coinv-draws .coinv-amt").forEach((i) => {
     const amt = r2(Number(i.value) || 0);
-    if (amt) { assigns.push({ invId: i.dataset.invid, amt }); assigned = r2(assigned + amt); }
+    if (amt) { assigns.push({ invId: i.dataset.invid, mindex: Number(i.dataset.mindex), amt }); assigned = r2(assigned + amt); }
   });
-  if (!assigns.length) { alert("Enter how much of the change order to add to each draw, or use Invoice standalone."); return; }
+  if (!assigns.length) { alert("Enter how much of the change order to add to each draw milestone, or use Invoice standalone."); return; }
   if (Math.abs(assigned - total) > 0.01) {
-    if (!confirm("You've assigned " + fmtMoney(assigned) + " of the " + fmtMoney(total) + " change order.\n\nContinue anyway? (The unassigned part won't be invoiced.)")) return;
+    if (!confirm("You've assigned " + fmtMoney(assigned) + " of the " + fmtMoney(total) + " change order.\n\nContinue anyway? (The unassigned part won't be added to any draw.)")) return;
   }
-  // Raise each chosen draw invoice's milestone/total by its assigned amount and
-  // append the CO reference as a line item.
+  // Add each assigned amount onto that milestone, and raise the invoice's
+  // contract total + amount due so the draw schedule reflects the change order.
+  const touched = {};
   for (const a of assigns) {
     const iv = custInvoices.find((x) => x.id === a.invId);
+    if (!iv || !Array.isArray(iv.schedule) || !iv.schedule[a.mindex]) continue;
+    iv.schedule[a.mindex].amount = r2((Number(iv.schedule[a.mindex].amount) || 0) + a.amt);
+    if (!touched[iv.id]) touched[iv.id] = 0;
+    touched[iv.id] = r2(touched[iv.id] + a.amt);
+  }
+  for (const invId in touched) {
+    const iv = custInvoices.find((x) => x.id === invId);
     if (!iv) continue;
     iv.totals = iv.totals || { subtotal: 0, discount: 0, tax: 0, total: 0, deposit: 0 };
-    iv.totals.subtotal = r2((Number(iv.totals.subtotal) || 0) + a.amt);
-    iv.totals.total = r2((Number(iv.totals.total) || 0) + a.amt);
-    if (iv.amountDue !== undefined) iv.amountDue = r2((Number(iv.amountDue) || 0) + a.amt);
-    iv.sections = iv.sections || [];
-    iv.sections.push({
-      id: "sco" + Date.now(),
-      name: (co.number || "Change Order"),
-      items: [{ id: "ico" + Date.now(), desc: (co.number || "CO") + (co.title ? " — " + co.title : ""), qty: 1, rate: a.amt, total: a.amt }]
-    });
+    iv.totals.subtotal = r2((Number(iv.totals.subtotal) || 0) + touched[invId]);
+    iv.totals.total = r2((Number(iv.totals.total) || 0) + touched[invId]);
+    // Note the change order on the invoice for the paper trail.
+    iv.coNotes = (iv.coNotes || []);
+    iv.coNotes.push({ coId: co.id, number: co.number || "CO", amount: touched[invId] });
   }
   co.invoiced = true;
   await saveChangeOrders();
   await pushCollection(pkey("CustInvoices"), custInvoices);
   closeModal("coinv-modal");
   renderChangeOrders();
-  alert("Change order spread across " + assigns.length + " draw(s).");
+  render();
+  alert("Change order dispersed across " + assigns.length + " draw milestone(s). Your draw schedule now includes it.");
 }
 
 // ----- Customer sign / respond -----
