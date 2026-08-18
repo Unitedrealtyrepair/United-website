@@ -1,4 +1,4 @@
-/* URR Portal v162 */
+/* URR Portal v163 */
 :root {
   --navy: #0f2440;
   --navy-light: #1b3a63;
@@ -1972,6 +1972,9 @@ body {
 .coinv-label { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 13px; }
 .coinv-label b { color: var(--navy); }
 .coinv-label span { color: #6b7687; font-size: 12px; }
-.coinv-amt { width: 120px; flex: 0 0 120px; }
+.coinv-inputwrap { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+.coinv-amt { width: 92px; }
+.coinv-pct { width: 34px; flex: 0 0 34px; padding: 8px 0; border: 1.5px solid var(--border); border-radius: 8px; background: #fff; color: #6b7687; font-weight: 700; cursor: pointer; }
+.coinv-pct.on { background: var(--navy); color: #fff; border-color: var(--navy); }
 .coinv-counter { display: flex; justify-content: space-between; font-size: 14px; color: var(--navy); margin: 12px 0 4px; padding-top: 8px; border-top: 1px solid var(--border); }
 .coinv-inv-head { font-size: 12px; font-weight: 700; color: #6b7687; text-transform: uppercase; margin: 10px 0 4px; }

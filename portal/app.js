@@ -1,4 +1,4 @@
-// URR Portal v162 — CO spread accepts % of change order or flat dollars per draw milestone
+// URR Portal v163 — CO spread: numeric pad + per-row % toggle (no keyboard hunting)
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -953,14 +953,29 @@ function openCoInvoiceModal(co) {
         label.className = "coinv-label";
         label.innerHTML = "<b>" + escapeHtml(m.desc || ("Draw " + (mi + 1))) + "</b><span>" +
           "current " + fmtMoney(m.amount) + "</span>";
+        const wrap = document.createElement("div");
+        wrap.className = "coinv-inputwrap";
         const inp = document.createElement("input");
         inp.type = "text"; inp.inputMode = "decimal"; inp.className = "coinv-amt";
-        inp.placeholder = "$ or %";
+        inp.placeholder = "0.00";
         inp.dataset.invid = iv.id;
         inp.dataset.mindex = mi;
+        inp.dataset.pct = "0";
         inp.addEventListener("input", updateCoInvoiceCounter);
+        const pct = document.createElement("button");
+        pct.type = "button"; pct.className = "coinv-pct"; pct.textContent = "%";
+        pct.title = "Treat this value as a percent of the change order";
+        pct.addEventListener("click", () => {
+          const on = inp.dataset.pct === "1";
+          inp.dataset.pct = on ? "0" : "1";
+          pct.classList.toggle("on", !on);
+          inp.placeholder = on ? "0.00" : "% of CO";
+          updateCoInvoiceCounter();
+        });
+        wrap.appendChild(inp);
+        wrap.appendChild(pct);
         row.appendChild(label);
-        row.appendChild(inp);
+        row.appendChild(wrap);
         host.appendChild(row);
       });
     });
@@ -969,12 +984,18 @@ function openCoInvoiceModal(co) {
   $("coinv-modal").classList.remove("hidden");
 }
 
+function coinvRowAmount(inp, total) {
+  const v = parseFloat(String(inp.value).replace(/[^0-9.\-]/g, ""));
+  if (!isFinite(v)) return 0;
+  if (inp.dataset.pct === "1") return r2(total * v / 100);
+  return r2(v);
+}
 function updateCoInvoiceCounter() {
   const co = changeOrders.find((x) => x.id === coInvoiceId);
   const total = co ? coTotal(co) : 0;
   let assigned = 0;
   document.querySelectorAll("#coinv-draws .coinv-amt").forEach((i) => {
-    assigned = r2(assigned + parseAllocInput(i.value, total));
+    assigned = r2(assigned + coinvRowAmount(i, total));
   });
   const remaining = r2(total - assigned);
   $("coinv-assigned").textContent = fmtMoney(assigned);
@@ -1010,7 +1031,7 @@ async function coInvoiceSpread() {
   const assigns = [];
   let assigned = 0;
   document.querySelectorAll("#coinv-draws .coinv-amt").forEach((i) => {
-    const amt = parseAllocInput(i.value, total);
+    const amt = coinvRowAmount(i, total);
     if (amt) { assigns.push({ invId: i.dataset.invid, mindex: Number(i.dataset.mindex), amt }); assigned = r2(assigned + amt); }
   });
   if (!assigns.length) { alert("Enter how much of the change order to add to each draw milestone, or use Invoice standalone."); return; }
