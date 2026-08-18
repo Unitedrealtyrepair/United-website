@@ -1,4 +1,4 @@
-// URR Portal v164 — invoice shows applied change orders under payment schedule (preview + PDF)
+// URR Portal v165 — invoice totals break out contract + change order = updated total; CO itemized section
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -4941,7 +4941,13 @@ function normalizeEstDoc(e) {
     terms: e.terms || "", photos: e.photos || [], attachments: e.attachments || [],
     totals,
     schedule: (e.schedule || []).map((r) => ({ desc: r.desc, amount: e.totals ? r.amount : schedAmount(r, totals.total) })),
-    coNotes: e.coNotes || [],
+    coNotes: (e.coNotes || []).map((c) => {
+      const co = (typeof changeOrders !== "undefined" ? changeOrders : []).find((x) => x.id === c.coId);
+      return {
+        number: c.number, amount: c.amount, title: co ? (co.title || "") : "",
+        lines: co ? (co.lines || []).map((l) => ({ desc: l.desc, amount: l.amount })) : []
+      };
+    }),
     sections: (e.sections || []).map((s) => ({
       name: s.name,
       id: s.id,
@@ -5080,7 +5086,21 @@ function renderEstimateDoc(e, host, kind) {
   let sumsHtml = "<div><span>Subtotal</span><b>" + fmtMoney(n.totals.subtotal) + "</b></div>";
   if (n.totals.discountAmt) sumsHtml += "<div><span>Discount</span><b>−" + fmtMoney(n.totals.discountAmt) + "</b></div>";
   if (n.totals.tax) sumsHtml += "<div><span>Tax</span><b>" + fmtMoney(n.totals.tax) + "</b></div>";
-  sumsHtml += "<div class='est-grand'><span>Total</span><b>" + fmtMoney(n.totals.total) + "</b></div>";
+
+  const coSum = (Array.isArray(n.coNotes) ? n.coNotes : []).reduce((s, c) => s + (Number(c.amount) || 0), 0);
+  if (coSum) {
+    // The stored total already includes the change order(s). Show the original
+    // contract total, then the change order, then the updated total.
+    const origTotal = r2(n.totals.total - coSum);
+    sumsHtml += "<div class='est-grand'><span>Contract total</span><b>" + fmtMoney(origTotal) + "</b></div>";
+    for (const c of n.coNotes) {
+      sumsHtml += "<div class='doc-co'><span>+ " + escapeHtml(c.number || "Change Order") + (c.title ? " — " + escapeHtml(c.title) : "") + "</span><b>+" + fmtMoney(c.amount) + "</b></div>";
+    }
+    sumsHtml += "<div class='est-grand doc-updated'><span>Updated contract total</span><b>" + fmtMoney(n.totals.total) + "</b></div>";
+  } else {
+    sumsHtml += "<div class='est-grand'><span>Total</span><b>" + fmtMoney(n.totals.total) + "</b></div>";
+  }
+
   if (n.totals.depositAmt) sumsHtml += "<div><span>Deposit due</span><b>" + fmtMoney(n.totals.depositAmt) + "</b></div>";
   if (n.payments.length) {
     let paidSum = 0;
@@ -5110,15 +5130,30 @@ function renderEstimateDoc(e, host, kind) {
       row.innerHTML = "<span class='ev-sched-desc'>" + escapeHtml(r.desc || "") + "</span><span></span><span></span><span>" + fmtMoney(r.amount) + "</span>";
       host.appendChild(row);
     }
-    // Note any change orders that were dispersed into these draws.
+    // Show each applied change order as its own itemized section.
     if (Array.isArray(n.coNotes) && n.coNotes.length) {
-      const note = document.createElement("div");
-      note.className = "ev-co-note";
-      const lines = n.coNotes.map((c) =>
-        "Includes " + escapeHtml(c.number || "Change Order") + " — " + fmtMoney(c.amount) + " added across draws"
-      );
-      note.innerHTML = lines.join("<br>");
-      host.appendChild(note);
+      for (const c of n.coNotes) {
+        const h2 = document.createElement("div");
+        h2.className = "ev-sec-name ev-co-sec";
+        h2.textContent = (c.number || "Change Order") + (c.title ? " — " + c.title : "");
+        host.appendChild(h2);
+        for (const l of (c.lines || [])) {
+          const parts = String(l.desc || "").split(/\r?\n/);
+          const t = (parts.shift() || "").trim();
+          const body = parts.join("\n").trim();
+          const row = document.createElement("div");
+          row.className = "ev-row ev-sched";
+          let left = "<span class='ev-sched-desc'><b>" + escapeHtml(t) + "</b>";
+          if (body) left += "<br><span class='ev-co-body'>" + escapeHtml(body).replace(/\r?\n/g, "<br>") + "</span>";
+          left += "</span>";
+          row.innerHTML = left + "<span></span><span></span><span>" + fmtMoney(l.amount) + "</span>";
+          host.appendChild(row);
+        }
+        const tot = document.createElement("div");
+        tot.className = "ev-row ev-sched ev-co-total";
+        tot.innerHTML = "<span class='ev-sched-desc'><b>" + escapeHtml(c.number || "Change Order") + " total</b></span><span></span><span></span><span><b>" + fmtMoney(c.amount) + "</b></span>";
+        host.appendChild(tot);
+      }
     }
   }
 
@@ -5588,7 +5623,16 @@ async function generateEstimatePdf(e, progress, kind) {
   trow("Subtotal", money(n.totals.subtotal));
   if (n.totals.discountAmt) trow("Discount", "-" + money(n.totals.discountAmt));
   if (n.totals.tax) trow("Tax", money(n.totals.tax));
-  trow("Total", money(n.totals.total), { bold: true, big: true });
+  const coSumP = (Array.isArray(n.coNotes) ? n.coNotes : []).reduce((s, c) => s + (Number(c.amount) || 0), 0);
+  if (coSumP) {
+    trow("Contract total", money(r2(n.totals.total - coSumP)), { bold: true });
+    for (const c of n.coNotes) {
+      trow("+ " + (c.number || "Change Order") + (c.title ? " — " + c.title : ""), "+" + money(c.amount));
+    }
+    trow("Updated contract total", money(n.totals.total), { bold: true, big: true });
+  } else {
+    trow("Total", money(n.totals.total), { bold: true, big: true });
+  }
   if (n.totals.depositAmt) trow("Deposit due", money(n.totals.depositAmt), { color: RED });
   if (n.payments.length) {
     let paidSum = 0;
@@ -5628,15 +5672,54 @@ async function generateEstimatePdf(e, progress, kind) {
     };
     if (n.totals.depositAmt) srow("Deposit", n.totals.depositAmt);
     for (const r of n.schedule) srow(r.desc || "", r.amount);
-    if (Array.isArray(n.coNotes) && n.coNotes.length) {
-      ensure(8);
-      doc.setFont("helvetica", "italic").setFontSize(8.5).setTextColor(...SLATE);
-      n.coNotes.forEach((c) => {
-        doc.text("Includes " + (c.number || "Change Order") + " — " + money(c.amount) + " added across draws", M, y);
-        y += 4.4;
-      });
-    }
     y += 2;
+  }
+
+  // ---- Change order(s): itemized, each on its own page ----
+  if (Array.isArray(n.coNotes) && n.coNotes.length) {
+    for (const c of n.coNotes) {
+      doc.addPage(); y = M;
+      doc.setFont("helvetica", "bold").setFontSize(14).setTextColor(...NAVY);
+      doc.text((c.number || "Change Order") + (c.title ? " — " + c.title : ""), M, y);
+      y += 3;
+      doc.setDrawColor(...RED).setLineWidth(0.6).line(M, y, W - M, y);
+      y += 7;
+      const amtW2 = 34, labelW2 = (W - 2 * M) - amtW2 - 6;
+      for (const l of (c.lines || [])) {
+        const parts = String(l.desc || "").split(/\r?\n/);
+        const title = (parts.shift() || "").trim();
+        const body = parts.join("\n").trim();
+        // Title line + amount
+        doc.setFont("helvetica", "bold").setFontSize(10).setTextColor(...NAVY);
+        const tLines = doc.splitTextToSize(title || " ", labelW2);
+        ensure(tLines.length * 5 + 3);
+        doc.text(tLines, M, y);
+        doc.text(money(l.amount), colAmt, y, { align: "right" });
+        let yy = y + tLines.length * 5;
+        // Body lines, paginated
+        if (body) {
+          doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(45, 58, 82);
+          const bLines = [];
+          body.split(/\r?\n/).forEach((ln) => { doc.splitTextToSize(ln || " ", labelW2).forEach((x) => bLines.push(x)); });
+          for (const bl of bLines) {
+            if (yy > H - M - FOOT) { doc.addPage(); yy = M; }
+            doc.text(bl, M, yy); yy += 4.4;
+          }
+        }
+        y = yy + 3;
+        doc.setDrawColor(...LINE).setLineWidth(0.2).line(M, y - 1, W - M, y - 1);
+        y += 3;
+      }
+      // CO total
+      ensure(10);
+      doc.setDrawColor(...NAVY).setLineWidth(0.5).line(W - M - 70, y, W - M, y);
+      y += 6;
+      doc.setFont("helvetica", "bold").setFontSize(11).setTextColor(...NAVY);
+      doc.text((c.number || "Change Order") + " total", W - M - 70, y);
+      doc.setTextColor(...RED);
+      doc.text(money(c.amount), colAmt, y, { align: "right" });
+      y += 8;
+    }
   }
 
   // ---- Attachments ----
