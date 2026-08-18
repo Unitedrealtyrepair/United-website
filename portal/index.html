@@ -7,7 +7,7 @@
   <!-- URR Portal v148 -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=165" />
+  <link rel="stylesheet" href="styles.css?v=166" />
 </head>
 <body>
 
@@ -724,6 +724,11 @@
     <!-- ===== Estimate view modal (customer + admin preview) ===== -->
     <div id="est-view-modal" class="modal-overlay hidden">
       <div class="modal modal-wide">
+        <div class="ev-topbar">
+          <button id="ev-pdf-top" class="btn-ghost sel-mini">⬇ PDF</button>
+          <span class="spacer"></span>
+          <button id="ev-close-top" class="btn-ghost sel-mini">✕ Close</button>
+        </div>
         <div id="ev-doc" class="est-doc"></div>
         <div id="ev-sign-row" class="ev-sign hidden">
           <label class="checkbox-row"><input type="checkbox" id="ev-agree" /> I have read and agree to the contract terms above</label>
@@ -908,6 +913,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=165"></script>
+  <script src="app.js?v=166"></script>
 </body>
 </html>

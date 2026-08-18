@@ -1,4 +1,4 @@
-// URR Portal v165 — invoice totals break out contract + change order = updated total; CO itemized section
+// URR Portal v166 — CO invoice section aligned+readable, top PDF button, card shows next draw + remaining to bill
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -3571,10 +3571,28 @@ function renderCustInvoices(list) {
     // already been paid so it reflects the live remaining, and drop it once met.
     const milestone = inv.amountDue !== undefined ? Number(inv.amountDue) : st.total;
     const dueNow = r2(Math.max(0, milestone - st.paid));
+
+    // Next draw due = the first schedule milestone that isn't covered by
+    // payments yet (walking the schedule in order, subtracting paid).
+    let nextDraw = null;
+    if (Array.isArray(inv.schedule) && inv.schedule.length) {
+      let covered = st.paid;
+      const rows = [];
+      if (inv.totals && inv.totals.deposit) rows.push({ desc: "Deposit", amount: inv.totals.deposit });
+      inv.schedule.forEach((m) => rows.push({ desc: m.desc, amount: Number(m.amount) || 0 }));
+      for (const r of rows) {
+        if (covered >= r.amount) { covered = r2(covered - r.amount); continue; }
+        nextDraw = { desc: (r.desc || "Draw").split(/[:\n]/)[0].trim(), amount: r2(r.amount - covered) };
+        break;
+      }
+    }
+    const remainingToBill = r2(Math.max(0, st.total - st.paid));
+
     meta.textContent = [
       inv.date ? fmtDateLong(inv.date) : null,
       "Contract " + fmtMoney(st.total),
-      (dueNow > 0 && milestone !== st.total) ? "Due now " + fmtMoney(dueNow) : null,
+      nextDraw ? "Next: " + nextDraw.desc + " " + fmtMoney(nextDraw.amount) : null,
+      "Remaining to bill " + fmtMoney(remainingToBill),
       st.paid ? fmtMoney(st.paid) + " paid" : null
     ].filter(Boolean).join("  ·  ");
     card.appendChild(meta);
@@ -5142,16 +5160,16 @@ function renderEstimateDoc(e, host, kind) {
           const t = (parts.shift() || "").trim();
           const body = parts.join("\n").trim();
           const row = document.createElement("div");
-          row.className = "ev-row ev-sched";
-          let left = "<span class='ev-sched-desc'><b>" + escapeHtml(t) + "</b>";
-          if (body) left += "<br><span class='ev-co-body'>" + escapeHtml(body).replace(/\r?\n/g, "<br>") + "</span>";
-          left += "</span>";
-          row.innerHTML = left + "<span></span><span></span><span>" + fmtMoney(l.amount) + "</span>";
+          row.className = "co-doc-row";
+          let left = "<div class='co-doc-left'><div class='co-doc-title'>" + escapeHtml(t) + "</div>";
+          if (body) left += "<div class='co-doc-body'>" + escapeHtml(body).replace(/\r?\n/g, "<br>") + "</div>";
+          left += "</div>";
+          row.innerHTML = left + "<div class='co-doc-amt'>" + fmtMoney(l.amount) + "</div>";
           host.appendChild(row);
         }
         const tot = document.createElement("div");
-        tot.className = "ev-row ev-sched ev-co-total";
-        tot.innerHTML = "<span class='ev-sched-desc'><b>" + escapeHtml(c.number || "Change Order") + " total</b></span><span></span><span></span><span><b>" + fmtMoney(c.amount) + "</b></span>";
+        tot.className = "co-doc-row co-doc-totalrow";
+        tot.innerHTML = "<div class='co-doc-left'><b>" + escapeHtml(c.number || "Change Order") + " total</b></div><div class='co-doc-amt'><b>" + fmtMoney(c.amount) + "</b></div>";
         host.appendChild(tot);
       }
     }
@@ -7459,6 +7477,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("est-delete").addEventListener("click", deleteEstimate);
   $("ev-close").addEventListener("click", () => closeModal("est-view-modal"));
   $("ev-pdf").addEventListener("click", downloadViewedPdf);
+  $("ev-close-top").addEventListener("click", () => closeModal("est-view-modal"));
+  $("ev-pdf-top").addEventListener("click", downloadViewedPdf);
   $("ev-approve").addEventListener("click", () => respondEstimate("approved"));
   $("ev-decline").addEventListener("click", () => respondEstimate("declined"));
 
