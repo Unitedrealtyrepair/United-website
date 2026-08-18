@@ -1,4 +1,4 @@
-// URR Portal v159 — CO: budget as separate section (no existing edits) + invoice spread across draws; option photo display fix
+// URR Portal v160 — CO invoice button re-openable so you can spread across draws after deleting standalone
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -741,8 +741,7 @@ function renderChangeOrders() {
 
         const inv = document.createElement("button");
         inv.className = "btn-ghost sel-mini";
-        inv.textContent = co.invoiced ? "✓ Invoice created" : "Generate invoice";
-        inv.disabled = !!co.invoiced;
+        inv.textContent = co.invoiced ? "↻ Invoice again / spread" : "Generate invoice";
         inv.addEventListener("click", () => generateCoInvoice(co.id));
         acts.appendChild(inv);
       }
@@ -916,7 +915,10 @@ async function addCoToBudget(id) {
 let coInvoiceId = null;
 async function generateCoInvoice(id) {
   const co = changeOrders.find((x) => x.id === id);
-  if (!co || co.invoiced) return;
+  if (!co) return;
+  if (co.invoiced) {
+    if (!confirm("This change order was already invoiced.\n\nIf you deleted that invoice and want to redo it (e.g. spread across draws), continue. Otherwise you may create a duplicate.")) return;
+  }
   coInvoiceId = id;
   openCoInvoiceModal(co);
 }
@@ -926,6 +928,7 @@ async function generateCoInvoice(id) {
 function remainingDrawInvoices() {
   return custInvoices
     .filter((iv) => {
+      if (iv.coId) return false; // don't spread a CO onto another CO's invoice
       const st = CI_STATUS(iv);
       return st.total > 0 && st.paid < st.total; // not fully paid
     })
