@@ -1,4 +1,4 @@
-// URR Portal v167 — recent files open in-portal viewer, not raw Google Drive link
+// URR Portal v168 — fix invoice PDF totals label/amount overlap (updated contract total)
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -5627,11 +5627,11 @@ async function generateEstimatePdf(e, progress, kind) {
   }
 
   // ---- Totals ----
-  const tx = W - M - 70;
+  const tx = W - M - 92;
   const trow = (label, val, opts) => {
     ensure(6.5);
     doc.setFont("helvetica", opts && opts.bold ? "bold" : "normal")
-       .setFontSize(opts && opts.big ? 13 : 9.5)
+       .setFontSize(opts && opts.big ? 12 : 9.5)
        .setTextColor(...(opts && opts.color ? opts.color : SLATE));
     doc.text(label, tx, y);
     doc.setFont("helvetica", "bold").setTextColor(...(opts && opts.color ? opts.color : NAVY));
