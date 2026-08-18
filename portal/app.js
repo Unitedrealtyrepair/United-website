@@ -1,4 +1,4 @@
-// URR Portal v163 — CO spread: numeric pad + per-row % toggle (no keyboard hunting)
+// URR Portal v164 — invoice shows applied change orders under payment schedule (preview + PDF)
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -4941,6 +4941,7 @@ function normalizeEstDoc(e) {
     terms: e.terms || "", photos: e.photos || [], attachments: e.attachments || [],
     totals,
     schedule: (e.schedule || []).map((r) => ({ desc: r.desc, amount: e.totals ? r.amount : schedAmount(r, totals.total) })),
+    coNotes: e.coNotes || [],
     sections: (e.sections || []).map((s) => ({
       name: s.name,
       id: s.id,
@@ -5108,6 +5109,16 @@ function renderEstimateDoc(e, host, kind) {
       row.className = "ev-row ev-sched";
       row.innerHTML = "<span class='ev-sched-desc'>" + escapeHtml(r.desc || "") + "</span><span></span><span></span><span>" + fmtMoney(r.amount) + "</span>";
       host.appendChild(row);
+    }
+    // Note any change orders that were dispersed into these draws.
+    if (Array.isArray(n.coNotes) && n.coNotes.length) {
+      const note = document.createElement("div");
+      note.className = "ev-co-note";
+      const lines = n.coNotes.map((c) =>
+        "Includes " + escapeHtml(c.number || "Change Order") + " — " + fmtMoney(c.amount) + " added across draws"
+      );
+      note.innerHTML = lines.join("<br>");
+      host.appendChild(note);
     }
   }
 
@@ -5617,6 +5628,14 @@ async function generateEstimatePdf(e, progress, kind) {
     };
     if (n.totals.depositAmt) srow("Deposit", n.totals.depositAmt);
     for (const r of n.schedule) srow(r.desc || "", r.amount);
+    if (Array.isArray(n.coNotes) && n.coNotes.length) {
+      ensure(8);
+      doc.setFont("helvetica", "italic").setFontSize(8.5).setTextColor(...SLATE);
+      n.coNotes.forEach((c) => {
+        doc.text("Includes " + (c.number || "Change Order") + " — " + money(c.amount) + " added across draws", M, y);
+        y += 4.4;
+      });
+    }
     y += 2;
   }
 
