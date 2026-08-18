@@ -1,4 +1,4 @@
-// URR Portal v158 — selection options support multiple photos (upload several, thumbnails)
+// URR Portal v159 — CO: budget as separate section (no existing edits) + invoice spread across draws; option photo display fix
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -355,21 +355,9 @@ function renderSelections() {
         const opt = document.createElement("div");
         opt.className = "sel-opt" + (isFinal ? " final" : isPicked ? " picked" : "");
         let inner = "";
-        // Collect all photo sources: new photoIds array, legacy imgFileId, or URL.
-        const photoList = [];
-        if (Array.isArray(o.photoIds)) o.photoIds.forEach((p) => photoList.push({ fid: (p && p.id) || p }));
-        if (o.imgFileId && !photoList.some((x) => x.fid === o.imgFileId)) photoList.push({ fid: o.imgFileId });
-        if (o.img) photoList.unshift({ url: o.img });
-        if (photoList.length) {
-          inner += "<div class='sel-opt-imgs'>";
-          photoList.forEach((p) => {
-            if (p.url) inner += "<div class='sel-opt-img'><img src='" + escapeAttr(p.url) + "' alt='' loading='lazy' onerror=\"this.parentNode.classList.add('noimg')\"></div>";
-            else inner += "<div class='sel-opt-img' data-imgfile='" + escapeAttr(p.fid) + "'></div>";
-          });
-          inner += "</div>";
-        } else {
-          inner += "<div class='sel-opt-img noimg'></div>";
-        }
+        if (o.img) inner += "<div class='sel-opt-img'><img src='" + escapeAttr(o.img) + "' alt='' loading='lazy' onerror=\"this.parentNode.classList.add('noimg')\"></div>";
+        else if (o.imgFileId) inner += "<div class='sel-opt-img' data-imgfile='" + escapeAttr(o.imgFileId) + "'></div>";
+        else inner += "<div class='sel-opt-img noimg'></div>";
         inner += "<div class='sel-opt-body'>";
         inner += "<div class='sel-opt-name'>" + escapeHtml(o.name || "Option") + "</div>";
         if (o.note) inner += "<div class='sel-opt-note'>" + escapeHtml(o.note) + "</div>";
@@ -519,7 +507,6 @@ async function deleteSelectionItem() {
 
 // ----- Add or edit an option (admin or customer) -----
 let optionTargetItem = null, optionTargetBy = "admin", editingOptId = null;
-let optPhotos = []; // [{id, name}] existing photos while editing
 function openOptionModal(itemId, by, optId) {
   optionTargetItem = itemId;
   optionTargetBy = by;
@@ -529,19 +516,12 @@ function openOptionModal(itemId, by, optId) {
   $("opt-name").value = o ? (o.name || "") : "";
   $("opt-img").value = o ? (o.img || "") : "";
   $("opt-file").value = "";
-  // Gather existing photos (new array + legacy single) into optPhotos.
-  optPhotos = [];
-  if (o) {
-    if (Array.isArray(o.photoIds)) o.photoIds.forEach((p) => optPhotos.push({ id: (p && p.id) || p, name: (p && p.name) || "" }));
-    if (o.imgFileId && !optPhotos.some((x) => x.id === o.imgFileId)) optPhotos.push({ id: o.imgFileId, name: o.imgFileName || "" });
-  }
   // Photo upload is admin-only (saves to admin Drive folder). Customers use URL.
   const fileRow = $("opt-file");
   const showUpload = isAdmin();
   fileRow.style.display = showUpload ? "" : "none";
   if (fileRow.previousElementSibling) fileRow.previousElementSibling.style.display = showUpload ? "" : "none";
-  renderOptPhotoChips();
-  $("opt-file-status").textContent = "";
+  $("opt-file-status").textContent = o && o.imgFileName ? ("Current: " + o.imgFileName) : "";
   $("opt-link").value = o ? (o.link || "") : "";
   $("opt-price").value = o && o.price ? o.price : "";
   $("opt-note").value = o ? (o.note || "") : "";
@@ -549,23 +529,6 @@ function openOptionModal(itemId, by, optId) {
     ? "Edit Option"
     : (by === "customer" ? "Suggest an Option" : "Add Option");
   $("option-modal").classList.remove("hidden");
-}
-
-function renderOptPhotoChips() {
-  const host = $("opt-photos");
-  if (!host) return;
-  host.innerHTML = "";
-  if (!optPhotos.length) return;
-  optPhotos.forEach((p, idx) => {
-    const chip = document.createElement("div");
-    chip.className = "opt-photo-chip";
-    chip.textContent = "📎 " + (p.name || ("Photo " + (idx + 1)));
-    const x = document.createElement("button");
-    x.type = "button"; x.className = "opt-photo-x"; x.textContent = "✕";
-    x.addEventListener("click", () => { optPhotos.splice(idx, 1); renderOptPhotoChips(); });
-    chip.appendChild(x);
-    host.appendChild(chip);
-  });
 }
 
 async function saveOption() {
@@ -581,33 +544,24 @@ async function saveOption() {
     note: $("opt-note").value.trim()
   };
 
-  // Upload any chosen photos → admin-only office/Selection Photos folder.
-  // Supports multiple files; appends to the option's photo list.
+  // Upload a chosen photo → admin-only office/Selection Photos folder
   const fileInput = $("opt-file");
   const btn = $("opt-save");
-  const files = (fileInput && fileInput.files) ? Array.from(fileInput.files) : [];
-  if (files.length) {
+  if (fileInput && fileInput.files && fileInput.files[0]) {
     btn.disabled = true;
     const orig = btn.textContent;
-    let n = 0, failed = 0;
-    for (const f of files) {
-      n++;
-      btn.textContent = "Uploading " + n + "/" + files.length + "…";
-      try {
-        const toSend = await compressImageSafe(f, 1600, 0.8);
-        const out = await uploadOne(toSend, { destArea: "office", destFolderName: "Selection Photos", notify: [] });
-        if (out.ok && out.fileId) optPhotos.push({ id: out.fileId, name: out.fileName || f.name });
-        else failed++;
-      } catch (e) { failed++; console.warn("option photo failed", e); }
+    btn.textContent = "Uploading photo…";
+    try {
+      const out = await uploadOne(fileInput.files[0], { destArea: "office", destFolderName: "Selection Photos", notify: [] });
+      if (out.ok) { fields.imgFileId = out.fileId; fields.imgFileName = out.fileName; }
+      else throw new Error(out.error || "upload failed");
+    } catch (e) {
+      btn.disabled = false; btn.textContent = orig;
+      alert("Photo upload failed: " + e.message);
+      return;
     }
     btn.disabled = false; btn.textContent = orig;
-    if (failed) alert(failed + " photo(s) failed to upload. The rest were saved.");
   }
-
-  // Persist the photo list. Keep first as legacy imgFileId for back-compat.
-  fields.photoIds = optPhotos.map((p) => ({ id: p.id, name: p.name }));
-  fields.imgFileId = optPhotos.length ? optPhotos[0].id : "";
-  fields.imgFileName = optPhotos.length ? (optPhotos[0].name || "") : "";
 
   it.options = it.options || [];
   if (editingOptId) {
@@ -732,13 +686,8 @@ function renderChangeOrders() {
     for (const l of (co.lines || [])) {
       const row = document.createElement("div");
       row.className = "co-line";
-      const parts = String(l.desc || "").split(/\r?\n/);
-      const titleText = (parts.shift() || "").trim();
-      const bodyText = parts.join("\n").trim();
       const tag = l.budgetId ? " <span class='co-src'>· from budget</span>" : "";
-      let left = "<div class='co-line-title'>" + escapeHtml(titleText) + tag + "</div>";
-      if (bodyText) left += "<div class='co-line-body'>" + escapeHtml(bodyText).replace(/\r?\n/g, "<br>") + "</div>";
-      row.innerHTML = "<div class='co-line-left'>" + left + "</div><b>" + fmtMoney(l.amount) + "</b>";
+      row.innerHTML = "<span>" + escapeHtml(l.desc || "") + tag + "</span><b>" + fmtMoney(l.amount) + "</b>";
       lines.appendChild(row);
     }
     card.appendChild(lines);
@@ -760,12 +709,6 @@ function renderChangeOrders() {
       edit.textContent = "✎ Edit";
       edit.addEventListener("click", () => openCoModal(co.id));
       acts.appendChild(edit);
-
-      const pdf = document.createElement("button");
-      pdf.className = "btn-ghost sel-mini";
-      pdf.textContent = "⬇ Download PDF";
-      pdf.addEventListener("click", () => downloadCoPdf(co.id, pdf));
-      acts.appendChild(pdf);
 
       // Visible-to-customer toggle
       const vis = document.createElement("button");
@@ -828,11 +771,6 @@ function renderChangeOrders() {
       dc.textContent = "Decline";
       dc.addEventListener("click", () => respondChangeOrder(co.id, "declined", ""));
       acts.appendChild(dc);
-      const cpdf = document.createElement("button");
-      cpdf.className = "btn-ghost sel-mini";
-      cpdf.textContent = "⬇ Download PDF";
-      cpdf.addEventListener("click", () => downloadCoPdf(co.id, cpdf));
-      acts.appendChild(cpdf);
       card.appendChild(acts);
     }
 
@@ -871,40 +809,23 @@ function renderCoDraftLines() {
   coDraftLines.forEach((l, idx) => {
     const row = document.createElement("div");
     row.className = "co-draft-row";
-
-    // Label line: shows the source (budget item name) so you can see what
-    // you're adjusting.
-    if (l.budgetId || l.desc) {
-      const tag = document.createElement("div");
-      tag.className = "co-src";
-      tag.textContent = l.budgetId ? ("Adjusting: " + (l.desc || "budget item")) : "Custom line";
-      row.appendChild(tag);
-    }
-
-    const fields = document.createElement("div");
-    fields.className = "co-draft-fields";
-
-    const d = document.createElement("textarea");
-    d.className = "co-draft-desc"; d.placeholder = "Description (press Enter for a new line)";
-    d.rows = 2;
+    const d = document.createElement("input");
+    d.type = "text"; d.className = "co-draft-desc"; d.placeholder = "Description";
     d.value = l.desc || "";
-    d.addEventListener("input", () => {
-      l.desc = d.value;
-      d.style.height = "auto";
-      d.style.height = d.scrollHeight + "px";
-    });
-
+    d.addEventListener("input", () => { l.desc = d.value; });
     const a = document.createElement("input");
     a.type = "number"; a.className = "co-draft-amt"; a.step = "0.01"; a.placeholder = "0.00";
     a.value = (l.amount !== undefined && l.amount !== "") ? l.amount : "";
     a.addEventListener("input", () => { l.amount = Number(a.value) || 0; updateCoTotal(); });
-
     const x = document.createElement("button");
     x.className = "btn-ghost sel-mini danger"; x.textContent = "✕";
     x.addEventListener("click", () => { coDraftLines.splice(idx, 1); renderCoDraftLines(); updateCoTotal(); });
-
-    fields.appendChild(d); fields.appendChild(a); fields.appendChild(x);
-    row.appendChild(fields);
+    if (l.budgetId) {
+      const tag = document.createElement("span");
+      tag.className = "co-src"; tag.textContent = "budget";
+      row.appendChild(tag);
+    }
+    row.appendChild(d); row.appendChild(a); row.appendChild(x);
     host.appendChild(row);
   });
   updateCoTotal();
@@ -965,60 +886,151 @@ function addBudgetLineToCo() {
 async function addCoToBudget(id) {
   const co = changeOrders.find((x) => x.id === id);
   if (!co || co.budgeted) return;
-  if (!confirm("Add this change order to the budget?\n\n• Creates line items under a \"Change Orders\" section\n• Adjusts any budget item you pulled from")) return;
+  const sectionName = (co.number || "Change Order");
+  if (!confirm("Add this change order to the budget?\n\n• Creates a separate \"" + sectionName + "\" section with every line\n• Does NOT change any of your existing budget items")) return;
 
   const stamp = Date.now();
   let n = 0;
   for (const l of (co.lines || [])) {
-    if (l.budgetId) {
-      // Adjust the pulled budget line's contract amount by the variance
-      const b = budget.find((x) => x.id === l.budgetId);
-      if (b) b.amount = r2((Number(b.amount) || 0) + Number(l.amount || 0));
-    } else {
-      // New custom line → its own budget row in a Change Orders section
-      n++;
-      budget.push({
-        id: "b" + stamp + "_co" + n,
-        section: "Change Orders",
-        desc: (co.number || "CO") + ": " + (l.desc || "Item"),
-        cat: "Contract",
-        amount: r2(Number(l.amount) || 0),
-        paid: 0,
-        coId: co.id
-      });
-    }
+    n++;
+    // Every CO line — pulled-from-budget or custom — becomes its own row in the
+    // change order's own section. Existing budget items are left untouched.
+    const title = String(l.desc || "Item").split(/\r?\n/)[0].trim() || "Item";
+    budget.push({
+      id: "b" + stamp + "_co" + n,
+      section: sectionName,
+      desc: title,
+      cat: "Contract",
+      amount: r2(Number(l.amount) || 0),
+      paid: 0,
+      coId: co.id
+    });
   }
   co.budgeted = true;
   await saveBudget();
   await saveChangeOrders();
   renderChangeOrders();
-  alert("Added to budget.");
+  alert("Added to budget as a separate \"" + sectionName + "\" section.");
 }
 
+let coInvoiceId = null;
 async function generateCoInvoice(id) {
   const co = changeOrders.find((x) => x.id === id);
   if (!co || co.invoiced) return;
+  coInvoiceId = id;
+  openCoInvoiceModal(co);
+}
+
+// Remaining draw invoices = customer invoices not fully paid (deposit already
+// paid stays out). Sorted oldest first so you fill them in order.
+function remainingDrawInvoices() {
+  return custInvoices
+    .filter((iv) => {
+      const st = CI_STATUS(iv);
+      return st.total > 0 && st.paid < st.total; // not fully paid
+    })
+    .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+}
+
+function openCoInvoiceModal(co) {
   const total = coTotal(co);
-  if (!confirm("Generate a customer invoice for " + fmtMoney(total) + "?")) return;
+  $("coinv-total").textContent = fmtMoney(total);
+  const rem = remainingDrawInvoices();
+  const host = $("coinv-draws");
+  host.innerHTML = "";
+  if (!rem.length) {
+    host.innerHTML = "<div class='lbl-hint'>No remaining unpaid draws found. You can still create a standalone invoice below.</div>";
+  } else {
+    rem.forEach((iv) => {
+      const st = CI_STATUS(iv);
+      const due = r2(st.total - st.paid);
+      const row = document.createElement("div");
+      row.className = "coinv-row";
+      const label = document.createElement("div");
+      label.className = "coinv-label";
+      label.innerHTML = "<b>" + escapeHtml(iv.number || iv.title || "Draw") + "</b><span>" +
+        fmtMoney(due) + " due" + (iv.date ? " · " + escapeHtml(fmtDateLong(iv.date)) : "") + "</span>";
+      const inp = document.createElement("input");
+      inp.type = "number"; inp.step = "0.01"; inp.className = "coinv-amt";
+      inp.placeholder = "0.00"; inp.dataset.invid = iv.id;
+      inp.addEventListener("input", updateCoInvoiceCounter);
+      row.appendChild(label);
+      row.appendChild(inp);
+      host.appendChild(row);
+    });
+  }
+  updateCoInvoiceCounter();
+  $("coinv-modal").classList.remove("hidden");
+}
+
+function updateCoInvoiceCounter() {
+  const co = changeOrders.find((x) => x.id === coInvoiceId);
+  const total = co ? coTotal(co) : 0;
+  let assigned = 0;
+  document.querySelectorAll("#coinv-draws .coinv-amt").forEach((i) => { assigned = r2(assigned + (Number(i.value) || 0)); });
+  const remaining = r2(total - assigned);
+  $("coinv-assigned").textContent = fmtMoney(assigned);
+  $("coinv-remaining").textContent = fmtMoney(remaining);
+  $("coinv-remaining").style.color = Math.abs(remaining) < 0.01 ? "#1a7f45" : (remaining < 0 ? "#c8102e" : "");
+}
+
+async function coInvoiceStandalone() {
+  const co = changeOrders.find((x) => x.id === coInvoiceId);
+  if (!co) return;
+  const total = coTotal(co);
   const inv = {
-    id: "ci" + Date.now(),
-    number: "",
-    date: ymd(new Date()),
+    id: "ci" + Date.now(), number: "", date: ymd(new Date()),
     title: (co.number || "CO") + (co.title ? " — " + co.title : ""),
     serviceAddress: currentProject.name,
     sections: [{ id: "sco", name: co.number || "Change Order", items: (co.lines || []).map((l, i) => ({ id: "ico" + i, desc: l.desc, qty: 1, rate: l.amount, total: l.amount })) }],
     totals: { subtotal: total, discount: 0, tax: 0, total: total, deposit: 0 },
-    amountDue: total,
-    payments: [],
-    visible: false,
-    coId: co.id
+    amountDue: total, payments: [], visible: false, coId: co.id
   };
   custInvoices.unshift(inv);
   co.invoiced = true;
   await saveChangeOrders();
   await pushCollection(pkey("CustInvoices"), custInvoices);
+  closeModal("coinv-modal");
   renderChangeOrders();
-  alert("Invoice created (hidden from customer until you make it visible in the Invoices tab).");
+  alert("Standalone invoice created (hidden until you make it visible in Invoices).");
+}
+
+async function coInvoiceSpread() {
+  const co = changeOrders.find((x) => x.id === coInvoiceId);
+  if (!co) return;
+  const total = coTotal(co);
+  const assigns = [];
+  let assigned = 0;
+  document.querySelectorAll("#coinv-draws .coinv-amt").forEach((i) => {
+    const amt = r2(Number(i.value) || 0);
+    if (amt) { assigns.push({ invId: i.dataset.invid, amt }); assigned = r2(assigned + amt); }
+  });
+  if (!assigns.length) { alert("Enter how much of the change order to add to each draw, or use Invoice standalone."); return; }
+  if (Math.abs(assigned - total) > 0.01) {
+    if (!confirm("You've assigned " + fmtMoney(assigned) + " of the " + fmtMoney(total) + " change order.\n\nContinue anyway? (The unassigned part won't be invoiced.)")) return;
+  }
+  // Raise each chosen draw invoice's milestone/total by its assigned amount and
+  // append the CO reference as a line item.
+  for (const a of assigns) {
+    const iv = custInvoices.find((x) => x.id === a.invId);
+    if (!iv) continue;
+    iv.totals = iv.totals || { subtotal: 0, discount: 0, tax: 0, total: 0, deposit: 0 };
+    iv.totals.subtotal = r2((Number(iv.totals.subtotal) || 0) + a.amt);
+    iv.totals.total = r2((Number(iv.totals.total) || 0) + a.amt);
+    if (iv.amountDue !== undefined) iv.amountDue = r2((Number(iv.amountDue) || 0) + a.amt);
+    iv.sections = iv.sections || [];
+    iv.sections.push({
+      id: "sco" + Date.now(),
+      name: (co.number || "Change Order"),
+      items: [{ id: "ico" + Date.now(), desc: (co.number || "CO") + (co.title ? " — " + co.title : ""), qty: 1, rate: a.amt, total: a.amt }]
+    });
+  }
+  co.invoiced = true;
+  await saveChangeOrders();
+  await pushCollection(pkey("CustInvoices"), custInvoices);
+  closeModal("coinv-modal");
+  renderChangeOrders();
+  alert("Change order spread across " + assigns.length + " draw(s).");
 }
 
 // ----- Customer sign / respond -----
@@ -1748,35 +1760,6 @@ async function loadFolderTree() {
   } catch (e) { console.warn("folders load failed", e); }
 }
 
-// Shrink/convert images before upload (fixes webp + large-photo upload fails).
-// HEIC/HEIF pass through untouched (canvas can't reliably encode them).
-async function compressImageSafe(file, maxDim, quality) {
-  maxDim = maxDim || 1600; quality = quality || 0.8;
-  if (!file || !/^image\//i.test(file.type) || /heic|heif/i.test(file.type)) return file;
-  try {
-    const dataUrl = await new Promise((res, rej) => {
-      const r = new FileReader();
-      r.onload = () => res(r.result); r.onerror = () => rej(new Error("read"));
-      r.readAsDataURL(file);
-    });
-    const img = await new Promise((res, rej) => {
-      const im = new Image();
-      im.onload = () => res(im); im.onerror = () => rej(new Error("decode"));
-      im.src = dataUrl;
-    });
-    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-    if (scale === 1 && file.size < 900 * 1024 && /jpe?g/i.test(file.type)) return file;
-    const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
-    const canvas = document.createElement("canvas");
-    canvas.width = w; canvas.height = h;
-    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-    const blob = await new Promise((res) => canvas.toBlob(res, "image/jpeg", quality));
-    if (!blob) return file;
-    const outName = (file.name || "photo").replace(/\.(heic|heif|png|webp)$/i, ".jpg");
-    return new File([blob], outName, { type: "image/jpeg" });
-  } catch (e) { console.warn("compress failed", e); return file; }
-}
-
 async function uploadOne(file, dest) {
   const b64 = await new Promise((res, rej) => {
     const r = new FileReader();
@@ -2482,16 +2465,9 @@ function subLabel(subId) {
 // Customer: all (their project schedule).
 // Tasks store the sub's RECORD id in t.sub, so map this sub's login email
 // to their sub record id(s) first.
-// A sub record can link multiple portal logins (emails). Collect them all.
-function subEmails(s) {
-  const out = [];
-  if (s.email) out.push(String(s.email).toLowerCase());
-  if (Array.isArray(s.emails)) s.emails.forEach((e) => { if (e) out.push(String(e).toLowerCase()); });
-  return Array.from(new Set(out));
-}
 function mySubIds() {
   const em = (currentUser.email || "").toLowerCase();
-  return subs.filter((s) => subEmails(s).includes(em)).map((s) => s.id);
+  return subs.filter((s) => (s.email || "").toLowerCase() === em).map((s) => s.id);
 }
 function visibleSchedule() {
   if (isSub()) {
@@ -5687,199 +5663,7 @@ async function generateEstimatePdf(e, progress, kind) {
   doc.save(name);
 }
 
-// ---- Change Order PDF (branded, standalone) ----
-async function generateChangeOrderPdf(co, progress) {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: "mm", format: "letter" });
-  const W = 215.9, H = 279.4, M = 14, FOOT = 14;
-  const NAVY = [15, 36, 64], RED = [200, 16, 46], SLATE = [64, 80, 106], GRAY = [138, 150, 168], LINE = [228, 233, 241];
-  let y = M;
-  const ensure = (need) => { if (y + need > H - M - FOOT) { doc.addPage(); y = M; } };
-  const money = (v) => "$" + (Number(v) || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-
-  // Header: logo + company
-  let logoH = 0;
-  try {
-    progress && progress("Loading logo…");
-    const logo = await urlToDataUrl(COMPANY.logo);
-    const fmt = /png/i.test(logo.type) ? "PNG" : "JPEG";
-    const lw = 42, lh = lw * 402 / 720;
-    doc.addImage(logo.data, fmt, M, y, lw, lh);
-    logoH = lh;
-  } catch (err) {
-    doc.setFont("helvetica", "bold").setFontSize(16).setTextColor(...NAVY);
-    doc.text(COMPANY.name, M, y + 8);
-    logoH = 12;
-  }
-  doc.setFontSize(9).setTextColor(...SLATE).setFont("helvetica", "normal");
-  const co1 = [COMPANY.name, COMPANY.address, COMPANY.cityState, COMPANY.email];
-  let cy = y + logoH + 5;
-  co1.forEach((t, i) => {
-    if (i === 0) doc.setFont("helvetica", "bold").setTextColor(...NAVY);
-    else doc.setFont("helvetica", "normal").setTextColor(...SLATE);
-    doc.text(t, M, cy); cy += 4.5;
-  });
-
-  // Title block (right)
-  doc.setFont("helvetica", "bold").setFontSize(20).setTextColor(...NAVY);
-  doc.text("CHANGE ORDER", W - M, y + 8, { align: "right" });
-  doc.setFontSize(10).setTextColor(...SLATE).setFont("helvetica", "normal");
-  doc.text(co.number || "CO", W - M, y + 15, { align: "right" });
-  if (co.date) doc.text(fmtDateLong(co.date), W - M, y + 20, { align: "right" });
-  if (co.title) doc.text(String(co.title), W - M, y + 25, { align: "right" });
-
-  y = Math.max(cy, y + 30) + 4;
-  doc.setDrawColor(...RED).setLineWidth(0.8).line(M, y, W - M, y);
-  y += 8;
-
-  // Line items header
-  doc.setFont("helvetica", "bold").setFontSize(9).setTextColor(...GRAY);
-  doc.text("DESCRIPTION", M, y);
-  doc.text("AMOUNT", W - M, y, { align: "right" });
-  y += 3;
-  doc.setDrawColor(...LINE).setLineWidth(0.3).line(M, y, W - M, y);
-  y += 5;
-
-  let total = 0;
-  const amtColW = 34;              // reserved width for the AMOUNT column
-  const descW = W - M - M - amtColW;
-  const descRight = W - M - amtColW - 4; // where description text must stop
-  (co.lines || []).forEach((l) => {
-    const amt = Number(l.amount) || 0;
-    total += amt;
-
-    // First line (before the first Enter) = title; the rest = description.
-    const parts = String(l.desc || "Line item").split(/\r?\n/);
-    const titleText = (parts.shift() || "").trim();
-    const bodyLines = parts.join("\n").trim();
-
-    // Wrap title and body to the description column width.
-    const titleWrapped = doc.setFont("helvetica", "bold").setFontSize(10.5)
-      .splitTextToSize(titleText || " ", descRight - M);
-    let bodyWrapped = [];
-    if (bodyLines) {
-      doc.setFont("helvetica", "normal").setFontSize(9.5);
-      bodyLines.split(/\r?\n/).forEach((ln) => {
-        bodyWrapped = bodyWrapped.concat(doc.splitTextToSize(ln || " ", descW));
-      });
-    }
-
-    const titleH = titleWrapped.length * 5.2;
-    // Keep the title with at least its first 2 body lines (avoid orphan title).
-    ensure(titleH + 3 + Math.min(bodyWrapped.length, 2) * 4.6 + 6);
-
-    const rowTop = y - 3;
-
-    // Shaded title band (light translucent navy) behind the title only.
-    doc.setFillColor(235, 239, 245); // subtle navy tint
-    doc.rect(M - 2, rowTop, descRight - M + 4, titleH + 3, "F");
-
-    // Title text
-    doc.setFont("helvetica", "bold").setFontSize(10.5).setTextColor(...NAVY);
-    doc.text(titleWrapped, M, y + 1.5);
-
-    // Amount (aligned to the title's first line, right column)
-    doc.setFont("helvetica", "bold").setFontSize(10.5).setTextColor(...NAVY);
-    doc.text(money(amt), W - M, y + 1.5, { align: "right" });
-
-    let yy = y + titleH + 1;
-
-    // Description body — render line by line so long scopes flow onto the
-    // next page instead of being cut off at the bottom margin.
-    if (bodyWrapped.length) {
-      doc.setFont("helvetica", "normal").setFontSize(9.5).setTextColor(...SLATE);
-      yy += 3;
-      const lineH = 4.6;
-      for (const ln of bodyWrapped) {
-        if (yy > H - M - FOOT) { doc.addPage(); yy = M; }
-        doc.text(ln, M, yy);
-        yy += lineH;
-      }
-    }
-
-    y = yy + 4;
-    if (y > H - M - FOOT) { doc.addPage(); y = M; }
-    // Divider stops before the amount column so it never crosses the number.
-    doc.setDrawColor(...LINE).setLineWidth(0.2).line(M, y - 2, descRight, y - 2);
-    y += 1;
-  });
-
-  // Total
-  ensure(16);
-  y += 4;
-  doc.setDrawColor(...NAVY).setLineWidth(0.5).line(W - M - 70, y, W - M, y);
-  y += 7;
-  doc.setFont("helvetica", "bold").setFontSize(13).setTextColor(...NAVY);
-  doc.text("Change Order Total", W - M - 70, y);
-  doc.setTextColor(...RED);
-  doc.text(money(total), W - M, y, { align: "right" });
-  y += 12;
-
-  // Contract summary: original contract (from the customer invoice) + this CO
-  // = revised contract total, so the customer sees the new number.
-  const contractTotal = custInvoices.reduce((mx, iv) => {
-    const t = iv.totals ? Number(iv.totals.total) || 0 : 0;
-    return t > mx ? t : mx;
-  }, 0);
-  if (contractTotal > 0) {
-    ensure(26);
-    doc.setDrawColor(...LINE).setLineWidth(0.3).line(W - M - 90, y, W - M, y);
-    y += 6;
-    doc.setFont("helvetica", "normal").setFontSize(10).setTextColor(...SLATE);
-    doc.text("Original contract total", W - M - 90, y);
-    doc.text(money(contractTotal), W - M, y, { align: "right" });
-    y += 6;
-    doc.text("This change order", W - M - 90, y);
-    doc.text((total < 0 ? "-" : "+") + money(Math.abs(total)), W - M, y, { align: "right" });
-    y += 3;
-    doc.setDrawColor(...NAVY).setLineWidth(0.5).line(W - M - 90, y, W - M, y);
-    y += 6;
-    doc.setFont("helvetica", "bold").setFontSize(12).setTextColor(...NAVY);
-    doc.text("Revised contract total", W - M - 90, y);
-    doc.setTextColor(...RED);
-    doc.text(money(contractTotal + total), W - M, y, { align: "right" });
-    y += 12;
-  }
-
-  // Signature block
-  if (co.status === "approved" && co.signedName) {
-    ensure(20);
-    doc.setFont("helvetica", "normal").setFontSize(10).setTextColor(...SLATE);
-    doc.text("Approved & signed by: " + co.signedName, M, y);
-    if (co.respondedAt) doc.text("Date: " + fmtDateLong(co.respondedAt.slice(0, 10)), M, y + 5);
-  } else {
-    ensure(24);
-    doc.setDrawColor(...GRAY).setLineWidth(0.3);
-    doc.line(M, y + 10, M + 80, y + 10);
-    doc.line(W - M - 60, y + 10, W - M, y + 10);
-    doc.setFontSize(8).setTextColor(...GRAY);
-    doc.text("Customer signature", M, y + 14);
-    doc.text("Date", W - M - 60, y + 14);
-  }
-
-  // Footer
-  doc.setFontSize(8).setTextColor(...GRAY).setFont("helvetica", "normal");
-  doc.text(COMPANY.name + " · " + COMPANY.email, W / 2, H - 8, { align: "center" });
-
-  const name = safeName((co.number || "ChangeOrder") + (co.title ? " - " + co.title : "")) + ".pdf";
-  doc.save(name);
-}
-
-async function downloadCoPdf(coId, btn) {
-  const co = changeOrders.find((x) => x.id === coId);
-  if (!co) return;
-  const orig = btn ? btn.textContent : "";
-  if (btn) { btn.disabled = true; btn.textContent = "Building PDF…"; }
-  try {
-    await loadScript(JSPDF_URL);
-    await generateChangeOrderPdf(co, (m) => { if (btn) btn.textContent = m; });
-    if (btn) btn.textContent = "✓ Downloaded";
-  } catch (e) {
-    console.warn("CO pdf failed", e);
-    if (btn) btn.textContent = "✗ Failed";
-  }
-  if (btn) setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2500);
-}
+// Push (or re-push) an estimate to the customer: flips status to "sent",
 // clears any prior response so they can sign the revision, and notifies them.
 async function sendEstimateToCustomer() {
   if (!previewEstId) return;
@@ -6896,39 +6680,9 @@ function openSubModal(id) {
   $("sub-trade").value = s ? (s.trade || TRADES[0]) : TRADES[0];
   $("sub-phone").value = s ? (s.phone || "") : "";
   $("sub-email").value = s ? (s.email || "") : "";
-  buildSubLoginChecks(s);
   $("sub-notes").value = s ? (s.notes || "") : "";
   $("sub-delete").classList.toggle("hidden", !s);
   $("sub-modal").classList.remove("hidden");
-}
-
-// Checkbox list of portal login users (subs) to link to this sub record.
-// Whoever is checked will see tasks assigned to this sub on their calendar.
-function buildSubLoginChecks(s) {
-  const host = $("sub-logins");
-  if (!host) return;
-  host.innerHTML = "";
-  const linked = s ? subEmails(s) : [];
-  const members = (SESSION.members || [])
-    .filter((m) => m.role === "sub")
-    .sort((a, b) => a.email.localeCompare(b.email));
-  if (!members.length) {
-    host.innerHTML = "<div class='lbl-hint'>No sub logins found. Add them in your Users sheet first.</div>";
-    return;
-  }
-  for (const m of members) {
-    const row = document.createElement("label");
-    row.className = "sub-login-row";
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.value = m.email;
-    if (linked.includes(m.email.toLowerCase())) cb.checked = true;
-    const span = document.createElement("span");
-    span.textContent = m.email;
-    row.appendChild(cb);
-    row.appendChild(span);
-    host.appendChild(row);
-  }
 }
 
 async function saveSub() {
@@ -6940,7 +6694,6 @@ async function saveSub() {
     trade: $("sub-trade").value,
     phone: $("sub-phone").value.trim(),
     email: $("sub-email").value.trim(),
-    emails: Array.from(document.querySelectorAll("#sub-logins input:checked")).map((c) => c.value.toLowerCase()),
     notes: $("sub-notes").value.trim()
   };
   if (editingSubId) {
@@ -7371,6 +7124,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("co-add-line").addEventListener("click", () => { coDraftLines.push({ desc: "", amount: 0 }); renderCoDraftLines(); });
   $("co-sign-cancel").addEventListener("click", () => closeModal("co-sign-modal"));
   $("co-sign-save").addEventListener("click", submitCoSign);
+  $("coinv-cancel").addEventListener("click", () => closeModal("coinv-modal"));
+  $("coinv-standalone").addEventListener("click", coInvoiceStandalone);
+  $("coinv-spread").addEventListener("click", coInvoiceSpread);
   $("budget-delete").addEventListener("click", deleteBudgetItem);
 
   // Logs
@@ -7427,7 +7183,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLightbox(); });
 
   // Click outside modal closes it
-  for (const id of ["task-modal", "budget-modal", "draw-modal", "selection-modal", "option-modal", "co-modal", "co-sign-modal", "mileage-modal", "fuel-modal", "log-modal", "sub-modal", "task-view-modal", "est-modal", "est-view-modal", "est-preview-modal", "cost-modal", "time-modal", "ci-modal"]) {
+  for (const id of ["task-modal", "budget-modal", "draw-modal", "selection-modal", "option-modal", "co-modal", "co-sign-modal", "coinv-modal", "mileage-modal", "fuel-modal", "log-modal", "sub-modal", "task-view-modal", "est-modal", "est-view-modal", "est-preview-modal", "cost-modal", "time-modal", "ci-modal"]) {
     $(id).addEventListener("click", (e) => { if (e.target.id === id) closeModal(id); });
   }
 

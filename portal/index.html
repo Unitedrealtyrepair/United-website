@@ -7,7 +7,7 @@
   <!-- URR Portal v148 -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=158" />
+  <link rel="stylesheet" href="styles.css?v=159" />
 </head>
 <body>
 
@@ -532,6 +532,27 @@
       </div>
     </div>
 
+    <!-- ===== Change Order → Invoice (standalone or spread across draws) ===== -->
+    <div id="coinv-modal" class="modal-overlay hidden">
+      <div class="modal">
+        <h2>Invoice Change Order</h2>
+        <div class="co-meta">Change order total: <b id="coinv-total"></b></div>
+        <p class="lbl-hint" style="margin:10px 0 4px">Option 1 — bill the change order on its own:</p>
+        <button id="coinv-standalone" class="btn-ghost" style="width:100%">Create standalone invoice</button>
+        <p class="lbl-hint" style="margin:16px 0 4px">Option 2 — spread it across remaining draws. Enter how much of the change order to add to each:</p>
+        <div id="coinv-draws"></div>
+        <div class="coinv-counter">
+          <span>Assigned <b id="coinv-assigned">$0</b></span>
+          <span>Remaining <b id="coinv-remaining">$0</b></span>
+        </div>
+        <div class="modal-actions">
+          <button id="coinv-cancel" class="btn-ghost">Cancel</button>
+          <span class="spacer"></span>
+          <button id="coinv-spread" class="btn-primary">Apply to draws</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ===== Log modal ===== -->
     <div id="log-modal" class="modal-overlay hidden">
       <div class="modal">
@@ -887,6 +908,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=158"></script>
+  <script src="app.js?v=159"></script>
 </body>
 </html>

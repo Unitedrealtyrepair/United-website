@@ -1,4 +1,4 @@
-/* URR Portal v158 */
+/* URR Portal v159 */
 :root {
   --navy: #0f2440;
   --navy-light: #1b3a63;
@@ -1958,9 +1958,19 @@ body {
 .sub-login-row input { width: auto; margin: 0; }
 
 /* ===== Selection option: multiple photos ===== */
-.sel-opt-imgs { display: flex; gap: 3px; overflow-x: auto; }
-.sel-opt-imgs .sel-opt-img { flex: 0 0 auto; width: 60%; max-width: 180px; aspect-ratio: 4/3; border-radius: 6px; }
+.sel-opt-imgs { display: flex; gap: 3px; overflow-x: auto; background: #fff; }
+.sel-opt-imgs .sel-opt-img { flex: 0 0 auto; width: 55%; max-width: 200px; aspect-ratio: 3/4; border-radius: 6px; background: #fff; }
+.sel-opt-imgs .sel-opt-img img { object-fit: contain; }
 .sel-opt-imgs .sel-opt-img:only-child { width: 100%; max-width: none; }
 .opt-photos { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; }
 .opt-photo-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 12.5px; color: var(--navy); }
 .opt-photo-x { background: none; border: none; color: var(--red); font-size: 13px; cursor: pointer; padding: 0; width: auto; }
+
+
+/* ===== Change Order → invoice spread modal ===== */
+.coinv-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.coinv-label { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 13px; }
+.coinv-label b { color: var(--navy); }
+.coinv-label span { color: #6b7687; font-size: 12px; }
+.coinv-amt { width: 120px; flex: 0 0 120px; }
+.coinv-counter { display: flex; justify-content: space-between; font-size: 14px; color: var(--navy); margin: 12px 0 4px; padding-top: 8px; border-top: 1px solid var(--border); }
