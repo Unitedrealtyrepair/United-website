@@ -1,4 +1,4 @@
-// URR Portal v172 — admin can edit approved/signed date-time on estimates and change orders (Boise time)
+// URR Portal v173 — PDF: Terri signature ends original contract before CO pages; original total shows first, updated-total recap after CO
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -5741,30 +5741,28 @@ async function generateEstimatePdf(e, progress, kind) {
     doc.text(val, colAmt, y, { align: "right" });
     y += opts && opts.big ? 7.5 : 5.5;
   };
+  const coSumP = (Array.isArray(n.coNotes) ? n.coNotes : []).reduce((s, c) => s + (Number(c.amount) || 0), 0);
+  const origTotal = r2(n.totals.total - coSumP);
+  let paidSum = 0;
+  for (const p of n.payments) paidSum = r2(paidSum + (Number(p.amount) || 0));
+
   ensure(30);
   doc.setDrawColor(...NAVY).setLineWidth(0.8);
   doc.line(tx, y - 3, W - M, y - 3);
   trow("Subtotal", money(n.totals.subtotal));
   if (n.totals.discountAmt) trow("Discount", "-" + money(n.totals.discountAmt));
   if (n.totals.tax) trow("Tax", money(n.totals.tax));
-  const coSumP = (Array.isArray(n.coNotes) ? n.coNotes : []).reduce((s, c) => s + (Number(c.amount) || 0), 0);
   if (coSumP) {
-    trow("Contract total", money(r2(n.totals.total - coSumP)), { bold: true });
-    for (const c of n.coNotes) {
-      trow("+ " + (c.number || "Change Order") + (c.title ? " — " + c.title : ""), "+" + money(c.amount));
-    }
-    trow("Updated contract total", money(n.totals.total), { bold: true, big: true });
+    // Original contract only here. The change order breakdown + updated total
+    // comes after the change order pages below.
+    trow("Contract total", money(origTotal), { bold: true, big: true });
   } else {
     trow("Total", money(n.totals.total), { bold: true, big: true });
-  }
-  if (n.totals.depositAmt) trow("Deposit due", money(n.totals.depositAmt), { color: RED });
-  if (n.payments.length) {
-    let paidSum = 0;
+    if (n.totals.depositAmt) trow("Deposit due", money(n.totals.depositAmt), { color: RED });
     for (const p of n.payments) {
-      paidSum = r2(paidSum + (Number(p.amount) || 0));
       trow("Payment " + (p.date || "") + (p.method ? " · " + p.method : ""), "-" + money(p.amount));
     }
-    trow("Balance due", money(r2(n.totals.total - paidSum)), { bold: true, big: true, color: RED });
+    if (n.payments.length) trow("Balance due", money(r2(n.totals.total - paidSum)), { bold: true, big: true, color: RED });
   }
   y += 2;
 
@@ -5816,6 +5814,25 @@ async function generateEstimatePdf(e, progress, kind) {
       y += 3.9;
     }
     y += 4;
+  }
+
+  // ---- Original contract signature (Terri) — ends the original contract,
+  // before any change orders ----
+  if (n.status === "approved" && n.signedName) {
+    ensure(24);
+    doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(...SLATE);
+    doc.text("Accepted and agreed:", M, y);
+    y += 8;
+    doc.setFont("helvetica", "bolditalic").setFontSize(13).setTextColor(...NAVY);
+    doc.text(n.signedName, M, y);
+    doc.setDrawColor(...SLATE).setLineWidth(0.3);
+    doc.line(M, y + 2, M + 80, y + 2);
+    doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(...GRAY);
+    doc.text("Signature", M, y + 6);
+    if (n.respondedAt) {
+      doc.text("Signed " + sigStamp(n.respondedAt, true), M + 90, y);
+    }
+    y += 12;
   }
 
   // ---- Change order(s): itemized, each on its own page ----
@@ -5884,6 +5901,22 @@ async function generateEstimatePdf(e, progress, kind) {
       }
       coPageRanges.push({ from: coStartPage, to: doc.getNumberOfPages(), name: c.signedName || "" });
     }
+
+    // ---- Updated contract totals recap (after the change order pages) ----
+    ensure(40);
+    doc.setDrawColor(...NAVY).setLineWidth(0.8);
+    doc.line(tx, y - 3, W - M, y - 3);
+    trow("Contract total", money(origTotal), { bold: true });
+    for (const c of n.coNotes) {
+      trow("+ " + (c.number || "Change Order") + (c.title ? " — " + c.title : ""), "+" + money(c.amount));
+    }
+    trow("Updated contract total", money(n.totals.total), { bold: true, big: true });
+    if (n.totals.depositAmt) trow("Deposit due", money(n.totals.depositAmt), { color: RED });
+    for (const p of n.payments) {
+      trow("Payment " + (p.date || "") + (p.method ? " · " + p.method : ""), "-" + money(p.amount));
+    }
+    if (n.payments.length) trow("Balance due", money(r2(n.totals.total - paidSum)), { bold: true, big: true, color: RED });
+    y += 2;
   }
 
   // ---- Attachments ----
@@ -5911,23 +5944,6 @@ async function generateEstimatePdf(e, progress, kind) {
     const nl = doc.splitTextToSize(n.customerNotes, W - 2 * M);
     for (const line of nl) { ensure(4.5); doc.text(line, M, y); y += 4.3; }
     y += 3;
-  }
-
-  // ---- Signature block ----
-  if (n.status === "approved" && n.signedName) {
-    ensure(24);
-    doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(...SLATE);
-    doc.text("Accepted and agreed:", M, y);
-    y += 8;
-    doc.setFont("helvetica", "bolditalic").setFontSize(13).setTextColor(...NAVY);
-    doc.text(n.signedName, M, y);
-    doc.setDrawColor(...SLATE).setLineWidth(0.3);
-    doc.line(M, y + 2, M + 80, y + 2);
-    doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(...GRAY);
-    doc.text("Signature", M, y + 6);
-    if (n.respondedAt) {
-      doc.text("Signed " + sigStamp(n.respondedAt, true), M + 90, y);
-    }
   }
 
   // ---- Footer on EVERY page ----
