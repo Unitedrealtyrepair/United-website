@@ -1,4 +1,4 @@
-// URR Portal v174 — keep full totals block together in original section; Terri signature still ends original contract before CO pages
+// URR Portal v175 — totals: subtotal shows original (pre-CO) so it reconciles to contract total, then +CO = updated total
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -5200,11 +5200,12 @@ function renderEstimateDoc(e, host, kind) {
 
   const sums = document.createElement("div");
   sums.className = "est-sums ev-sums doc-sums";
-  let sumsHtml = "<div><span>Subtotal</span><b>" + fmtMoney(n.totals.subtotal) + "</b></div>";
+  const coSum = (Array.isArray(n.coNotes) ? n.coNotes : []).reduce((s, c) => s + (Number(c.amount) || 0), 0);
+  const origSub = r2((Number(n.totals.subtotal) || 0) - coSum);
+  let sumsHtml = "<div><span>Subtotal</span><b>" + fmtMoney(coSum ? origSub : n.totals.subtotal) + "</b></div>";
   if (n.totals.discountAmt) sumsHtml += "<div><span>Discount</span><b>−" + fmtMoney(n.totals.discountAmt) + "</b></div>";
   if (n.totals.tax) sumsHtml += "<div><span>Tax</span><b>" + fmtMoney(n.totals.tax) + "</b></div>";
 
-  const coSum = (Array.isArray(n.coNotes) ? n.coNotes : []).reduce((s, c) => s + (Number(c.amount) || 0), 0);
   if (coSum) {
     // The stored total already includes the change order(s). Show the original
     // contract total, then the change order, then the updated total.
@@ -5743,22 +5744,28 @@ async function generateEstimatePdf(e, progress, kind) {
   };
   const coSumP = (Array.isArray(n.coNotes) ? n.coNotes : []).reduce((s, c) => s + (Number(c.amount) || 0), 0);
   const origTotal = r2(n.totals.total - coSumP);
+  const origSubtotal = r2((Number(n.totals.subtotal) || 0) - coSumP);
   let paidSum = 0;
   for (const p of n.payments) paidSum = r2(paidSum + (Number(p.amount) || 0));
 
   ensure(30);
   doc.setDrawColor(...NAVY).setLineWidth(0.8);
   doc.line(tx, y - 3, W - M, y - 3);
-  trow("Subtotal", money(n.totals.subtotal));
-  if (n.totals.discountAmt) trow("Discount", "-" + money(n.totals.discountAmt));
-  if (n.totals.tax) trow("Tax", money(n.totals.tax));
   if (coSumP) {
+    // Show the ORIGINAL contract figures first (subtotal/discount reconcile to
+    // the original contract total), then the change order, then updated total.
+    trow("Subtotal", money(origSubtotal));
+    if (n.totals.discountAmt) trow("Discount", "-" + money(n.totals.discountAmt));
+    if (n.totals.tax) trow("Tax", money(n.totals.tax));
     trow("Contract total", money(origTotal), { bold: true });
     for (const c of n.coNotes) {
       trow("+ " + (c.number || "Change Order") + (c.title ? " — " + c.title : ""), "+" + money(c.amount));
     }
     trow("Updated contract total", money(n.totals.total), { bold: true, big: true });
   } else {
+    trow("Subtotal", money(n.totals.subtotal));
+    if (n.totals.discountAmt) trow("Discount", "-" + money(n.totals.discountAmt));
+    if (n.totals.tax) trow("Tax", money(n.totals.tax));
     trow("Total", money(n.totals.total), { bold: true, big: true });
   }
   if (n.totals.depositAmt) trow("Deposit due", money(n.totals.depositAmt), { color: RED });
