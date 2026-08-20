@@ -1,4 +1,4 @@
-// URR Portal v176 — payment schedule shows % of change order applied to each milestone (records per-milestone CO split)
+// URR Portal v177 — editable draw milestone amounts in Edit Invoice; signed date+time in one prompt (iOS fix)
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -38,19 +38,22 @@ function sigInitials(name) {
 async function editSignedTime(opts) {
   const cur = opts.getIso ? opts.getIso() : "";
   // Prefill with existing Boise values if present.
-  let defDate = "", defTime = "";
+  let def = "";
   if (cur) {
     const d = new Date(cur);
-    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Boise", year: "numeric", month: "2-digit", day: "2-digit" }).format(d); // YYYY-MM-DD
-    defDate = parts;
-    defTime = new Intl.DateTimeFormat("en-GB", { timeZone: "America/Boise", hour: "2-digit", minute: "2-digit", hour12: false }).format(d); // HH:MM
+    const date = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Boise", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+    const time = new Intl.DateTimeFormat("en-GB", { timeZone: "America/Boise", hour: "2-digit", minute: "2-digit", hour12: false }).format(d);
+    def = date + " " + time;
   }
-  const dateStr = prompt("Signed date for " + (opts.who || "signer") + " (YYYY-MM-DD, Boise time):", defDate);
-  if (dateStr === null) return;
-  const timeStr = prompt("Signed time (24-hour HH:MM, Boise time):", defTime || "12:00");
-  if (timeStr === null) return;
-  const iso = boiseToIso(dateStr.trim(), timeStr.trim());
-  if (!iso) { alert("Couldn't read that date/time. Use YYYY-MM-DD and HH:MM (e.g. 2026-08-14 and 15:26)."); return; }
+  const raw = prompt(
+    "Signed date & time for " + (opts.who || "signer") + "\n\nEnter as: YYYY-MM-DD HH:MM (24-hour, Boise time)\nExample: 2026-08-14 15:26",
+    def || ""
+  );
+  if (raw === null) return;
+  const m = /^(\d{4}-\d{2}-\d{2})[ T]+(\d{1,2}:\d{2})/.exec(String(raw).trim());
+  if (!m) { alert("Couldn't read that. Use: YYYY-MM-DD HH:MM  (e.g. 2026-08-14 15:26)"); return; }
+  const iso = boiseToIso(m[1], m[2]);
+  if (!iso) { alert("Invalid date or time. Use: YYYY-MM-DD HH:MM  (e.g. 2026-08-14 15:26)"); return; }
   if (opts.setIso) await opts.setIso(iso);
   alert("Signed time updated to " + sigStamp(iso, true) + " (Boise).");
 }
@@ -811,6 +814,14 @@ function renderChangeOrders() {
         inv.textContent = co.invoiced ? "↻ Invoice again / spread" : "Generate invoice";
         inv.addEventListener("click", () => generateCoInvoice(co.id));
         acts.appendChild(inv);
+
+        if (co.invoiced) {
+          const reset = document.createElement("button");
+          reset.className = "btn-ghost sel-mini danger";
+          reset.textContent = "⟲ Reset CO from draws";
+          reset.addEventListener("click", () => resetCoFromDraws(co.id));
+          acts.appendChild(reset);
+        }
       }
 
       const del = document.createElement("button");
@@ -980,6 +991,61 @@ async function addCoToBudget(id) {
 }
 
 let coInvoiceId = null;
+async function resetCoFromDraws(id) {
+  const co = changeOrders.find((x) => x.id === id);
+  if (!co) return;
+  // Find invoices that carry this CO (via coNotes) and reverse it.
+  const affected = custInvoices.filter((iv) => Array.isArray(iv.coNotes) && iv.coNotes.some((c) => c.coId === id));
+  if (!affected.length) {
+    if (confirm("No spread records found for this change order.\n\nMark it as not invoiced so you can spread it fresh?")) {
+      co.invoiced = false;
+      await saveChangeOrders();
+      renderChangeOrders();
+    }
+    return;
+  }
+  // Can we reverse milestone amounts precisely? Only if per-milestone coApplied
+  // data exists (spreads done on newer versions).
+  let hasMilestoneData = false;
+  for (const iv of affected) {
+    for (const m of (iv.schedule || [])) {
+      if (Array.isArray(m.coApplied) && m.coApplied.some((ca) => ca.coId === id)) hasMilestoneData = true;
+    }
+  }
+  const msg = hasMilestoneData
+    ? "Reverse this change order from your draws?\n\n• Removes the CO amounts from each milestone\n• Restores the invoice totals\n• Lets you re-spread cleanly"
+    : "This change order was spread before per-milestone tracking existed.\n\nI can restore the invoice TOTALS, but I can't auto-undo the individual milestone amounts (that split wasn't saved).\n\nContinue? You'll then re-enter the milestone amounts when you re-spread, AND you'll need to manually lower each milestone back to its original amount first.";
+  if (!confirm(msg)) return;
+
+  for (const iv of affected) {
+    const notes = iv.coNotes.filter((c) => c.coId === id);
+    const removedTotal = notes.reduce((s, c) => s + (Number(c.amount) || 0), 0);
+    // Reverse milestone amounts where we have the data.
+    for (const m of (iv.schedule || [])) {
+      if (Array.isArray(m.coApplied)) {
+        const mine = m.coApplied.filter((ca) => ca.coId === id);
+        const back = mine.reduce((s, ca) => s + (Number(ca.amount) || 0), 0);
+        if (back) m.amount = r2((Number(m.amount) || 0) - back);
+        m.coApplied = m.coApplied.filter((ca) => ca.coId !== id);
+      }
+    }
+    // Reverse invoice totals.
+    iv.totals = iv.totals || {};
+    iv.totals.subtotal = r2((Number(iv.totals.subtotal) || 0) - removedTotal);
+    iv.totals.total = r2((Number(iv.totals.total) || 0) - removedTotal);
+    // Remove the CO notes for this CO.
+    iv.coNotes = iv.coNotes.filter((c) => c.coId !== id);
+  }
+  co.invoiced = false;
+  await saveChangeOrders();
+  await pushCollection(pkey("CustInvoices"), custInvoices);
+  renderChangeOrders();
+  render();
+  alert(hasMilestoneData
+    ? "Change order reversed. Your draws are back to pre-CO amounts — you can now re-spread cleanly."
+    : "Invoice totals restored and CO unlinked. Now manually set each milestone back to its original amount, then re-spread.");
+}
+
 async function generateCoInvoice(id) {
   const co = changeOrders.find((x) => x.id === id);
   if (!co) return;
@@ -3747,7 +3813,39 @@ function openCustInvoiceEdit(id) {
     tsel.appendChild(o);
   }
   tsel.value = "";
+  // Draw schedule editor — lets you correct each milestone amount directly.
+  const wrap = $("ci-sched-wrap");
+  const rowsHost = $("ci-sched-rows");
+  rowsHost.innerHTML = "";
+  if (Array.isArray(inv.schedule) && inv.schedule.length) {
+    wrap.classList.remove("hidden");
+    inv.schedule.forEach((m, mi) => {
+      const row = document.createElement("div");
+      row.className = "ci-sched-row";
+      const lbl = document.createElement("div");
+      lbl.className = "ci-sched-label";
+      lbl.textContent = (m.desc || ("Draw " + (mi + 1))).split(/[:\n]/)[0].trim();
+      const inp = document.createElement("input");
+      inp.type = "number"; inp.step = "0.01"; inp.className = "ci-sched-amt";
+      inp.value = Number(m.amount) || 0;
+      inp.dataset.mindex = mi;
+      inp.addEventListener("input", updateCiSchedTotal);
+      row.appendChild(lbl);
+      row.appendChild(inp);
+      rowsHost.appendChild(row);
+    });
+    updateCiSchedTotal();
+  } else {
+    wrap.classList.add("hidden");
+  }
   $("ci-modal").classList.remove("hidden");
+}
+
+function updateCiSchedTotal() {
+  let t = 0;
+  document.querySelectorAll("#ci-sched-rows .ci-sched-amt").forEach((i) => { t = r2(t + (Number(i.value) || 0)); });
+  const el = $("ci-sched-total");
+  if (el) el.textContent = fmtMoney(t);
 }
 
 async function saveCustInvoiceEdit() {
@@ -3768,6 +3866,16 @@ async function saveCustInvoiceEdit() {
     customerNotes: $("ci-notes").value.trim(),
     terms: $("ci-terms").value
   };
+  // Apply any edited draw milestone amounts.
+  const schedInputs = document.querySelectorAll("#ci-sched-rows .ci-sched-amt");
+  if (schedInputs.length && Array.isArray(custInvoices[i].schedule)) {
+    const sched = custInvoices[i].schedule.map((m) => ({ ...m }));
+    schedInputs.forEach((inp) => {
+      const mi = Number(inp.dataset.mindex);
+      if (sched[mi]) sched[mi].amount = r2(Number(inp.value) || 0);
+    });
+    custInvoices[i].schedule = sched;
+  }
   try {
     await saveCustInvoices();
     btn.textContent = "✓ Saved";
