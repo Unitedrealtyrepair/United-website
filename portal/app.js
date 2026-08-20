@@ -1,4 +1,4 @@
-// URR Portal v175 — totals: subtotal shows original (pre-CO) so it reconciles to contract total, then +CO = updated total
+// URR Portal v176 — payment schedule shows % of change order applied to each milestone (records per-milestone CO split)
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -1107,11 +1107,17 @@ async function coInvoiceSpread() {
   }
   // Add each assigned amount onto that milestone, and raise the invoice's
   // contract total + amount due so the draw schedule reflects the change order.
+  const coTotalVal = coTotal(co);
   const touched = {};
   for (const a of assigns) {
     const iv = custInvoices.find((x) => x.id === a.invId);
     if (!iv || !Array.isArray(iv.schedule) || !iv.schedule[a.mindex]) continue;
-    iv.schedule[a.mindex].amount = r2((Number(iv.schedule[a.mindex].amount) || 0) + a.amt);
+    const m = iv.schedule[a.mindex];
+    m.amount = r2((Number(m.amount) || 0) + a.amt);
+    // Record which CO(s) contributed to this milestone and how much, so the
+    // Payment Schedule can show "X% of CO-001 applied here".
+    m.coApplied = (m.coApplied || []);
+    m.coApplied.push({ coId: co.id, number: co.number || "CO", amount: a.amt, pct: coTotalVal ? r2(a.amt / coTotalVal * 100) : 0 });
     if (!touched[iv.id]) touched[iv.id] = 0;
     touched[iv.id] = r2(touched[iv.id] + a.amt);
   }
@@ -5055,7 +5061,7 @@ function normalizeEstDoc(e) {
     serviceAddress: e.serviceAddress || "", customerNotes: e.customerNotes || "",
     terms: e.terms || "", photos: e.photos || [], attachments: e.attachments || [],
     totals,
-    schedule: (e.schedule || []).map((r) => ({ desc: r.desc, amount: e.totals ? r.amount : schedAmount(r, totals.total) })),
+    schedule: (e.schedule || []).map((r) => ({ desc: r.desc, amount: e.totals ? r.amount : schedAmount(r, totals.total), coApplied: r.coApplied || [] })),
     coNotes: (e.coNotes || []).map((c) => {
       const co = (typeof changeOrders !== "undefined" ? changeOrders : []).find((x) => x.id === c.coId);
       return {
@@ -5245,7 +5251,14 @@ function renderEstimateDoc(e, host, kind) {
     for (const r of n.schedule) {
       const row = document.createElement("div");
       row.className = "ev-row ev-sched";
-      row.innerHTML = "<span class='ev-sched-desc'>" + escapeHtml(r.desc || "") + "</span><span></span><span></span><span>" + fmtMoney(r.amount) + "</span>";
+      let descHtml = "<span class='ev-sched-desc'>" + escapeHtml(r.desc || "");
+      if (Array.isArray(r.coApplied) && r.coApplied.length) {
+        for (const ca of r.coApplied) {
+          descHtml += "<span class='sched-co-note'>Includes " + Math.round(ca.pct) + "% of " + escapeHtml(ca.number || "CO") + " (" + fmtMoney(ca.amount) + ")</span>";
+        }
+      }
+      descHtml += "</span>";
+      row.innerHTML = descHtml + "<span></span><span></span><span>" + fmtMoney(r.amount) + "</span>";
       host.appendChild(row);
     }
     // Show each applied change order as its own itemized section.
@@ -5783,7 +5796,7 @@ async function generateEstimatePdf(e, progress, kind) {
     doc.setDrawColor(...NAVY).setLineWidth(0.5);
     doc.line(M, y + 1.5, W - M, y + 1.5);
     y += 7;
-    const srow = (label, amt) => {
+    const srow = (label, amt, coApplied) => {
       // Reserve the right column for the amount so long milestone text wraps
       // onto additional lines instead of running underneath it.
       const amtW = 34;
@@ -5797,12 +5810,22 @@ async function generateEstimatePdf(e, progress, kind) {
       doc.setFont("helvetica", "bold").setTextColor(...NAVY);
       doc.text(money(amt), colAmt, y, { align: "right" });
       y += blockH - 0.6;
+      // Small note: how much of each change order landed on this milestone.
+      if (Array.isArray(coApplied) && coApplied.length) {
+        doc.setFont("helvetica", "italic").setFontSize(8).setTextColor(28, 124, 60);
+        for (const ca of coApplied) {
+          ensure(4);
+          doc.text("Includes " + Math.round(ca.pct) + "% of " + (ca.number || "CO") + " (" + money(ca.amount) + ")", M + 3, y + 1.5);
+          y += 4;
+        }
+        doc.setFont("helvetica", "normal").setFontSize(9.5).setTextColor(45, 58, 82);
+      }
       doc.setDrawColor(...LINE).setLineWidth(0.2);
       doc.line(M, y, W - M, y);
       y += 4;
     };
     if (n.totals.depositAmt) srow("Deposit", n.totals.depositAmt);
-    for (const r of n.schedule) srow(r.desc || "", r.amount);
+    for (const r of n.schedule) srow(r.desc || "", r.amount, r.coApplied);
     y += 2;
   }
 
