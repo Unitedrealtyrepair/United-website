@@ -1,4 +1,4 @@
-// URR Portal v173 — PDF: Terri signature ends original contract before CO pages; original total shows first, updated-total recap after CO
+// URR Portal v174 — keep full totals block together in original section; Terri signature still ends original contract before CO pages
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -5753,17 +5753,19 @@ async function generateEstimatePdf(e, progress, kind) {
   if (n.totals.discountAmt) trow("Discount", "-" + money(n.totals.discountAmt));
   if (n.totals.tax) trow("Tax", money(n.totals.tax));
   if (coSumP) {
-    // Original contract only here. The change order breakdown + updated total
-    // comes after the change order pages below.
-    trow("Contract total", money(origTotal), { bold: true, big: true });
+    trow("Contract total", money(origTotal), { bold: true });
+    for (const c of n.coNotes) {
+      trow("+ " + (c.number || "Change Order") + (c.title ? " — " + c.title : ""), "+" + money(c.amount));
+    }
+    trow("Updated contract total", money(n.totals.total), { bold: true, big: true });
   } else {
     trow("Total", money(n.totals.total), { bold: true, big: true });
-    if (n.totals.depositAmt) trow("Deposit due", money(n.totals.depositAmt), { color: RED });
-    for (const p of n.payments) {
-      trow("Payment " + (p.date || "") + (p.method ? " · " + p.method : ""), "-" + money(p.amount));
-    }
-    if (n.payments.length) trow("Balance due", money(r2(n.totals.total - paidSum)), { bold: true, big: true, color: RED });
   }
+  if (n.totals.depositAmt) trow("Deposit due", money(n.totals.depositAmt), { color: RED });
+  for (const p of n.payments) {
+    trow("Payment " + (p.date || "") + (p.method ? " · " + p.method : ""), "-" + money(p.amount));
+  }
+  if (n.payments.length) trow("Balance due", money(r2(n.totals.total - paidSum)), { bold: true, big: true, color: RED });
   y += 2;
 
   // ---- Payment schedule ----
@@ -5901,22 +5903,6 @@ async function generateEstimatePdf(e, progress, kind) {
       }
       coPageRanges.push({ from: coStartPage, to: doc.getNumberOfPages(), name: c.signedName || "" });
     }
-
-    // ---- Updated contract totals recap (after the change order pages) ----
-    ensure(40);
-    doc.setDrawColor(...NAVY).setLineWidth(0.8);
-    doc.line(tx, y - 3, W - M, y - 3);
-    trow("Contract total", money(origTotal), { bold: true });
-    for (const c of n.coNotes) {
-      trow("+ " + (c.number || "Change Order") + (c.title ? " — " + c.title : ""), "+" + money(c.amount));
-    }
-    trow("Updated contract total", money(n.totals.total), { bold: true, big: true });
-    if (n.totals.depositAmt) trow("Deposit due", money(n.totals.depositAmt), { color: RED });
-    for (const p of n.payments) {
-      trow("Payment " + (p.date || "") + (p.method ? " · " + p.method : ""), "-" + money(p.amount));
-    }
-    if (n.payments.length) trow("Balance due", money(r2(n.totals.total - paidSum)), { bold: true, big: true, color: RED });
-    y += 2;
   }
 
   // ---- Attachments ----
