@@ -1,4 +1,4 @@
-// URR Portal v170 — invoice inherits estimate signature (top banner + bottom + initials); CO keeps its own
+// URR Portal v172 — admin can edit approved/signed date-time on estimates and change orders (Boise time)
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -18,6 +18,63 @@ const COMPANY = {
   email: "info@unitedrealtyrepair.com",
   logo: "logo.png"
 };
+
+// Signature date + time, always shown in Boise (Mountain) time so the stamp
+// matches when the customer actually signed, regardless of the device's TZ.
+function sigStamp(iso, withTime) {
+  if (!iso) return "";
+  const dt = new Date(iso);
+  const opts = { timeZone: "America/Boise", month: "numeric", day: "numeric", year: "numeric" };
+  let s = dt.toLocaleDateString("en-US", opts);
+  if (withTime) s += " " + dt.toLocaleTimeString("en-US", { timeZone: "America/Boise", hour: "numeric", minute: "2-digit" });
+  return s;
+}
+function sigInitials(name) {
+  return String(name || "").trim().split(/\s+/).map((w) => w[0] ? w[0].toUpperCase() : "").join("");
+}
+
+// Admin edit of an approval/signature timestamp. Prompts for date + time as
+// Boise local, stores the matching UTC ISO so display (forced to Boise) matches.
+async function editSignedTime(opts) {
+  const cur = opts.getIso ? opts.getIso() : "";
+  // Prefill with existing Boise values if present.
+  let defDate = "", defTime = "";
+  if (cur) {
+    const d = new Date(cur);
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Boise", year: "numeric", month: "2-digit", day: "2-digit" }).format(d); // YYYY-MM-DD
+    defDate = parts;
+    defTime = new Intl.DateTimeFormat("en-GB", { timeZone: "America/Boise", hour: "2-digit", minute: "2-digit", hour12: false }).format(d); // HH:MM
+  }
+  const dateStr = prompt("Signed date for " + (opts.who || "signer") + " (YYYY-MM-DD, Boise time):", defDate);
+  if (dateStr === null) return;
+  const timeStr = prompt("Signed time (24-hour HH:MM, Boise time):", defTime || "12:00");
+  if (timeStr === null) return;
+  const iso = boiseToIso(dateStr.trim(), timeStr.trim());
+  if (!iso) { alert("Couldn't read that date/time. Use YYYY-MM-DD and HH:MM (e.g. 2026-08-14 and 15:26)."); return; }
+  if (opts.setIso) await opts.setIso(iso);
+  alert("Signed time updated to " + sigStamp(iso, true) + " (Boise).");
+}
+
+// Convert a Boise-local date (YYYY-MM-DD) + time (HH:MM) into a UTC ISO string.
+function boiseToIso(dateStr, timeStr) {
+  const dm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr || "");
+  const tm = /^(\d{1,2}):(\d{2})$/.exec(timeStr || "");
+  if (!dm || !tm) return null;
+  const Y = +dm[1], Mo = +dm[2], D = +dm[3], h = +tm[1], mi = +tm[2];
+  if (Mo < 1 || Mo > 12 || D < 1 || D > 31 || h > 23 || mi > 59) return null;
+  // Find the UTC instant whose Boise wall-clock equals the entered values.
+  // Start from a UTC guess, measure Boise offset at that instant, then correct.
+  let guess = Date.UTC(Y, Mo - 1, D, h, mi, 0);
+  for (let i = 0; i < 3; i++) {
+    const asBoise = new Date(guess).toLocaleString("en-US", { timeZone: "America/Boise" });
+    const diff = new Date(asBoise).getTime() - new Date(new Date(guess).toLocaleString("en-US", { timeZone: "UTC" })).getTime();
+    const target = Date.UTC(Y, Mo - 1, D, h, mi, 0) - diff;
+    if (target === guess) break;
+    guess = target;
+  }
+  return new Date(guess).toISOString();
+}
+
 
 const ROLE_ACCESS = {
   admin:    ["Overview", "Schedule", "Budget", "Daily Logs", "Documents", "Photos", "Scans", "Invoices", "Change Orders", "Estimates", "Selections", "Materials", "Subs", "Calc", "Codes", "Time"],
@@ -723,6 +780,16 @@ function renderChangeOrders() {
 
       // Post-approval controls
       if (co.status === "approved") {
+        const editSig = document.createElement("button");
+        editSig.className = "btn-ghost sel-mini";
+        editSig.textContent = "✎ Edit signed time";
+        editSig.addEventListener("click", () => editSignedTime({
+          getIso: () => co.respondedAt,
+          setIso: async (iso) => { co.respondedAt = iso; await saveChangeOrders(); renderChangeOrders(); },
+          who: co.signedName || "signer"
+        }));
+        acts.appendChild(editSig);
+
         const cc = document.createElement("label");
         cc.className = "co-check";
         cc.innerHTML = "<input type='checkbox' " + (co.inContract ? "checked" : "") + "> Add to contract total";
@@ -4169,6 +4236,19 @@ function renderEstimates() {
         ib.textContent = invCount ? "＋ Invoice (" + invCount + ")" : "→ Create Invoice";
         ib.addEventListener("click", (ev2) => { ev2.stopPropagation(); convertToInvoice(e.id); });
         acts.appendChild(ib);
+
+        const est = document.createElement("button");
+        est.className = "btn-ghost est-preview-btn";
+        est.textContent = "✎ Edit signed time";
+        est.addEventListener("click", (ev2) => {
+          ev2.stopPropagation();
+          editSignedTime({
+            getIso: () => e.respondedAt,
+            setIso: async (iso) => { e.respondedAt = iso; await saveEstimates(); renderEstimates(); },
+            who: e.signedName || "signer"
+          });
+        });
+        acts.appendChild(est);
       }
       card.appendChild(acts);
     }
@@ -5061,12 +5141,7 @@ function renderEstimateDoc(e, host, kind) {
   if (n.status === "approved" && n.signedName) {
     const ap = document.createElement("div");
     ap.className = "doc-approved";
-    let when = "";
-    if (n.respondedAt) {
-      const dt = new Date(n.respondedAt);
-      when = " on " + dt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) +
-        " at " + dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-    }
+    const when = n.respondedAt ? " on " + sigStamp(n.respondedAt, true) : "";
     ap.textContent = "✓ Approved — signed by " + n.signedName + when;
     host.appendChild(ap);
   }
@@ -5198,8 +5273,7 @@ function renderEstimateDoc(e, host, kind) {
         if (c.signedName) {
           const sig = document.createElement("div");
           sig.className = "co-doc-sig";
-          const dt = c.respondedAt ? new Date(c.respondedAt) : null;
-          const stamp = dt ? dt.toLocaleDateString("en-US") + " " + dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
+          const stamp = sigStamp(c.respondedAt, true);
           sig.innerHTML = "✓ Change order accepted &amp; signed: <b>" + escapeHtml(c.signedName) + "</b>" + (stamp ? " · " + stamp : "");
           host.appendChild(sig);
         }
@@ -5550,7 +5624,7 @@ async function generateEstimatePdf(e, progress, kind) {
     doc.setFillColor(232, 246, 236);
     doc.rect(M, y - 4.5, W - 2 * M, 8, "F");
     doc.setFont("helvetica", "bold").setFontSize(9.5).setTextColor(28, 124, 60);
-    doc.text("APPROVED — signed by " + n.signedName + (n.respondedAt ? " on " + new Date(n.respondedAt).toLocaleDateString("en-US") : ""), M + 3, y);
+    doc.text("APPROVED — signed by " + n.signedName + (n.respondedAt ? " on " + sigStamp(n.respondedAt, false) : ""), M + 3, y);
     y += 8;
   }
 
@@ -5725,10 +5799,31 @@ async function generateEstimatePdf(e, progress, kind) {
     y += 2;
   }
 
+  // ---- Contract Terms (own page, part of the original approved contract) ----
+  if (n.terms) {
+    doc.addPage(); y = M;
+    doc.setFont("helvetica", "bold").setFontSize(11).setTextColor(...NAVY);
+    doc.text("Contract Terms", M, y);
+    doc.setDrawColor(...NAVY).setLineWidth(0.5);
+    doc.line(M, y + 1.5, W - M, y + 1.5);
+    y += 7;
+    doc.setFont("helvetica", "normal").setFontSize(8.5).setTextColor(...SLATE);
+    const tl = doc.splitTextToSize(n.terms, W - 2 * M);
+    for (const line of tl) {
+      ensure(4.2);
+      doc.setFont("helvetica", "normal").setFontSize(8.5).setTextColor(...SLATE);
+      doc.text(line, M, y);
+      y += 3.9;
+    }
+    y += 4;
+  }
+
   // ---- Change order(s): itemized, each on its own page ----
+  const coPageRanges = []; // { from, to, name } per change order, for footer initials
   if (Array.isArray(n.coNotes) && n.coNotes.length) {
     for (const c of n.coNotes) {
       doc.addPage(); y = M;
+      const coStartPage = doc.getNumberOfPages();
       doc.setFont("helvetica", "bold").setFontSize(14).setTextColor(...NAVY);
       doc.text((c.number || "Change Order") + (c.title ? " — " + c.title : ""), M, y);
       y += 3;
@@ -5783,12 +5878,11 @@ async function generateEstimatePdf(e, progress, kind) {
         doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(...GRAY);
         doc.text("Signature", M, y + 6);
         if (c.respondedAt) {
-          const dt = new Date(c.respondedAt);
-          const stamp = dt.toLocaleDateString("en-US") + " " + dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-          doc.text("Signed " + stamp, M + 90, y);
+          doc.text("Signed " + sigStamp(c.respondedAt, true), M + 90, y);
         }
         y += 10;
       }
+      coPageRanges.push({ from: coStartPage, to: doc.getNumberOfPages(), name: c.signedName || "" });
     }
   }
 
@@ -5819,25 +5913,6 @@ async function generateEstimatePdf(e, progress, kind) {
     y += 3;
   }
 
-  // ---- Terms (paginated line by line — never cut off) ----
-  if (n.terms) {
-    ensure(14);
-    doc.setFont("helvetica", "bold").setFontSize(11).setTextColor(...NAVY);
-    doc.text("Contract Terms", M, y);
-    doc.setDrawColor(...NAVY).setLineWidth(0.5);
-    doc.line(M, y + 1.5, W - M, y + 1.5);
-    y += 7;
-    doc.setFont("helvetica", "normal").setFontSize(8.5).setTextColor(...SLATE);
-    const tl = doc.splitTextToSize(n.terms, W - 2 * M);
-    for (const line of tl) {
-      ensure(4.2);
-      doc.setFont("helvetica", "normal").setFontSize(8.5).setTextColor(...SLATE);
-      doc.text(line, M, y);
-      y += 3.9;
-    }
-    y += 4;
-  }
-
   // ---- Signature block ----
   if (n.status === "approved" && n.signedName) {
     ensure(24);
@@ -5851,17 +5926,13 @@ async function generateEstimatePdf(e, progress, kind) {
     doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(...GRAY);
     doc.text("Signature", M, y + 6);
     if (n.respondedAt) {
-      const dt = new Date(n.respondedAt);
-      const stamp = dt.toLocaleDateString("en-US") + " " + dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-      doc.text("Signed " + stamp, M + 90, y);
+      doc.text("Signed " + sigStamp(n.respondedAt, true), M + 90, y);
     }
   }
 
   // ---- Footer on EVERY page ----
-  const initials = (n.status === "approved" && n.signedName)
-    ? n.signedName.trim().split(/\s+/).map((w) => w[0] ? w[0].toUpperCase() : "").join("")
-    : "";
-  const signedStamp = n.respondedAt ? new Date(n.respondedAt).toLocaleDateString("en-US") : "";
+  const baseInitials = (n.status === "approved" && n.signedName) ? sigInitials(n.signedName) : "";
+  const baseStamp = n.respondedAt ? sigStamp(n.respondedAt, false) : "";
   const pages = doc.getNumberOfPages();
   for (let p = 1; p <= pages; p++) {
     doc.setPage(p);
@@ -5870,13 +5941,30 @@ async function generateEstimatePdf(e, progress, kind) {
     doc.line(M, fy - 5, W - M, fy - 5);
     doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(...GRAY);
     doc.text(COMPANY.name + " · " + COMPANY.email, M, fy);
-    // Auto-initials (centered) show the customer initialed every page on approval.
-    if (initials) {
-      doc.setFont("helvetica", "bolditalic").setFontSize(8.5).setTextColor(...SLATE);
-      doc.text("Initialed: " + initials + (signedStamp ? " · " + signedStamp : ""), W / 2, fy, { align: "center" });
-      doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(...GRAY);
+
+    // Which signer initials this page? CO pages use that CO's signer; all
+    // other pages use the base (contract) signer.
+    let pInit = baseInitials, pStamp = baseStamp;
+    const coRange = coPageRanges.find((r) => p >= r.from && p <= r.to);
+    if (coRange && coRange.name) { pInit = sigInitials(coRange.name); pStamp = ""; }
+
+    // Page number (right), with a small green "initialed" box just left of it.
+    const pageLabel = "Page " + p + " of " + pages;
+    doc.setFontSize(8).setTextColor(...GRAY);
+    doc.text(pageLabel, W - M, fy, { align: "right" });
+    if (pInit) {
+      const boxText = pInit + (pStamp ? " " + pStamp : "");
+      doc.setFont("helvetica", "bold").setFontSize(7.5);
+      const tw = doc.getTextWidth(boxText) + 5;
+      const plw = doc.getTextWidth(pageLabel);
+      const boxX = W - M - plw - 6 - tw;
+      doc.setFillColor(232, 246, 236);
+      doc.setDrawColor(28, 124, 60);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(boxX, fy - 4.6, tw, 6, 1.2, 1.2, "FD");
+      doc.setTextColor(28, 124, 60);
+      doc.text(boxText, boxX + tw / 2, fy, { align: "center" });
     }
-    doc.text("Page " + p + " of " + pages, W - M, fy, { align: "right" });
   }
 
   const name = safeName((n.number || n.kind) + (n.serviceAddress ? " - " + n.serviceAddress : "")) + ".pdf";
