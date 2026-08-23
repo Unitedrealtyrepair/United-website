@@ -1,4 +1,4 @@
-/* URR Portal v178 */
+/* URR Portal v179 */
 :root {
   --navy: #0f2440;
   --navy-light: #1b3a63;
@@ -2000,7 +2000,13 @@ body {
 .co-doc-sig { font-size: 12.5px; color: #1a7f45; padding: 8px 0 2px; }
 .sched-co-note { display: block; font-size: 11.5px; font-style: italic; color: #1a7f45; margin-top: 2px; }
 #ci-sched-wrap { margin: 4px 0 8px; }
-.ci-sched-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.ci-sched-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.ci-sched-desc { flex: 1; min-width: 0; }
 .ci-sched-label { flex: 1; min-width: 0; font-size: 13px; color: var(--navy); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ci-sched-amt { width: 120px; flex: 0 0 120px; }
+.ci-sched-amt { width: 110px; flex: 0 0 110px; }
 .ci-sched-total { text-align: right; font-size: 13px; color: var(--navy); padding-top: 4px; border-top: 1px solid var(--border); }
+@media (max-width: 640px) {
+  .ci-sched-row { flex-wrap: wrap; }
+  .ci-sched-desc { flex: 1 1 100%; }
+  .ci-sched-amt { flex: 0 0 auto; width: 140px; }
+}

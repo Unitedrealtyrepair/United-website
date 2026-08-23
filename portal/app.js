@@ -1,4 +1,4 @@
-// URR Portal v178 — daily log photos load in-portal (no blank Drive tiles), swipeable per-entry gallery
+// URR Portal v179 — faster log thumbnails (Drive first, blob fallback); editable milestone description text in invoice
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -3541,10 +3541,15 @@ function renderLogs() {
         const img = document.createElement("img");
         img.className = "log-thumb";
         img.loading = "lazy";
-        img.alt = "Log photo";
-        // Load via the in-portal blob fetch (reliable + permission-gated),
-        // not a raw Drive URL that can fail and leave blank tiles.
-        estBlobUrl(pid).then((u) => { img.src = u; }).catch(() => { img.remove(); });
+        img.alt = "";
+        // Fast path: Drive's cached thumbnail loads instantly. If it fails
+        // (rate limit / no access), fall back to the in-portal blob fetch, and
+        // if THAT fails too, drop the tile so there's no grey ghost box.
+        img.src = "https://drive.google.com/thumbnail?id=" + encodeURIComponent(pid) + "&sz=w200";
+        img.onerror = () => {
+          img.onerror = null;
+          estBlobUrl(pid).then((u) => { img.src = u; }).catch(() => { img.remove(); });
+        };
         img.addEventListener("click", (e) => {
           e.stopPropagation();
           lightboxList = gallery;
@@ -3830,15 +3835,17 @@ function openCustInvoiceEdit(id) {
     inv.schedule.forEach((m, mi) => {
       const row = document.createElement("div");
       row.className = "ci-sched-row";
-      const lbl = document.createElement("div");
-      lbl.className = "ci-sched-label";
-      lbl.textContent = (m.desc || ("Draw " + (mi + 1))).split(/[:\n]/)[0].trim();
+      const desc = document.createElement("input");
+      desc.type = "text"; desc.className = "ci-sched-desc";
+      desc.value = m.desc || "";
+      desc.placeholder = "Milestone description (e.g. due upon approval of CO-001)";
+      desc.dataset.mindex = mi;
       const inp = document.createElement("input");
       inp.type = "number"; inp.step = "0.01"; inp.className = "ci-sched-amt";
       inp.value = Number(m.amount) || 0;
       inp.dataset.mindex = mi;
       inp.addEventListener("input", updateCiSchedTotal);
-      row.appendChild(lbl);
+      row.appendChild(desc);
       row.appendChild(inp);
       rowsHost.appendChild(row);
     });
@@ -3874,11 +3881,15 @@ async function saveCustInvoiceEdit() {
     customerNotes: $("ci-notes").value.trim(),
     terms: $("ci-terms").value
   };
-  // Apply any edited draw milestone amounts.
-  const schedInputs = document.querySelectorAll("#ci-sched-rows .ci-sched-amt");
-  if (schedInputs.length && Array.isArray(custInvoices[i].schedule)) {
+  // Apply any edited draw milestone descriptions + amounts.
+  const schedAmts = document.querySelectorAll("#ci-sched-rows .ci-sched-amt");
+  if (schedAmts.length && Array.isArray(custInvoices[i].schedule)) {
     const sched = custInvoices[i].schedule.map((m) => ({ ...m }));
-    schedInputs.forEach((inp) => {
+    document.querySelectorAll("#ci-sched-rows .ci-sched-desc").forEach((inp) => {
+      const mi = Number(inp.dataset.mindex);
+      if (sched[mi]) sched[mi].desc = inp.value;
+    });
+    schedAmts.forEach((inp) => {
       const mi = Number(inp.dataset.mindex);
       if (sched[mi]) sched[mi].amount = r2(Number(inp.value) || 0);
     });
