@@ -1,4 +1,4 @@
-// URR Portal v179 — faster log thumbnails (Drive first, blob fallback); editable milestone description text in invoice
+// URR Portal v180 — milestone description is multi-line (Enter for new line); newlines render in preview + PDF
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -3835,11 +3835,16 @@ function openCustInvoiceEdit(id) {
     inv.schedule.forEach((m, mi) => {
       const row = document.createElement("div");
       row.className = "ci-sched-row";
-      const desc = document.createElement("input");
-      desc.type = "text"; desc.className = "ci-sched-desc";
+      const desc = document.createElement("textarea");
+      desc.className = "ci-sched-desc";
+      desc.rows = 2;
       desc.value = m.desc || "";
-      desc.placeholder = "Milestone description (e.g. due upon approval of CO-001)";
+      desc.placeholder = "Milestone description (press Enter for a new line)";
       desc.dataset.mindex = mi;
+      // Auto-grow to fit the text.
+      const grow = () => { desc.style.height = "auto"; desc.style.height = (desc.scrollHeight + 2) + "px"; };
+      desc.addEventListener("input", grow);
+      setTimeout(grow, 0);
       const inp = document.createElement("input");
       inp.type = "number"; inp.step = "0.01"; inp.className = "ci-sched-amt";
       inp.value = Number(m.amount) || 0;
@@ -5378,7 +5383,7 @@ function renderEstimateDoc(e, host, kind) {
     for (const r of n.schedule) {
       const row = document.createElement("div");
       row.className = "ev-row ev-sched";
-      let descHtml = "<span class='ev-sched-desc'>" + escapeHtml(r.desc || "");
+      let descHtml = "<span class='ev-sched-desc'>" + escapeHtml(r.desc || "").replace(/\r?\n/g, "<br>");
       if (Array.isArray(r.coApplied) && r.coApplied.length) {
         for (const ca of r.coApplied) {
           descHtml += "<span class='sched-co-note'>Includes " + Math.round(ca.pct) + "% of " + escapeHtml(ca.number || "CO") + " (" + fmtMoney(ca.amount) + ")</span>";
