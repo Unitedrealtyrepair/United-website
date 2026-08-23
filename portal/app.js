@@ -1,4 +1,4 @@
-// URR Portal v177 — editable draw milestone amounts in Edit Invoice; signed date+time in one prompt (iOS fix)
+// URR Portal v178 — daily log photos load in-portal (no blank Drive tiles), swipeable per-entry gallery
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -3534,16 +3534,24 @@ function renderLogs() {
     if (l.photos && l.photos.length) {
       const strip = document.createElement("div");
       strip.className = "log-photo-strip";
-      for (const pid of l.photos) {
+      // Build this entry's gallery list once so tapping any photo lets the
+      // customer swipe through only THIS entry's photos.
+      const gallery = l.photos.map((pid) => ({ id: pid, name: "Log photo — " + fmtDateLong(l.date), mimeType: "image/jpeg" }));
+      l.photos.forEach((pid, idx) => {
         const img = document.createElement("img");
-        img.src = "https://drive.google.com/thumbnail?id=" + encodeURIComponent(pid) + "&sz=w200";
+        img.className = "log-thumb";
         img.loading = "lazy";
+        img.alt = "Log photo";
+        // Load via the in-portal blob fetch (reliable + permission-gated),
+        // not a raw Drive URL that can fail and leave blank tiles.
+        estBlobUrl(pid).then((u) => { img.src = u; }).catch(() => { img.remove(); });
         img.addEventListener("click", (e) => {
           e.stopPropagation();
-          openLightbox({ id: pid, name: "Log photo — " + fmtDateLong(l.date), mimeType: "image/jpeg" });
+          lightboxList = gallery;
+          showLightboxAt(idx);
         });
         strip.appendChild(img);
-      }
+      });
       card.appendChild(strip);
     }
 
