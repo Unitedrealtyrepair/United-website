@@ -1,4 +1,4 @@
-// URR Portal v180 — milestone description is multi-line (Enter for new line); newlines render in preview + PDF
+// URR Portal v181 — schedule color-coded by trade, completed items small light bubbles, trade legend
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -2682,14 +2682,79 @@ function renderCalendar() {
         const st = taskStatus(t);
         const ev = document.createElement("div");
         ev.className = "cal-event" + (dStr !== t.start ? " continues" : "") + (st === "complete" ? " done" : "");
-        ev.textContent = t.trade + (t.sub ? " · " + subLabel(t.sub) : "");
+        const label = t.trade + (t.sub ? " · " + subLabel(t.sub) : "");
+        ev.textContent = label;
         ev.title = t.trade + (t.sub ? " — " + subLabel(t.sub) : "") + adminTooltipNotes(t);
+        // Color-code by trade so each trade reads as its own band.
+        const col = tradeColor(t.trade);
+        if (st === "complete") {
+          ev.style.borderLeft = "3px solid " + col;
+        } else {
+          ev.style.background = col;
+          if (dStr !== t.start) ev.style.opacity = "0.72"; // continuation day
+        }
         ev.addEventListener("click", () => isAdmin() ? openTaskModal(t.id) : openTaskView(t.id));
         cell.appendChild(ev);
       }
     }
     grid.appendChild(cell);
   }
+
+  // Trade color legend — distinct trades currently scheduled.
+  const legend = $("cal-legend");
+  if (legend) {
+    legend.innerHTML = "";
+    const seen = [];
+    for (const t of visibleSchedule()) {
+      const key = (t.trade || "").trim();
+      if (key && !seen.includes(key)) seen.push(key);
+    }
+    seen.sort((a, b) => a.localeCompare(b));
+    for (const tr of seen) {
+      const chip = document.createElement("span");
+      chip.className = "cal-legend-chip";
+      const dot = document.createElement("span");
+      dot.className = "cal-legend-dot";
+      dot.style.background = tradeColor(tr);
+      chip.appendChild(dot);
+      chip.appendChild(document.createTextNode(tr));
+      legend.appendChild(chip);
+    }
+  }
+}
+
+// Stable color per trade so the calendar reads by trade at a glance.
+const TRADE_COLORS = {
+  "demolition": "#8a6d3b",
+  "planning": "#6b7280",
+  "framing": "#1f4e79",
+  "siding / exterior finish": "#2e7d5b",
+  "siding/exterior finish": "#2e7d5b",
+  "windows / exterior doors": "#0e7490",
+  "windows/exterior doors": "#0e7490",
+  "rough electrical": "#b45309",
+  "rough plumbing": "#1d4ed8",
+  "rough hvac": "#7c3aed",
+  "finish electrical": "#c2410c",
+  "finish plumbing": "#2563eb",
+  "finish hvac": "#7e22ce",
+  "insulation": "#a16207",
+  "drywall": "#0f766e",
+  "drywall / texture": "#0f766e",
+  "paint": "#be185d",
+  "flooring": "#9a3412",
+  "countertops": "#4d7c0f",
+  "cabinets": "#a21caf",
+  "punch list": "#334155",
+  "final": "#111827"
+};
+function tradeColor(trade) {
+  const key = String(trade || "").trim().toLowerCase();
+  if (TRADE_COLORS[key]) return TRADE_COLORS[key];
+  // Deterministic fallback color from the trade name.
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 360;
+  return "hsl(" + h + ", 45%, 38%)";
 }
 
 function renderUpcoming() {

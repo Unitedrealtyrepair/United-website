@@ -1,4 +1,4 @@
-/* URR Portal v180 */
+/* URR Portal v181 */
 :root {
   --navy: #0f2440;
   --navy-light: #1b3a63;
@@ -473,7 +473,15 @@ body {
 .status-badge.in-progress { background: #fff3e0; color: #b26a00; }
 .status-badge.complete { background: #e5f6ec; color: #1f9d55; }
 
-.cal-event.done { opacity: 0.55; text-decoration: line-through; }
+.cal-event.done {
+  opacity: 0.7;
+  background: #f1f4f8 !important;
+  color: #8a94a6;
+  font-weight: 500;
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
 
 /* ---- Modal extras ---- */
 .modal textarea {
@@ -2010,3 +2018,6 @@ body {
   .ci-sched-desc { flex: 1 1 100%; }
   .ci-sched-amt { flex: 0 0 auto; width: 140px; }
 }
+.cal-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+.cal-legend-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--navy); }
+.cal-legend-dot { width: 10px; height: 10px; border-radius: 3px; flex: 0 0 10px; }
