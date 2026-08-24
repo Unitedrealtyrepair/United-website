@@ -1,4 +1,4 @@
-// URR Portal v183 — import sections from a past estimate into the current estimate builder
+// URR Portal v184 — daily logs sort by date+time and show time; new entries store createdAt
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -3624,6 +3624,14 @@ async function deleteBudgetItem() {
 function canWriteLogs() { return isAdmin() || currentUser.role === "sub"; }
 function canEditLog(l) { return isAdmin() || (l.author && l.author === currentUser.email); }
 
+// Best available creation time for a log entry: explicit createdAt, else the
+// timestamp embedded in its id ("l" + Date.now()), else 0.
+function logTime(l) {
+  if (l && l.createdAt) { const t = Date.parse(l.createdAt); if (!isNaN(t)) return t; }
+  if (l && l.id) { const m = /(\d{10,})/.exec(String(l.id)); if (m) return Number(m[1]); }
+  return 0;
+}
+
 function renderLogs() {
   $("add-log-btn").classList.toggle("hidden", !canWriteLogs());
 
@@ -3635,7 +3643,12 @@ function renderLogs() {
       if (isSub()) return l.author && l.author === currentUser.email;
       return !l.internal; // customer
     })
-    .sort((a, b) => b.date.localeCompare(a.date));
+    .sort((a, b) => {
+      // Newest first by day, then by time within the same day.
+      const d = (b.date || "").localeCompare(a.date || "");
+      if (d !== 0) return d;
+      return logTime(b) - logTime(a);
+    });
 
   const list = $("logs-list");
   list.innerHTML = "";
@@ -3649,7 +3662,13 @@ function renderLogs() {
     head.className = "log-head";
     const date = document.createElement("div");
     date.className = "log-date";
-    date.textContent = fmtDateLong(l.date);
+    // Show the time of day too, so multiple same-day entries are distinguishable.
+    const t = logTime(l);
+    let timeStr = "";
+    if (t) {
+      timeStr = " · " + new Date(t).toLocaleTimeString("en-US", { timeZone: "America/Boise", hour: "numeric", minute: "2-digit" });
+    }
+    date.textContent = fmtDateLong(l.date) + timeStr;
     head.appendChild(date);
     if (l.internal) {
       const tag = document.createElement("span");
@@ -3794,7 +3813,7 @@ async function saveLog() {
     const i = logs.findIndex((x) => x.id === editingLogId);
     if (i >= 0 && canEditLog(logs[i])) logs[i] = { ...logs[i], ...data };
   } else {
-    logs.push({ id: "l" + Date.now(), author: currentUser.email, ...data });
+    logs.push({ id: "l" + Date.now(), author: currentUser.email, createdAt: new Date().toISOString(), ...data });
   }
   await saveLogs();
   closeModal("log-modal");
