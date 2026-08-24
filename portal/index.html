@@ -7,7 +7,7 @@
   <!-- URR Portal v148 -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=182" />
+  <link rel="stylesheet" href="styles.css?v=183" />
 </head>
 <body>
 
@@ -642,7 +642,10 @@
           <label class="est-disp-chk"><input type="checkbox" id="est-show-sectotal" /> Section totals</label>
         </div>
         <div id="est-sections"></div>
-        <button id="est-add-section" class="btn-ghost est-add-sec">+ Add Section</button>
+        <div class="est-sec-actions">
+          <button id="est-add-section" class="btn-ghost est-add-sec">+ Add Section</button>
+          <button id="est-import-btn" class="btn-ghost est-add-sec">⤵ Import from past estimate</button>
+        </div>
 
         <div class="est-adjust-grid">
           <div><label>Global markup <span class="lbl-hint">hidden</span></label>
@@ -709,7 +712,22 @@
       </div>
     </div>
 
-    <!-- ===== Estimate PDF preview (admin) ===== -->
+    <!-- ===== Import sections from a past estimate ===== -->
+    <div id="est-import-modal" class="modal-overlay hidden">
+      <div class="modal">
+        <h2>Import from past estimate</h2>
+        <label>Choose an estimate</label>
+        <select id="est-import-src"></select>
+        <p class="lbl-hint" style="margin:12px 0 6px">Check the sections to copy into this estimate:</p>
+        <div id="est-import-sections"></div>
+        <div class="modal-actions">
+          <button id="est-import-cancel" class="btn-ghost">Cancel</button>
+          <span class="spacer"></span>
+          <button id="est-import-apply" class="btn-primary">Import selected</button>
+        </div>
+      </div>
+    </div>
+
     <div id="est-preview-modal" class="modal-overlay hidden">
       <div class="modal modal-wide est-preview-shell">
         <div class="est-preview-tools">
@@ -921,6 +939,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=182"></script>
+  <script src="app.js?v=183"></script>
 </body>
 </html>

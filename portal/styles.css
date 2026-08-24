@@ -1,4 +1,4 @@
-/* URR Portal v182 */
+/* URR Portal v183 */
 :root {
   --navy: #0f2440;
   --navy-light: #1b3a63;
@@ -2021,3 +2021,6 @@ body {
 .cal-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
 .cal-legend-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--navy); }
 .cal-legend-dot { width: 10px; height: 10px; border-radius: 3px; flex: 0 0 10px; }
+.est-sec-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.est-import-sec { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--navy); }
+.est-import-sec input { width: 18px; height: 18px; flex: 0 0 18px; }

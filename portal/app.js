@@ -1,4 +1,4 @@
-// URR Portal v182 — schedule trade can prefill from a budget line (auto trade, sub, note)
+// URR Portal v183 — import sections from a past estimate into the current estimate builder
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -200,6 +200,7 @@ let editingCostId = null;
 let draws = [];         // payment draws — {id, label, date, amount, visible, alloc:[{budgetId,desc,amount}]}
 let editingEstId = null;
 let estDraft = null;    // working copy while the builder modal is open
+let lastRemote = null;  // full pull payload, for cross-project estimate import
 let photoFolders = [];  // [{id, name, isSubUploads}]
 let subUploadsFolderId = null;
 let calMonth = new Date();
@@ -219,6 +220,7 @@ function cacheSet(key, val) {
 
 function applyRemote(remote) {
   if (!remote) return;
+  lastRemote = remote; // keep the full payload so we can import from other projects
   if (remote[pkey("Schedule")]) schedule = remote[pkey("Schedule")];
   if (remote[pkey("Budget")]) budget = remote[pkey("Budget")];
   if (remote[pkey("Logs")]) logs = remote[pkey("Logs")];
@@ -4811,6 +4813,102 @@ function wireItemDropTarget(el, secId, indexOf) {
   });
 }
 
+// ---- Import sections from a past estimate (any project) ----
+function allEstimatesForImport() {
+  // Gather estimates across all projects the user can see, from the last pull.
+  const out = [];
+  const projs = (SESSION && SESSION.projects) ? SESSION.projects : [];
+  for (const p of projs) {
+    const key = "urrEstimates_" + p.folderId;
+    const list = (lastRemote && lastRemote[key]) ? lastRemote[key] : (p.folderId === currentProject.folderId ? estimates : null);
+    if (Array.isArray(list)) {
+      for (const e of list) {
+        if (e && Array.isArray(e.sections) && e.sections.length) {
+          out.push({ project: p.name, est: e });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+let importSourceList = [];
+function openEstImport() {
+  importSourceList = allEstimatesForImport();
+  const sel = $("est-import-src");
+  sel.innerHTML = "";
+  if (!importSourceList.length) {
+    sel.innerHTML = "<option value=''>No past estimates found</option>";
+    $("est-import-sections").innerHTML = "<div class='lbl-hint'>Nothing to import yet.</div>";
+  } else {
+    importSourceList.forEach((row, i) => {
+      const o = document.createElement("option");
+      o.value = String(i);
+      o.textContent = row.project + " · " + (row.est.number || row.est.title || "Estimate") + (row.est.title && row.est.number ? " — " + row.est.title : "");
+      sel.appendChild(o);
+    });
+    sel.onchange = () => renderImportSections();
+    renderImportSections();
+  }
+  $("est-import-modal").classList.remove("hidden");
+}
+
+function renderImportSections() {
+  const host = $("est-import-sections");
+  host.innerHTML = "";
+  const row = importSourceList[Number($("est-import-src").value)];
+  if (!row) return;
+  row.est.sections.forEach((s, si) => {
+    const wrap = document.createElement("label");
+    wrap.className = "est-import-sec";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.dataset.sindex = si;
+    cb.checked = true;
+    const cnt = (s.items || []).length;
+    wrap.appendChild(cb);
+    wrap.appendChild(document.createTextNode(" " + (s.name || "Untitled section") + " (" + cnt + " item" + (cnt === 1 ? "" : "s") + ")"));
+    host.appendChild(wrap);
+  });
+}
+
+function applyEstImport() {
+  const row = importSourceList[Number($("est-import-src").value)];
+  if (!row || !estDraft) { closeModal("est-import-modal"); return; }
+  const picks = Array.from(document.querySelectorAll("#est-import-sections input:checked")).map((c) => Number(c.dataset.sindex));
+  if (!picks.length) { alert("Check at least one section to import."); return; }
+  let added = 0;
+  const stamp = Date.now();
+  picks.forEach((si) => {
+    const src = row.est.sections[si];
+    if (!src) return;
+    // Deep-copy the section with fresh IDs; strip photos (they belong to the
+    // other project) but keep all descriptions, costs, qty, markup, tax.
+    const newSec = {
+      id: "s" + stamp + "_" + si + "_" + added,
+      name: src.name || "",
+      items: (src.items || []).map((it, ii) => ({
+        id: "i" + stamp + "_" + si + "_" + ii + "_" + Math.floor(Math.random() * 1000),
+        desc: it.desc || "",
+        notes: it.notes || "",
+        photos: [],
+        qty: it.qty !== undefined ? it.qty : 1,
+        rate: it.rate !== undefined ? it.rate : (it.cost !== undefined ? it.cost : 0),
+        markup: it.markup || 0,
+        markupType: it.markupType || "%",
+        taxable: it.taxable !== undefined ? it.taxable : true
+      }))
+    };
+    if (!newSec.items.length) newSec.items = [blankItem()];
+    estDraft.sections.push(newSec);
+    added++;
+  });
+  renderEstSections();
+  updateEstSummary();
+  closeModal("est-import-modal");
+  alert("Imported " + added + " section" + (added === 1 ? "" : "s") + " from " + row.project + ".");
+}
+
 function renderEstSections() {
   const host = $("est-sections");
   host.innerHTML = "";
@@ -7793,7 +7891,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLightbox(); });
 
   // Click outside modal closes it
-  for (const id of ["task-modal", "budget-modal", "draw-modal", "selection-modal", "option-modal", "co-modal", "co-sign-modal", "coinv-modal", "mileage-modal", "fuel-modal", "log-modal", "sub-modal", "task-view-modal", "est-modal", "est-view-modal", "est-preview-modal", "cost-modal", "time-modal", "ci-modal"]) {
+  for (const id of ["task-modal", "budget-modal", "draw-modal", "selection-modal", "option-modal", "co-modal", "co-sign-modal", "coinv-modal", "mileage-modal", "fuel-modal", "log-modal", "sub-modal", "task-view-modal", "est-modal", "est-import-modal", "est-view-modal", "est-preview-modal", "cost-modal", "time-modal", "ci-modal"]) {
     $(id).addEventListener("click", (e) => { if (e.target.id === id) closeModal(id); });
   }
 
@@ -7848,6 +7946,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     estDraft.sections.push({ id: "s" + Date.now(), name: "", items: [blankItem()] });
     renderEstSections();
   });
+  $("est-import-btn").addEventListener("click", openEstImport);
+  $("est-import-cancel").addEventListener("click", () => closeModal("est-import-modal"));
+  $("est-import-apply").addEventListener("click", applyEstImport);
   ["est-taxrate", "est-gm-val", "est-disc-val", "est-dep-val"].forEach((id) =>
     $(id).addEventListener("input", () => updateEstSummary()));
   ["est-gm-type", "est-disc-type", "est-dep-type"].forEach((id) =>
