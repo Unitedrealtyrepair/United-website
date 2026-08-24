@@ -1,4 +1,4 @@
-// URR Portal v181 — schedule color-coded by trade, completed items small light bubbles, trade legend
+// URR Portal v182 — schedule trade can prefill from a budget line (auto trade, sub, note)
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -2845,6 +2845,78 @@ function fillTradeDropdown(selectEl) {
   }
 }
 
+function fillBudgetPrefill() {
+  const sel = $("task-from-budget");
+  if (!sel) return;
+  sel.innerHTML = "<option value=''>— start blank —</option>";
+  // Group budget items by section for a tidy dropdown.
+  const bySection = {};
+  for (const b of budget) {
+    const s = b.section || "Other";
+    (bySection[s] = bySection[s] || []).push(b);
+  }
+  for (const s of Object.keys(bySection)) {
+    const og = document.createElement("optgroup");
+    og.label = s;
+    for (const b of bySection[s]) {
+      const o = document.createElement("option");
+      o.value = b.id;
+      o.textContent = (b.desc || "Item") + " (" + fmtMoney(b.amount) + ")";
+      og.appendChild(o);
+    }
+    sel.appendChild(og);
+  }
+  sel.onchange = () => applyBudgetPrefill(sel.value);
+}
+
+// Best-effort match a budget item to a schedule trade by name.
+function matchTradeForBudget(b) {
+  const hay = ((b.section || "") + " " + (b.desc || "")).toLowerCase();
+  // Try exact-ish contains against known trades first.
+  for (const tr of TRADES) {
+    const key = tr.toLowerCase().split(/[\/]/)[0].trim();
+    if (key && hay.includes(key)) return tr;
+  }
+  // A few common aliases.
+  const alias = [
+    ["demo", "Demolition"], ["frame", "Framing"], ["siding", "Siding / Exterior Finish"],
+    ["window", "Windows / Exterior Doors"], ["door", "Windows / Exterior Doors"],
+    ["finish elec", "Finish Electrical / Fixtures"], ["finish plumb", "Finish Plumbing / Fixtures"],
+    ["finish hvac", "Finish HVAC / Registers"],
+    ["electric", "Rough Electrical"], ["plumb", "Rough Plumbing"], ["hvac", "Rough HVAC"],
+    ["insulat", "Insulation"], ["drywall", "Drywall"], ["texture", "Drywall"],
+    ["paint", "Painting"], ["floor", "Flooring"], ["tile", "Tile"], ["counter", "Countertops"],
+    ["cabinet", "Cabinets"], ["trim", "Interior Doors / Trim / Millwork"],
+    ["roof", "Roofing"], ["gutter", "Gutters"], ["mason", "Masonry / Stucco / Stone"],
+    ["stone", "Masonry / Stucco / Stone"], ["concrete", "Foundation / Concrete"],
+    ["punch", "Punch List"], ["clean", "Final Cleaning"], ["landscap", "Landscaping / Irrigation"]
+  ];
+  for (const [frag, tr] of alias) {
+    if (hay.includes(frag) && TRADES.includes(tr)) return tr;
+  }
+  return null;
+}
+
+function applyBudgetPrefill(budgetId) {
+  if (!budgetId) return;
+  const b = budget.find((x) => x.id === budgetId);
+  if (!b) return;
+  const tr = matchTradeForBudget(b);
+  if (tr) $("task-trade").value = tr;
+  // If the budget item is tied to a sub, preselect them.
+  if (b.sub) {
+    const opt = Array.from($("task-sub").options).find((o) => o.value === b.sub);
+    if (opt) $("task-sub").value = b.sub;
+  } else {
+    // Otherwise try to match a sub whose trade fits.
+    const sub = subs.find((s) => tr && (s.trade || "").toLowerCase().includes(tr.toLowerCase().split(/[\/]/)[0].trim()));
+    if (sub) $("task-sub").value = sub.id;
+  }
+  // Seed the private note with the budget line so you have the detail on hand.
+  const noteEl = $("task-note-admin");
+  if (noteEl && !noteEl.value) noteEl.value = (b.section ? b.section + " — " : "") + (b.desc || "");
+}
+
 function fillSubDropdown() {
   const sel = $("task-sub");
   sel.innerHTML = "";
@@ -2864,6 +2936,7 @@ function openTaskModal(taskId) {
   editingTaskId = taskId || null;
   fillTradeDropdown($("task-trade"));
   fillSubDropdown();
+  fillBudgetPrefill();
   const t = taskId ? schedule.find((x) => x.id === taskId) : null;
   $("task-modal-title").textContent = t ? "Edit Scheduled Trade" : "Schedule a Trade";
   $("task-trade").value = t ? t.trade : TRADES[0];
