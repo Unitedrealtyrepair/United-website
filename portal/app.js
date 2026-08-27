@@ -1,4 +1,4 @@
-// URR Portal v184 — daily logs sort by date+time and show time; new entries store createdAt
+// URR Portal v187 — bulk-assign a worker to all/unassigned time entries without opening each
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -189,7 +189,8 @@ let editingCoId = null;
 let folderGrants = {};  // { folderId: [sub emails granted access] } — admin-only
 let subBids = [];       // sub bid submissions — memory only
 let calcAccess = [];    // emails granted the Field Calc tab — admin-managed
-let timeEntries = [];   // admin time clock — {id, project, start, end, note, rate, costId}
+let timeEntries = [];   // admin time clock — {id, project, start, end, note, worker}
+let wages = {};         // { workerName: hourlyRate }
 let editingTimeId = null;
 let mileage = [];       // admin mileage — {id, date, project, odoStart, odoEnd, stops:[], note}
 let editingMileId = null;
@@ -244,6 +245,7 @@ function applyRemote(remote) {
   subBids = remote[pkey("SubEstimates")] || [];
   if (remote["urrCalcAccess"]) calcAccess = remote["urrCalcAccess"];
   if (remote["urrTimeClock"]) timeEntries = remote["urrTimeClock"];
+  if (remote["urrWages"]) wages = remote["urrWages"];
   if (remote["urrMileage"]) mileage = remote["urrMileage"];
   if (remote["urrFuel"]) fuelReceipts = remote["urrFuel"];
   costs = remote[pkey("Costs")] || [];
@@ -322,6 +324,7 @@ async function saveCustInvoices() {
 async function saveTermsLibrary() { pushCollection("urrTermsLibrary", termsLibrary); }
 async function saveCalcAccess()  { pushCollection("urrCalcAccess", calcAccess); }
 async function saveTimeEntries() { pushCollection("urrTimeClock", timeEntries); }
+async function saveWages() { pushCollection("urrWages", wages); }
 async function saveMileage()      { pushCollection("urrMileage", mileage); }
 async function saveFuel()         { pushCollection("urrFuel", fuelReceipts); }
 async function saveFolderGrants() { pushCollection(pkey("FolderGrants"), folderGrants); }
@@ -3754,6 +3757,11 @@ function openLogModal(id) {
   $("log-weather").value = l ? (l.weather || "") : "";
   $("log-crew").value = l ? (l.crew || "") : "";
   $("log-notes").value = l ? l.notes : "";
+  // Auto-grow the notes box so long entries stay fully visible as you type.
+  const notesEl = $("log-notes");
+  const growNotes = () => { notesEl.style.height = "auto"; notesEl.style.height = Math.max(140, notesEl.scrollHeight + 4) + "px"; };
+  notesEl.oninput = growNotes;
+  setTimeout(growNotes, 0);
   $("log-internal").checked = l ? !!l.internal : false;
   $("log-internal").closest("label").classList.toggle("hidden", !isAdmin());
   $("log-photos").value = "";
@@ -6630,6 +6638,68 @@ function renderTime() {
     }
   }
 
+  // --- Workers: all-time hours + editable wage + labor cost ---
+  const wagesHost = $("time-wages");
+  if (wagesHost) {
+    wagesHost.innerHTML = "";
+    // All-time hours per worker.
+    const hoursByWorker = {};
+    for (const e of timeEntries) {
+      if (!e.end) continue;
+      const w = e.worker || "Me";
+      hoursByWorker[w] = (hoursByWorker[w] || 0) + hoursBetween(e.start, e.end);
+    }
+    const workers = allWorkers();
+    for (const w of Object.keys(hoursByWorker)) if (!workers.includes(w)) workers.push(w);
+
+    if (workers.length) {
+      const title = document.createElement("div");
+      title.className = "tc-sub-title";
+      title.textContent = "Workers & wages";
+      wagesHost.appendChild(title);
+
+      let totalCost = 0, totalHrs = 0;
+      for (const w of workers) {
+        const hrs = hoursByWorker[w] || 0;
+        const rate = workerRate(w);
+        const cost = r2(hrs * rate);
+        totalCost = r2(totalCost + cost);
+        totalHrs += hrs;
+
+        const row = document.createElement("div");
+        row.className = "tc-wage-row";
+        const name = document.createElement("div");
+        name.className = "tc-wage-name";
+        name.innerHTML = "<b>" + escapeHtml(w) + "</b><span>" + fmtHrs(hrs) + " total</span>";
+        const rateWrap = document.createElement("div");
+        rateWrap.className = "tc-wage-rate";
+        const dollar = document.createElement("span");
+        dollar.textContent = "$";
+        const inp = document.createElement("input");
+        inp.type = "number"; inp.step = "0.01"; inp.min = "0"; inp.value = rate || "";
+        inp.placeholder = "0.00"; inp.className = "tc-wage-input";
+        inp.addEventListener("change", async () => {
+          wages[w] = r2(Number(inp.value) || 0);
+          await saveWages();
+          renderTime();
+        });
+        const perhr = document.createElement("span");
+        perhr.textContent = "/hr";
+        rateWrap.appendChild(dollar); rateWrap.appendChild(inp); rateWrap.appendChild(perhr);
+        const costEl = document.createElement("div");
+        costEl.className = "tc-wage-cost";
+        costEl.textContent = cost ? fmtMoney(cost) : "—";
+        row.appendChild(name); row.appendChild(rateWrap); row.appendChild(costEl);
+        wagesHost.appendChild(row);
+      }
+      // Grand total labor cost.
+      const tot = document.createElement("div");
+      tot.className = "tc-wage-total";
+      tot.innerHTML = "<span>Total labor (" + fmtHrs(totalHrs) + ")</span><b>" + fmtMoney(totalCost) + "</b>";
+      wagesHost.appendChild(tot);
+    }
+  }
+
   // --- entry list, newest first, grouped by day ---
   const list = $("time-list");
   list.innerHTML = "";
@@ -6655,7 +6725,7 @@ function renderTime() {
     left.className = "tc-left";
     const p = document.createElement("div");
     p.className = "tc-proj";
-    p.textContent = shortProject(e.project);
+    p.textContent = shortProject(e.project) + (e.worker ? " · " + e.worker : "");
     left.appendChild(p);
     const t = document.createElement("div");
     t.className = "tc-times";
@@ -6979,6 +7049,48 @@ function tickClock() {
   el.textContent = hh + "h " + String(mm).padStart(2, "0") + "m " + String(ss).padStart(2, "0") + "s";
 }
 
+// All known workers: those with a wage set, plus any appearing on entries.
+function allWorkers() {
+  const set = new Set(Object.keys(wages || {}));
+  for (const e of timeEntries) if (e.worker) set.add(e.worker);
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+// The worker to default a new clock-in to: most recent entry's worker, else "Me".
+function lastWorker() {
+  const sorted = timeEntries.slice().sort((a, b) => (b.start || "").localeCompare(a.start || ""));
+  return (sorted[0] && sorted[0].worker) || (allWorkers()[0]) || "Me";
+}
+function workerRate(name) { return Number((wages || {})[name]) || 0; }
+
+async function bulkAssignWorker() {
+  const unassigned = timeEntries.filter((e) => !e.worker).length;
+  const suggestion = lastWorker();
+  const name = prompt(
+    "Assign a worker to time entries.\n\n" +
+    (unassigned ? unassigned + " entr" + (unassigned === 1 ? "y has" : "ies have") + " no worker yet.\n\n" : "") +
+    "Type the worker name to assign:",
+    suggestion === "Me" ? "" : suggestion
+  );
+  if (name === null) return;
+  const worker = name.trim();
+  if (!worker) { alert("Enter a worker name."); return; }
+  const applyAll = confirm(
+    "Assign \"" + worker + "\" to which entries?\n\n" +
+    "• OK = ALL time entries\n" +
+    "• Cancel = only entries with NO worker yet" +
+    (unassigned ? " (" + unassigned + ")" : "")
+  );
+  let n = 0;
+  for (const e of timeEntries) {
+    if (applyAll || !e.worker) { e.worker = worker; n++; }
+  }
+  if (!(worker in wages)) { wages[worker] = 0; }
+  await saveTimeEntries();
+  await saveWages();
+  renderTime();
+  alert("Assigned \"" + worker + "\" to " + n + " entr" + (n === 1 ? "y" : "ies") + ". Set their hourly rate in Workers & wages.");
+}
+
 async function toggleClock() {
   const open = openEntry();
   const btn = $("clock-btn");
@@ -6989,6 +7101,7 @@ async function toggleClock() {
     timeEntries.push({
       id: "t" + Date.now(),
       project: currentProject.name,
+      worker: lastWorker(),
       start: new Date().toISOString(),
       end: "",
       note: ""
@@ -7012,6 +7125,18 @@ function openTimeModal(id) {
     sel.appendChild(o);
   }
   sel.value = e ? e.project : currentProject.name;
+  // Worker dropdown (known workers) + a field to add a new one.
+  const wsel = $("time-worker");
+  wsel.innerHTML = "";
+  const workers = allWorkers();
+  if (!workers.length) workers.push("Me");
+  for (const w of workers) {
+    const o = document.createElement("option");
+    o.value = w; o.textContent = w + (workerRate(w) ? "  ($" + workerRate(w) + "/hr)" : "");
+    wsel.appendChild(o);
+  }
+  wsel.value = e ? (e.worker || workers[0]) : lastWorker();
+  $("time-worker-new").value = "";
   $("time-start").value = e ? toLocalInput(e.start) : toLocalInput(new Date().toISOString());
   $("time-end").value   = e ? toLocalInput(e.end)   : "";
   $("time-note").value  = e ? (e.note || "") : "";
@@ -7032,12 +7157,18 @@ async function saveTimeEntry() {
   if (!s) { alert("Enter a start time."); return; }
   const en = fromLocalInput($("time-end").value);
   if (en && new Date(en) <= new Date(s)) { alert("Clock-out must be after clock-in."); return; }
+  const newWorker = $("time-worker-new").value.trim();
+  const worker = newWorker || $("time-worker").value || "Me";
   const data = {
+    worker: worker,
     project: $("time-project").value,
     start: s,
     end: en,
     note: $("time-note").value.trim()
   };
+  // If a brand-new worker was typed, seed them into the wage table (rate 0)
+  // so they show up in the wages editor to set a rate.
+  if (newWorker && !(newWorker in wages)) { wages[newWorker] = 0; await saveWages(); }
   if (editingTimeId) {
     const i = timeEntries.findIndex((x) => x.id === editingTimeId);
     if (i >= 0) timeEntries[i] = { ...timeEntries[i], ...data };
@@ -7935,6 +8066,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   $("clock-btn").addEventListener("click", toggleClock);
   $("time-add-btn").addEventListener("click", () => openTimeModal(null));
+  $("time-assign-btn").addEventListener("click", bulkAssignWorker);
   $("time-export-btn").addEventListener("click", exportTimeCsv);
   $("time-save").addEventListener("click", saveTimeEntry);
   $("time-cancel").addEventListener("click", () => closeModal("time-modal"));

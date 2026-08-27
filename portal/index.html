@@ -7,7 +7,7 @@
   <!-- URR Portal v148 -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=184" />
+  <link rel="stylesheet" href="styles.css?v=187" />
 </head>
 <body>
 
@@ -277,11 +277,13 @@
           <div class="tc-tot"><span>This week</span><b id="time-week">0h 00m</b></div>
         </div>
         <div id="time-by-project"></div>
+        <div id="time-wages" class="tc-wages"></div>
 
         <div class="section-toolbar tc-toolbar">
           <div class="section-title">Timesheet</div>
           <div class="tc-actions">
             <button id="time-add-btn" class="btn-ghost">+ Add entry</button>
+            <button id="time-assign-btn" class="btn-ghost">Assign worker…</button>
             <button id="time-export-btn" class="btn-ghost">⬇ Export week</button>
           </div>
         </div>
@@ -567,7 +569,7 @@
         <label>Crew on site (optional)</label>
         <input type="text" id="log-crew" placeholder="e.g. Framing crew (4), electrician" />
         <label>What happened today</label>
-        <textarea id="log-notes" rows="4" placeholder="Work completed, deliveries, inspections, issues..."></textarea>
+        <textarea id="log-notes" rows="6" class="log-notes-area" placeholder="Work completed, deliveries, inspections, issues..."></textarea>
         <label class="checkbox-row"><input type="checkbox" id="log-internal" /> Internal only (hide from customer &amp; subs)</label>
         <label>Photos (optional)</label>
         <input type="file" id="log-photos" accept="image/*" multiple />
@@ -798,6 +800,9 @@
     <div id="time-modal" class="modal-overlay hidden">
       <div class="modal">
         <h2 id="time-modal-title">Edit Time Entry</h2>
+        <label>Worker</label>
+        <select id="time-worker"></select>
+        <input type="text" id="time-worker-new" placeholder="Or type a new worker name" style="margin-top:6px" />
         <label>Property</label>
         <select id="time-project"></select>
         <label>Clock in</label>
@@ -939,6 +944,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=184"></script>
+  <script src="app.js?v=187"></script>
 </body>
 </html>
