@@ -1,4 +1,4 @@
-// URR Portal v188 — remind customer of a pending estimate (bell + message); shows last-reminded on card
+// URR Portal v189 — remind customer of pending selections (per-item + remind-all); shows last-reminded
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -351,6 +351,8 @@ function renderSelections() {
   const host = $("selections-list");
   if (!host) return;
   $("add-selection-btn").classList.toggle("hidden", !admin);
+  const remindAllBtn = $("sel-remind-all-btn");
+  if (remindAllBtn) remindAllBtn.classList.toggle("hidden", !admin || pendingSelections().length === 0);
 
   // Customers only see items admin flagged visible.
   const items = selections.filter((s) => admin || s.visible);
@@ -389,6 +391,9 @@ function renderSelections() {
       if (Number(it.allowance) > 0) meta.push("Allowance " + fmtMoney(it.allowance));
       if (admin) meta.push(it.visible ? "Visible to customer" : "Admin only");
       if (it.status) meta.push(escapeHtml(it.status));
+      if (admin && it.visible && !it.pickedOptId && !it.finalOptId && it.lastRemindedAt) {
+        meta.push("Reminded " + fmtDateLong(it.lastRemindedAt.slice(0, 10)) + (Number(it.remindCount) > 1 ? " (×" + it.remindCount + ")" : ""));
+      }
       if (meta.length) headHtml += "<div class='sel-meta'>" + meta.join(" · ") + "</div>";
       head.innerHTML = headHtml;
       if (admin) {
@@ -397,6 +402,15 @@ function renderSelections() {
         edit.textContent = "✎ Edit";
         edit.addEventListener("click", () => openSelectionModal(it.id));
         head.appendChild(edit);
+        // Remind: selection is shared with the customer but not yet approved/finalized.
+        const pending = it.visible && !it.pickedOptId && !it.finalOptId && (it.options || []).length > 0;
+        if (pending) {
+          const rm = document.createElement("button");
+          rm.className = "btn-ghost sel-edit";
+          rm.textContent = "🔔 Remind";
+          rm.addEventListener("click", (ev2) => { ev2.stopPropagation(); remindSelection(it.id, rm); });
+          head.appendChild(rm);
+        }
       }
       card.appendChild(head);
 
@@ -6409,6 +6423,81 @@ async function generateEstimatePdf(e, progress, kind) {
 
 // Push (or re-push) an estimate to the customer: flips status to "sent",
 // clears any prior response so they can sign the revision, and notifies them.
+// ----- Selection reminders -----
+function pendingSelections() {
+  return selections.filter((s) => s.visible && !s.pickedOptId && !s.finalOptId && (s.options || []).length > 0);
+}
+
+async function sendCustomerReminder(summary, threadText) {
+  const custs = projectMembers().filter((m) => m.role === "customer").map((m) => m.email);
+  if (!custs.length) { alert("No customer is attached to this project to remind."); return false; }
+  try {
+    await api({
+      action: "notify", email: SESSION.email, code: SESSION.code,
+      project: currentProject.name, kind: "selection",
+      summary: summary, notify: custs
+    });
+  } catch (err) { console.warn("notify failed", err); }
+  for (const c of custs) {
+    try {
+      await api({
+        action: "sendMessage", email: SESSION.email, code: SESSION.code,
+        to: c, text: threadText
+      });
+    } catch (err) { console.warn("message failed", err); }
+  }
+  return true;
+}
+
+async function remindSelection(selId, btn) {
+  const i = selections.findIndex((x) => x.id === selId);
+  if (i < 0) return;
+  const s = selections[i];
+  const label = s.title || "a selection";
+  if (!confirm("Remind the customer that \"" + label + "\" is still awaiting their approval?")) return;
+  if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+  const ok = await sendCustomerReminder(
+    "Reminder: selection \"" + label + "\" is still pending your approval.",
+    "Reminder: your finish/fixture selection \"" + label + "\" is still pending approval. Open the Selections tab to review the options and approve one."
+  );
+  if (ok) {
+    s.lastRemindedAt = new Date().toISOString();
+    s.remindCount = (Number(s.remindCount) || 0) + 1;
+    selections[i] = s;
+    await saveSelections();
+    if (btn) btn.textContent = "✓ Reminded";
+    renderSelections();
+  } else if (btn) {
+    btn.textContent = "✗ Failed";
+  }
+  if (btn) setTimeout(() => { btn.textContent = "🔔 Remind"; btn.disabled = false; }, 2500);
+}
+
+async function remindAllPendingSelections() {
+  const pend = pendingSelections();
+  if (!pend.length) { alert("No selections are pending approval right now."); return; }
+  const btn = $("sel-remind-all-btn");
+  const names = pend.map((s) => s.title || "Selection");
+  const preview = names.slice(0, 6).join(", ") + (names.length > 6 ? ", …" : "");
+  if (!confirm("Remind the customer about " + pend.length + " pending selection" + (pend.length === 1 ? "" : "s") + "?\n\n" + preview)) return;
+  if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+  const listTxt = names.map((n) => "• " + n).join("\n");
+  const ok = await sendCustomerReminder(
+    pend.length + " selection" + (pend.length === 1 ? "" : "s") + " still need your approval.",
+    "Reminder: the following finish/fixture selections are still pending your approval:\n" + listTxt + "\n\nOpen the Selections tab to review and approve them."
+  );
+  const now = new Date().toISOString();
+  if (ok) {
+    for (const s of pend) { s.lastRemindedAt = now; s.remindCount = (Number(s.remindCount) || 0) + 1; }
+    await saveSelections();
+    if (btn) btn.textContent = "✓ Reminder sent";
+    renderSelections();
+  } else if (btn) {
+    btn.textContent = "✗ Failed";
+  }
+  if (btn) setTimeout(() => { btn.textContent = "🔔 Remind pending"; btn.disabled = false; }, 2500);
+}
+
 async function remindEstimate(estId, btn) {
   const i = estimates.findIndex((x) => x.id === estId);
   if (i < 0) return;
@@ -8024,6 +8113,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("draw-save").addEventListener("click", saveDraw);
   $("draw-delete").addEventListener("click", deleteDraw);
   $("add-selection-btn").addEventListener("click", () => openSelectionModal(null));
+  $("sel-remind-all-btn").addEventListener("click", remindAllPendingSelections);
   $("sel-cancel").addEventListener("click", () => closeModal("selection-modal"));
   $("sel-save").addEventListener("click", saveSelectionItem);
   $("sel-delete").addEventListener("click", deleteSelectionItem);

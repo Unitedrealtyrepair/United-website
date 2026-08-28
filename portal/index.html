@@ -7,7 +7,7 @@
   <!-- URR Portal v148 -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=188" />
+  <link rel="stylesheet" href="styles.css?v=189" />
 </head>
 <body>
 
@@ -199,7 +199,10 @@
       <div id="selections-section" class="hidden">
         <div class="section-toolbar">
           <div class="section-title">Finish &amp; Fixture Selections</div>
-          <button id="add-selection-btn" class="add-task-btn hidden">+ Add Selection</button>
+          <div class="tc-actions">
+            <button id="sel-remind-all-btn" class="btn-ghost hidden">🔔 Remind pending</button>
+            <button id="add-selection-btn" class="add-task-btn hidden">+ Add Selection</button>
+          </div>
         </div>
         <div id="selections-list" class="selections-list"></div>
       </div>
@@ -944,6 +947,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=188"></script>
+  <script src="app.js?v=189"></script>
 </body>
 </html>
