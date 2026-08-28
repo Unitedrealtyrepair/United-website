@@ -1,4 +1,4 @@
-// URR Portal v187 — bulk-assign a worker to all/unassigned time entries without opening each
+// URR Portal v188 — remind customer of a pending estimate (bell + message); shows last-reminded on card
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -4510,7 +4510,8 @@ function renderEstimates() {
       e.date ? fmtDateLong(e.date) : null,
       fmtMoney(t.total),
       Number(e.revision) ? "Rev " + e.revision : null,
-      e.signedName ? "Signed: " + e.signedName : null
+      e.signedName ? "Signed: " + e.signedName : null,
+      (e.status === "sent" && e.lastRemindedAt) ? "Reminded " + fmtDateLong(e.lastRemindedAt.slice(0, 10)) + (Number(e.remindCount) > 1 ? " (×" + e.remindCount + ")" : "") : null
     ].filter(Boolean).join("  ·  ");
     card.appendChild(meta);
     if (isAdmin() && t.margin) {
@@ -4527,6 +4528,14 @@ function renderEstimates() {
       pv.textContent = "👁 Preview / PDF";
       pv.addEventListener("click", (ev2) => { ev2.stopPropagation(); openEstPreview(e.id); });
       acts.appendChild(pv);
+      // Remind: only while the estimate is pending (sent, not yet signed/declined).
+      if (e.status === "sent") {
+        const rm = document.createElement("button");
+        rm.className = "btn-ghost est-preview-btn";
+        rm.textContent = "🔔 Remind customer";
+        rm.addEventListener("click", (ev2) => { ev2.stopPropagation(); remindEstimate(e.id, rm); });
+        acts.appendChild(rm);
+      }
       // Convert actions unlock once the customer has signed
       if (e.status === "approved") {
         const hasBudget = budget.some((b) => b.estId === e.id);
@@ -6400,6 +6409,56 @@ async function generateEstimatePdf(e, progress, kind) {
 
 // Push (or re-push) an estimate to the customer: flips status to "sent",
 // clears any prior response so they can sign the revision, and notifies them.
+async function remindEstimate(estId, btn) {
+  const i = estimates.findIndex((x) => x.id === estId);
+  if (i < 0) return;
+  const e = estimates[i];
+  if (e.status !== "sent") { alert("This estimate isn't pending — no reminder needed."); return; }
+
+  const custs = projectMembers().filter((m) => m.role === "customer").map((m) => m.email);
+  if (!custs.length) { alert("No customer is attached to this project to remind."); return; }
+
+  const label = (e.number ? e.number + " " : "") + (e.title || "estimate");
+  // How long it's been waiting, based on when it was sent.
+  let waited = "";
+  if (e.sentAt) {
+    const days = Math.floor((Date.now() - Date.parse(e.sentAt)) / 86400000);
+    waited = days <= 0 ? " (sent today)" : " (sent " + days + " day" + (days === 1 ? "" : "s") + " ago)";
+  }
+  if (!confirm("Send a reminder to the customer that estimate " + label + " is still awaiting their signature?" + waited)) return;
+
+  if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+  const noteTxt = "Reminder: estimate " + label + " is still pending your review and signature.";
+  try {
+    // bell notification
+    try {
+      await api({
+        action: "notify", email: SESSION.email, code: SESSION.code,
+        project: currentProject.name, kind: "estimate",
+        summary: noteTxt, notify: custs
+      });
+    } catch (err) { console.warn("notify failed", err); }
+    // message into each customer's thread
+    for (const c of custs) {
+      try {
+        await api({
+          action: "sendMessage", email: SESSION.email, code: SESSION.code,
+          to: c, text: noteTxt + " Open the Estimates tab to review and sign it."
+        });
+      } catch (err) { console.warn("message failed", err); }
+    }
+    e.lastRemindedAt = new Date().toISOString();
+    e.remindCount = (Number(e.remindCount) || 0) + 1;
+    estimates[i] = e;
+    await saveEstimates();
+    if (btn) btn.textContent = "✓ Reminder sent";
+    renderEstimates();
+  } catch (err) {
+    if (btn) btn.textContent = "✗ Failed — try again";
+  }
+  if (btn) setTimeout(() => { btn.textContent = "🔔 Remind customer"; btn.disabled = false; }, 2500);
+}
+
 async function sendEstimateToCustomer() {
   if (!previewEstId) return;
   const i = estimates.findIndex((x) => x.id === previewEstId);
