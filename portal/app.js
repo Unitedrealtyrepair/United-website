@@ -1,4 +1,4 @@
-// URR Portal v189 — remind customer of pending selections (per-item + remind-all); shows last-reminded
+// URR Portal v190 — track + show when a customer has viewed an estimate (first/last view, count)
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -3753,6 +3753,14 @@ function fmtDateLong(s) {
   return new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 }
 
+// Short date + time from an ISO timestamp, in Boise time (e.g. "Aug 28, 3:26 PM").
+function fmtDateTimeShort(iso) {
+  if (!iso) return "—";
+  const t = Date.parse(iso);
+  if (isNaN(t)) return "—";
+  return new Date(t).toLocaleString("en-US", { timeZone: "America/Boise", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
 function authorLabel(email) {
   if (email === currentUser.email) return "you";
   if ((email || "").toLowerCase() === "info@unitedrealtyrepair.com") return "United Realty Repair";
@@ -4528,6 +4536,20 @@ function renderEstimates() {
       (e.status === "sent" && e.lastRemindedAt) ? "Reminded " + fmtDateLong(e.lastRemindedAt.slice(0, 10)) + (Number(e.remindCount) > 1 ? " (×" + e.remindCount + ")" : "") : null
     ].filter(Boolean).join("  ·  ");
     card.appendChild(meta);
+    // Viewed indicator — tells you whether the customer has opened it.
+    if (isAdmin() && (e.status === "sent" || e.firstViewedAt)) {
+      const vw = document.createElement("div");
+      if (e.firstViewedAt) {
+        vw.className = "est-view-line seen";
+        const times = Number(e.viewCount) || 1;
+        vw.textContent = "👁 Viewed " + fmtDateTimeShort(e.lastViewedAt || e.firstViewedAt) +
+          (times > 1 ? " (" + times + "×)" : "");
+      } else {
+        vw.className = "est-view-line unseen";
+        vw.textContent = "◌ Not viewed yet";
+      }
+      card.appendChild(vw);
+    }
     if (isAdmin() && t.margin) {
       const mg = document.createElement("div");
       mg.className = "est-margin-line";
@@ -6634,6 +6656,11 @@ function openEstView(id) {
   $("ev-decline").classList.toggle("hidden", !open);
   $("ev-pdf").classList.remove("hidden");
   $("est-view-modal").classList.remove("hidden");
+  // Record that the customer opened it (fire-and-forget; admins don't count).
+  if (!isAdmin() && e.status !== "draft") {
+    api({ action: "estimateViewed", email: SESSION.email, code: SESSION.code, project: currentProject.name, estId: id })
+      .catch((err) => console.warn("view ping failed", err));
+  }
 }
 
 async function downloadViewedPdf() {
