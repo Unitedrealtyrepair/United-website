@@ -7,7 +7,7 @@
   <!-- URR Portal v148 -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=190" />
+  <link rel="stylesheet" href="styles.css?v=193" />
 </head>
 <body>
 
@@ -278,6 +278,7 @@
         <div class="tc-totals">
           <div class="tc-tot"><span>Today</span><b id="time-today">0h 00m</b></div>
           <div class="tc-tot"><span>This week</span><b id="time-week">0h 00m</b></div>
+          <div class="tc-tot"><span>All time</span><b id="time-all">0h 00m</b></div>
         </div>
         <div id="time-by-project"></div>
         <div id="time-wages" class="tc-wages"></div>
@@ -906,6 +907,11 @@
           <div id="ci-sched-rows"></div>
           <div class="ci-sched-total">Schedule total: <b id="ci-sched-total">$0</b></div>
         </div>
+        <div id="ci-pay-wrap" class="hidden">
+          <label>Payments logged <span class="lbl-hint">— tap Remove to undo a wrong entry</span></label>
+          <div id="ci-pay-rows"></div>
+          <div class="ci-sched-total">Total paid: <b id="ci-pay-total">$0</b></div>
+        </div>
         <label>Notes to customer</label>
         <input type="text" id="ci-notes" placeholder="e.g. due upon receipt to schedule" />
         <label>Terms</label>
@@ -947,6 +953,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=190"></script>
+  <script src="app.js?v=193"></script>
 </body>
 </html>

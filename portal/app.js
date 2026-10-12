@@ -1,4 +1,4 @@
-// URR Portal v190 — track + show when a customer has viewed an estimate (first/last view, count)
+// URR Portal v193 — view + remove logged invoice payments (undo a wrong entry) in Edit Invoice
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -1413,8 +1413,10 @@ function startPresence() {
 }
 
 function presenceStatus(iso) {
-  if (!iso) return { cls: "offline", label: "Never logged in" };
-  const mins = (Date.now() - new Date(iso).getTime()) / 60000;
+  if (!iso) return { cls: "never", label: "Never logged in" };
+  const t = new Date(iso).getTime();
+  if (isNaN(t)) return { cls: "never", label: "Never logged in" };
+  const mins = (Date.now() - t) / 60000;
   if (mins < 2.5) return { cls: "online", label: "Online now" };
   if (mins < 15) return { cls: "away", label: Math.round(mins) + " min ago" };
   const d = new Date(iso);
@@ -1449,7 +1451,7 @@ function renderPresenceBadge() {
     pop.appendChild(d);
   }
   // Online first, then idle, then offline — each group alphabetical
-  const rank = { online: 0, idle: 1, offline: 2 };
+  const rank = { online: 0, away: 1, offline: 2, never: 3 };
   const rows = roster.map((m) => {
     const rec = presenceRecFor(m.email);
     return { m, rec, st: presenceStatus(rec ? rec.t : null) };
@@ -1464,7 +1466,7 @@ function renderPresenceBadge() {
       lastGroup = st.cls;
       const h = document.createElement("div");
       h.className = "presence-group";
-      h.textContent = st.cls === "online" ? "Online now" : st.cls === "idle" ? "Recently active" : "Offline";
+      h.textContent = st.cls === "online" ? "Online now" : st.cls === "away" ? "Recently active" : st.cls === "never" ? "Never logged in" : "Offline";
       pop.appendChild(h);
     }
     const row = document.createElement("div");
@@ -4047,7 +4049,54 @@ function openCustInvoiceEdit(id) {
   } else {
     wrap.classList.add("hidden");
   }
+  renderCiPayments(inv);
   $("ci-modal").classList.remove("hidden");
+}
+
+// List each logged payment with a Remove button so a wrong entry can be undone.
+function renderCiPayments(inv) {
+  const wrap = $("ci-pay-wrap");
+  const host = $("ci-pay-rows");
+  if (!wrap || !host) return;
+  host.innerHTML = "";
+  const pays = Array.isArray(inv.payments) ? inv.payments : [];
+  if (!pays.length) { wrap.classList.add("hidden"); return; }
+  wrap.classList.remove("hidden");
+  let total = 0;
+  pays.forEach((p) => {
+    total = r2(total + (Number(p.amount) || 0));
+    const row = document.createElement("div");
+    row.className = "ci-pay-row";
+    const info = document.createElement("div");
+    info.className = "ci-pay-info";
+    const amt = document.createElement("b");
+    amt.textContent = fmtMoney(Number(p.amount) || 0);
+    const meta = document.createElement("span");
+    meta.textContent = [p.date || "", p.method || "", p.note || ""].filter(Boolean).join("  ·  ");
+    info.appendChild(amt);
+    info.appendChild(meta);
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "ci-pay-del";
+    del.textContent = "Remove";
+    del.addEventListener("click", () => removeCiPayment(inv.id, p.id, Number(p.amount) || 0));
+    row.appendChild(info);
+    row.appendChild(del);
+    host.appendChild(row);
+  });
+  $("ci-pay-total").textContent = fmtMoney(total);
+}
+
+async function removeCiPayment(invId, payId, amt) {
+  if (!confirm("Remove this payment of " + fmtMoney(amt) + "? This can't be undone.")) return;
+  try {
+    const out = await api({ action: "custInvoicePaymentRemove", email: SESSION.email, code: SESSION.code, project: currentProject.name, invId: invId, payId: payId });
+    if (!out.ok) throw new Error(out.error || "failed");
+    custInvoices = out.invoices;
+    const inv = custInvoices.find((x) => x.id === invId);
+    if (inv) renderCiPayments(inv);
+    render();
+  } catch (e) { alert("Couldn't remove payment: " + e.message); }
 }
 
 function updateCiSchedTotal() {
@@ -6782,10 +6831,11 @@ function renderTime() {
   const now = new Date();
   const todayKey = now.toDateString();
   const ws = weekStart(now);
-  let todayH = 0, weekH = 0;
+  let todayH = 0, weekH = 0, allH = 0;
   const byProject = {};
   for (const e of timeEntries) {
     const h = e.end ? hoursBetween(e.start, e.end) : hoursBetween(e.start, new Date().toISOString());
+    allH += h;
     const d = new Date(e.start);
     if (d.toDateString() === todayKey) todayH += h;
     if (d >= ws) {
@@ -6795,6 +6845,8 @@ function renderTime() {
   }
   $("time-today").textContent = fmtHrs(todayH);
   $("time-week").textContent = fmtHrs(weekH);
+  const allEl = $("time-all");
+  if (allEl) allEl.textContent = fmtHrs(allH);
 
   // --- per-property breakdown this week ---
   const bp = $("time-by-project");
