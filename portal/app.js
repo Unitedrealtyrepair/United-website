@@ -1,4 +1,4 @@
-// URR Portal v193 — view + remove logged invoice payments (undo a wrong entry) in Edit Invoice
+// URR Portal v194 — backend chunks large collections across cells (fixes logs vanishing on busy projects); save failures now alert
 // URR Project Portal v2.0 - dashboard logic
 // ============================================================
 
@@ -289,9 +289,11 @@ async function pushCollection(key, data, notify) {
   try {
     const out = await api({ action: "save", email: SESSION.email, code: SESSION.code, key, data, notify: notify || [] });
     setSyncStatus(out.ok ? "synced" : "offline");
+    return out && out.ok ? { ok: true } : { ok: false, error: (out && out.error) || "save rejected" };
   } catch (err) {
     console.warn("save failed", err);
     setSyncStatus("offline");
+    return { ok: false, error: err.message || "network error" };
   }
 }
 
@@ -306,7 +308,7 @@ function setSyncStatus(state) {
 
 async function saveSchedule() { cacheSet(pkey("Schedule"), schedule); pushCollection(pkey("Schedule"), schedule, pendingNotify.task); pendingNotify.task = []; }
 async function saveBudget()   { cacheSet(pkey("Budget"), budget);     pushCollection(pkey("Budget"), budget); }
-async function saveLogs()     { cacheSet(pkey("Logs"), logs); pushCollection(pkey("Logs"), logs, pendingNotify.log); pendingNotify.log = []; }
+async function saveLogs()     { cacheSet(pkey("Logs"), logs); const r = await pushCollection(pkey("Logs"), logs, pendingNotify.log); pendingNotify.log = []; return r; }
 async function saveSubs()     { cacheSet("urrSubs", subs);            pushCollection("urrSubs", subs); }
 async function saveFolderPerms() { cacheSet(pkey("FolderPerms"), folderPerms); pushCollection(pkey("FolderPerms"), folderPerms); }
 async function saveEstimates()   { pushCollection(pkey("Estimates"), estimates); }
@@ -3847,7 +3849,12 @@ async function saveLog() {
   } else {
     logs.push({ id: "l" + Date.now(), author: currentUser.email, createdAt: new Date().toISOString(), ...data });
   }
-  await saveLogs();
+  const r = await saveLogs();
+  if (r && r.ok === false) {
+    alert("⚠️ This log could NOT be saved to the server (" + (r.error || "unknown") +
+          "). It may disappear when you reload. Check your connection and try Save again.");
+    return; // keep the modal open so the entry isn't lost
+  }
   closeModal("log-modal");
   render();
 }
